@@ -1,0 +1,45 @@
+# Secrets
+.env
+
+# Raw exchange files, downloaded filings and user models never enter git (design doc 23)
+data/
+import/
+out/
+storage/
+*.xbrl
+*.xlsx
+*.xlsm
+!tests/fixtures/**/*.xlsx
+tests/fixtures/golden/
+golden.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv-cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+report.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+web/dist/
+office-addin/dist/
+*.tsbuildinfo
+
+# Generated documents
+*.docx
+*.pptx
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
