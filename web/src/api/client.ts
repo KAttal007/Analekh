@@ -46,7 +46,10 @@ const post = <T>(path: string, body?: unknown) =>
   call<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
-  search: (q: string) => call<SearchHit[]>(`/companies/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, offset = 0, limit = 20) =>
+    call<SearchHit[]>(
+      `/companies/search?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`,
+    ),
   company: (symbol: string) => call<CompanyDetail>(`/companies/${symbol}`),
   filings: (symbol: string) => call<Filing[]>(`/companies/${symbol}/filings`),
   facts: (symbol: string, elements: string) =>

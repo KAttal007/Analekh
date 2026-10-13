@@ -32,5 +32,8 @@ test("search suggests companies from the universe", async () => {
   );
   fireEvent.change(screen.getByLabelText("Search companies"), { target: { value: "demo" } });
   expect(await screen.findByText("DEMOFIN")).toBeTruthy();
-  expect(globalThis.fetch).toHaveBeenCalledWith("/api/companies/search?q=demo", expect.anything());
+  expect(globalThis.fetch).toHaveBeenCalledWith(
+    "/api/companies/search?q=demo&limit=20&offset=0",
+    expect.anything(),
+  );
 });

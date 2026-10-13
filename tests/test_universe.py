@@ -18,10 +18,10 @@ ACMEIND,Acme Industries Limited,EQ,17-Mar-2005,2,1,INE000A01022,2
 OLDCO,Old Company Limited,BE,01-Jan-2000,10,1,INE000O01033,10
 """
 )
+# SME_EQUITY_L.csv as seen 2026-10-13: no MARKET_LOT, trailing comma, two-digit years.
 SME_L = (
-    b"SYMBOL,NAME_OF_COMPANY,SERIES,DATE_OF_LISTING,PAID_UP_VALUE,MARKET_LOT,ISIN_NUMBER,"
-    b"FACE_VALUE\n"
-    b"""TINYSME,Tiny SME Limited,SM,12-Aug-2024,10,1200,INE000T01044,10
+    b"SYMBOL,NAME_OF_COMPANY,SERIES,DATE_OF_LISTING,PAID_UP_VALUE,ISIN_NUMBER,FACE_VALUE,\n"
+    b"""TINYSME,Tiny SME Limited,SM,12-Aug-24,10,INE000T01044,10,
 """
 )
 
@@ -59,6 +59,60 @@ def test_search_symbol_prefix_and_fuzzy_name(db):
     assert search(db, "acme industr")[0].nse_symbol == "ACMEIND"
     assert search(db, "INE000A01022")[0].nse_symbol == "ACMEIND"
     assert search(db, "") == []
+
+
+def test_search_matches_words_in_any_order(db):
+    names = (
+        EQUITY_L.split(b"\n", 2)[0]
+        + b"""
+ZEDMO,Zed Motors Limited,EQ,01-Jan-2020,2,1,INE000Z01011,2
+ZEDPV,Zed Motors Passenger Vehicles Limited,EQ,01-Jan-2000,2,1,INE000Z01022,2
+QUICKMOT,Quick Motors Ltd,EQ,01-Jan-2010,10,1,INE000Q01033,10
+ZEDAMC,Zed Asset Management Company Limited,EQ,01-Jan-2015,5,1,INE000Z01044,5
+ZEDSTEEL,Zed Steel Limited,EQ,01-Jan-2005,1,1,INE000Z01055,1
+"""
+    )
+    upsert_universe(db, parse_equity_list(names))
+
+    def symbols(q: str) -> list[str]:
+        return [h.nse_symbol for h in search(db, q)]
+
+    assert symbols("zed pass") == ["ZEDPV"]  # skipped word, partial last word
+    assert symbols("passenger zed") == ["ZEDPV"]  # any order
+    assert symbols("zed motors") == ["ZEDMO", "ZEDPV"]  # not Quick Motors
+    assert symbols("zed amc")[0] == "ZEDAMC"  # words joined as a symbol prefix
+    assert set(symbols("ZED")) == {"ZEDAMC", "ZEDMO", "ZEDPV", "ZEDSTEEL"}  # not Quick Motors
+    assert symbols("zed stel")[0] == "ZEDSTEEL"  # typo falls back to trigram similarity
+    assert symbols("  zed   pass ") == ["ZEDPV"]
+    assert symbols("zed (pass") == []  # regex characters are escaped, not interpreted
+    assert symbols("zed_") == [] and symbols("z%") == []  # LIKE wildcards too
+
+
+def test_search_narrows_with_each_keystroke(db):
+    names = (
+        EQUITY_L.split(b"\n", 2)[0]
+        + b"""
+TCS,Tazza Consultancy Services Limited,EQ,01-Jan-2004,1,1,INE000T01011,1
+TCIEXP,TCI Express Limited,EQ,01-Jan-2016,2,1,INE000T01022,2
+TIGER,Tiger Foods Limited,EQ,01-Jan-2010,10,1,INE000T01033,10
+MATCHBX,Matchbox Industries Limited,EQ,01-Jan-2012,10,1,INE000M01044,10
+OTCX,Orion Trading Company Limited,EQ,01-Jan-2018,10,1,INE000O01055,10
+ATLAS,Atlas Tyres Limited,EQ,01-Jan-2001,10,1,INE000A01066,10
+"""
+    )
+    upsert_universe(db, parse_equity_list(names))
+
+    def symbols(q: str, **kw: int) -> list[str]:
+        return [h.nse_symbol for h in search(db, q, **kw)]
+
+    # One character: ticker or name starts with it (not Atlas Tyres, whose second word does).
+    assert symbols("T") == ["TCIEXP", "TCS", "TIGER"]
+    # Two or more: anywhere in the ticker or name, closest matches first.
+    assert symbols("TC") == ["TCIEXP", "TCS", "MATCHBX", "OTCX"]
+    assert symbols("tcs") == ["TCS"]
+    # Paging for long lists.
+    assert symbols("T", limit=2) + symbols("T", limit=2, offset=2) == ["TCIEXP", "TCS", "TIGER"]
+    assert symbols("T", limit=2, offset=3) == []
 
 
 def test_sector_map_and_taxonomy(db):

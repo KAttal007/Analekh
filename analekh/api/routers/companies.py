@@ -9,14 +9,18 @@ from analekh import coverage
 from analekh.api import schemas
 from analekh.api.deps import DB, User, company_or_404, job
 from analekh.db.models import ChangeSet, Fact, Filing, Kpi, Model
-from analekh.universe.search import search
+from analekh.universe.search import DEFAULT_LIMIT, search
 
 router = APIRouter(tags=["companies"])
 
 
 @router.get("/companies/search", response_model=list[schemas.SearchHitOut])
-def search_companies(db: DB, q: str, limit: int = 10) -> list[schemas.SearchHitOut]:
-    return [schemas.SearchHitOut(**h.__dict__) for h in search(db, q, min(limit, 50))]
+def search_companies(
+    db: DB, q: str, limit: int = DEFAULT_LIMIT, offset: int = 0
+) -> list[schemas.SearchHitOut]:
+    """Type-ahead search; page through long lists with ``offset``."""
+    hits = search(db, q, min(max(limit, 1), 50), offset=max(offset, 0))
+    return [schemas.SearchHitOut(**h.__dict__) for h in hits]
 
 
 @router.get("/companies/{symbol}", response_model=schemas.CompanyDetail)

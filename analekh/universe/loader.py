@@ -52,7 +52,7 @@ def _norm_header(h: str) -> str:
 
 
 def _date(value: str) -> date | None:
-    for fmt in ("%d-%b-%Y", "%d-%m-%Y", "%Y-%m-%d"):
+    for fmt in ("%d-%b-%Y", "%d-%b-%y", "%d-%m-%Y", "%Y-%m-%d"):  # SME list: 12-Oct-26
         try:
             return datetime.strptime(value.strip(), fmt).date()
         except ValueError:

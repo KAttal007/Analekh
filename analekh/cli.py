@@ -64,7 +64,7 @@ def universe_load(
 
 
 @app.command()
-def search(query: str, limit: int = 10) -> None:
+def search(query: str, limit: int = 15) -> None:
     from analekh.universe.search import search as do_search
 
     with _session() as s:
