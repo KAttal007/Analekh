@@ -8,6 +8,21 @@ from sqlalchemy.orm import Session
 TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://app:app@localhost:5432/analekh")
 
 
+@pytest.fixture(autouse=True)
+def _no_real_claude(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Tests never call the real Claude API, whatever key the developer's .env holds.
+
+    An environment variable outranks .env in pydantic-settings, so an empty key switches off
+    every code path that is gated on one (e.g. AI label matching on template upload).
+    """
+    from analekh.config import get_settings
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def engine():
     """Real PostgreSQL + pgvector (docker compose up postgres). Skips DB tests when unreachable."""

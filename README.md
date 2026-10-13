@@ -72,11 +72,9 @@ gaps are marked `PHASE n` and `# verify` in the code.
    date unknown".
 4. **Fill the sector map** so each company gets a `results_taxonomy` (Ind-AS, bank, NBFC,
    insurance), which decides how its filings are read.
-5. **Install Node 24** and run the web lint, tests and build (the new type-ahead search is
-   unchecked); decide between pnpm and npm and commit a lockfile.
-6. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
+5. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
    `analekh golden-test`.
-7. Run the workbook reader and template onboarding on real templates and models.
+6. Run the workbook reader and template onboarding on real templates and models.
 
 ### Tracker
 
@@ -107,7 +105,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 |---|:---:|---|
 | Universe loader | ✅ | 3,186 companies (2,606 main board + 580 SME); renames and delistings not yet seen on real data |
 | Company search (API and CLI) | ✅ | Type-ahead: one letter matches the start, two or more match anywhere in ticker or name; paged |
-| Web type-ahead search box | 🟡 | Loads more on scroll; web checks not run yet (needs Node) |
+| Web type-ahead search box | 🟡 | Loads more on scroll; lint, tests and build pass; not yet tried against the live API in a browser |
 | Watchlist and coverage levels | 🟡 | |
 | Feed watcher, polite fetcher, linking, storage | 🟡 | Spike read the live feeds; the watcher itself has not run |
 | XBRL parser, validation V1-V9 | 🟡 | Two real files parse; V1-V4, V6, V7, V9 pass; V5 and V8 skip |
@@ -161,13 +159,19 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | All 70 tests run locally, none skipped |
-| Node 24 for `web/` and `office-addin/` | 🔲 | fnm + Node 24; choose pnpm or npm and commit a lockfile |
+| Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
+| Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Upgrade to Python 3.15 | ⛔ | Windows wheels for pyyaml, playa-pdf, zope-interface, numpy-financial |
 
 ### Dev log
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-13** Front ends moved to a pnpm workspace (`web/`, `office-addin/`, one lockfile),
+  Node 24 pinned in `.node-version`. CI now also builds the Excel task pane. Dependency install
+  scripts are denied by default; the three the add-in tooling wanted are listed in
+  `pnpm-workspace.yaml`. Added `.dockerignore` so `.env`, exchange data and models never enter a
+  Docker build context.
 - **2026-10-13** Company search rebuilt as a type-ahead: one letter matches the start of a
   ticker or name, two or more match anywhere, words match in any order ("tata pass"), results
   page with `offset` and the web box loads more on scroll. Look-alike (fuzzy) matches now only
@@ -247,7 +251,8 @@ See [`office-addin/README.md`](office-addin/README.md).
 |---|---|---|
 | [uv](https://docs.astral.sh/uv/) | latest | Python 3.12 (pinned in `.python-version`), dependencies, running everything |
 | Docker Desktop | latest, WSL2 backend on Windows | PostgreSQL 16 + pgvector, Redis, MinIO |
-| Node.js | 24 LTS (via [fnm](https://github.com/Schniz/fnm)) | `web/` and `office-addin/` |
+| Node.js | 24 LTS (via [fnm](https://github.com/Schniz/fnm), pinned in `.node-version`) | `web/` and `office-addin/` |
+| [pnpm](https://pnpm.io/) | pinned in `package.json` (`npm install -g pnpm`) | Front-end workspace and lockfile |
 | Excel | desktop | Excel bridge (xlwings), optional |
 
 LibreOffice and Tesseract are only needed when running the API outside Docker; the Docker
@@ -260,13 +265,15 @@ uv sync                  # dev group installs by default
 uv run pytest -q         # DB tests need PostgreSQL + pgvector (docker compose up -d postgres)
 uv run ruff check . && uv run ruff format --check . && uv run mypy analekh
 uv run alembic upgrade head
-cd web && npm install && npm run dev     # proxies /api to :8000
+pnpm install && pnpm dev                 # web app; proxies /api to :8000
+pnpm lint && pnpm test && pnpm build     # front-end checks CI runs
 pre-commit install       # ruff, gitleaks, no exchange files or workbooks
 ```
 
 Run ruff, mypy and pytest before every commit. Pinned dependencies live in `uv.lock`, with
 `requirements*.txt` exported from it (design doc Appendix G). Front-end types are generated from
-the API: `cd web && npm run api-types` (the API must be running).
+the API: `pnpm api-types` (the API must be running). Commit `pnpm-lock.yaml` with any
+`package.json` change.
 
 ## CI/CD
 

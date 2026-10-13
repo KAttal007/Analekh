@@ -89,14 +89,17 @@ web:
   image: node:24-alpine
   cache:
     key:
-      files: [web/package.json]
-    paths: [web/node_modules]
+      files: [pnpm-lock.yaml]
+    paths: [.pnpm-store]
+  before_script:
+    # The pnpm version is pinned once, in package.json's packageManager field.
+    - npm install -g "$(node -p "require('./package.json').packageManager")"
+    - pnpm config set store-dir .pnpm-store
   script:
-    - cd web
-    - if [ -f package-lock.json ]; then npm ci; else npm install; fi
-    - npm run lint
-    - npm test
-    - npm run build
+    - pnpm install --frozen-lockfile
+    - pnpm lint
+    - pnpm test
+    - pnpm build # web app and Excel task pane
 
 golden_set:
   extends: .py

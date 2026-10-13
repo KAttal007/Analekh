@@ -53,7 +53,7 @@ services:
     depends_on: [redis]
 
   web:
-    build: ./web
+    build: { context: ., dockerfile: web/Dockerfile } # pnpm workspace lives at the root
     ports: ["5173:80"]
     depends_on: [api]
 

@@ -10,7 +10,7 @@
 
 - [ ] `uv run ruff check . && uv run ruff format --check . && uv run mypy analekh`
 - [ ] `uv run pytest` (DB tests need PostgreSQL + pgvector)
-- [ ] `cd web && npm run lint && npm test && npm run build` (if the web app changed)
+- [ ] `pnpm lint && pnpm test && pnpm build` (if `web/` or `office-addin/` changed)
 - [ ] `uv run alembic check` (if `analekh/db/models.py` changed: a migration is included)
 
 ## Rules (CLAUDE.md)

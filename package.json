@@ -1,0 +1,14 @@
+{
+  "name": "analekh-frontends",
+  "private": true,
+  "description": "pnpm workspace root for web/ and office-addin/. The Python app is in pyproject.toml.",
+  "packageManager": "pnpm@12.11.2",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "pnpm --filter analekh-web dev",
+    "lint": "pnpm --filter analekh-web lint",
+    "test": "pnpm --filter analekh-web test",
+    "build": "pnpm -r build",
+    "api-types": "pnpm --filter analekh-web api-types"
+  }
+}

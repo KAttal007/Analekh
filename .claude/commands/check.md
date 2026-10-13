@@ -7,7 +7,7 @@ Run, in order, and fix any failure before moving on:
 2. `uv run alembic upgrade head && uv run alembic check` (PostgreSQL must be up:
    `docker compose up -d postgres`)
 3. `uv run pytest -q`
-4. If `web/` changed: `cd web && npm run lint && npm test && npm run build`
+4. If `web/` or `office-addin/` changed: `pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build`
 
 Report what failed and what you changed. Never skip or weaken a test, and never relax the
 grounding check, to make a check pass.

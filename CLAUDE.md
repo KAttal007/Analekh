@@ -22,14 +22,18 @@ uv run alembic upgrade head               # migrations (analekh/db/migrations)
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py
 uv run analekh --help                     # CLI: universe, search, watch, template, build, sync
 uv run python scripts/phase0_spike.py --limit 10  # needs NSE access (Indian network)
-cd web && npm run dev                     # front end, proxies /api to :8000
-cd web && npm run api-types               # regenerate src/api/schema.d.ts (API must be running)
+pnpm install                              # front ends (pnpm workspace: web/, office-addin/)
+pnpm dev                                  # web app, proxies /api to :8000
+pnpm api-types                            # regenerate web/src/api/schema.d.ts (API must be running)
+pnpm lint && pnpm test && pnpm build      # what CI runs for the front ends
 ```
 
 Run ruff, mypy and pytest before every commit; CI also runs `alembic check`, the web lint, tests
 and build, and GitLab's SAST, secret detection and dependency scanning. After changing
 dependencies, run `uv lock` and re-export the `requirements*.txt` files (Appendix G):
 `uv export --no-hashes --no-emit-project --frozen [--only-group bridge|optional|dev]`.
+Front ends use pnpm (version pinned in the root `package.json`, Node 24 in `.node-version`);
+commit `pnpm-lock.yaml` with any `package.json` change.
 
 ## Layout (request flow order)
 

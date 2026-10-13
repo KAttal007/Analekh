@@ -1,0 +1,19 @@
+# Front-end workspace: the web app and the Excel task pane share one lockfile and one install.
+packages:
+  - web
+  - office-addin
+
+# Dependency install scripts are denied unless listed true here. These three come from
+# office-addin-debugging (Microsoft 365 sign-in and credential storage); desktop Excel sideloading
+# does not need them. Change one to true only if `pnpm --filter analekh-excel-addin start` fails.
+allowBuilds:
+  '@azure/msal-node-extensions': false
+  '@microsoft/m365agentstoolkit-cli': false
+  keytar: false
+
+# pnpm holds back releases younger than its minimum age; these were allowed in explicitly.
+# Remove each entry once that version is older than the window.
+minimumReleaseAgeExclude:
+  - '@vitest/mocker@5.0.4'
+  - '@vitest/spy@5.0.4'
+  - vitest@5.0.4

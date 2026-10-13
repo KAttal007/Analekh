@@ -1,0 +1,28 @@
+# Keep secrets, exchange data, user models and local tooling out of every build context
+# (design doc 23). The Dockerfiles copy only what they name; this keeps the context small and safe.
+.env
+.env.*
+!.env.example
+data/
+import/
+out/
+storage/
+*.xlsx
+*.xlsm
+*.xbrl
+tests/fixtures/golden/
+
+.git/
+.venv/
+.uv-cache/
+.pnpm-store/
+**/node_modules/
+**/dist/
+**/__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.ssh/
+.vscode/
+.idea/
+*.session.sql
