@@ -3,7 +3,7 @@
 #    uv export --only-dev --no-hashes --no-emit-project --frozen -o requirements-dev.txt
 anyio==4.15.1
     # via httpx
-ast-serialize==0.12.1
+ast-serialize==0.13.0
     # via mypy
 boto3-stubs==1.43.111
 botocore-stubs==1.43.67

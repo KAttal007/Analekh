@@ -5,7 +5,6 @@
    question 28.5 on transcript subject lines).
 3. Downloads the XBRL files the results feed links to for the given symbols (or the first N
    items), parses and validates them.
-4. Optionally pulls one price series via Kite (--price SYMBOL; needs KITE_* in .env).
 
 Writes a JSON + console summary. No database needed. Polite by construction: only nsearchives
 hosts, 1 request/second, a descriptive User-Agent (set USER_AGENT in .env).
@@ -38,7 +37,6 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols", nargs="*", default=[], help="match against item titles")
     ap.add_argument("--limit", type=int, default=10)
-    ap.add_argument("--price", help="NSE symbol for one Kite price pull (optional)")
     args = ap.parse_args()
 
     out = Path("out/phase0") / datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -123,10 +121,6 @@ def main() -> None:
 
     spike["results"] = summary
 
-    # 4. One price pull
-    if args.price:
-        spike["price"] = _price(args.price)
-
     (out / "summary.json").write_text(json.dumps(spike, indent=2, default=str))
     with (out / "elements.csv").open("w", newline="") as fh:
         w = csv.writer(fh)
@@ -139,26 +133,6 @@ def main() -> None:
         "Next: compare 10 values per file against the published results PDF by hand,"
         " then update analekh/xbrl/elements.py (# verify markers) and tests/fixtures/real/."
     )
-
-
-def _price(symbol: str) -> dict[str, object]:
-    """Last 10 daily candles for one symbol via Kite Connect (design doc 3.2)."""
-    from datetime import timedelta
-
-    try:
-        from analekh.market.kite import _client
-
-        kite = _client()
-        token = next(
-            i["instrument_token"] for i in kite.instruments("NSE") if i["tradingsymbol"] == symbol
-        )
-        end = datetime.now().date()
-        candles = kite.historical_data(token, end - timedelta(days=15), end, "day")
-    except Exception as exc:  # noqa: BLE001 - optional step
-        print(f"price {symbol}: {exc}")
-        return {"symbol": symbol, "error": str(exc)}
-    print(f"price {symbol}: {len(candles)} candles")
-    return {"symbol": symbol, "candles": candles}
 
 
 if __name__ == "__main__":

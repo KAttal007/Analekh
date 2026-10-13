@@ -48,8 +48,6 @@ dependencies = [
     "rapidfuzz>=3.14,<4",
     "python-dateutil>=2.9,<3",
     "pyyaml>=6.0",
-    # Market data
-    "kiteconnect>=5.2,<6",
     # CLI and logging
     "typer>=0.27,<1.0",
     "structlog>=26.1",

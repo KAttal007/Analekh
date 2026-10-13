@@ -59,7 +59,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 - `excel_bridge/` CLI on the analyst's machine: scan folders, link, watch, apply (xlwings).
 - `genai/` Claude client (token logging, refusal fallbacks), tools (incl. `ModelReader`), calc,
   grounding check, report loop (flash, note, initiation), Q&A, Word/PowerPoint writers.
-- `ib/` comps, profile slide, pitch refresh. `alerts/`, `market/kite.py`.
+- `ib/` comps, profile slide, pitch refresh. `alerts/`. Daily prices: no source yet (Kite
+  removed 2026-10-13; NSE/BSE bhavcopy is the candidate, which needs rule 1 amended).
 - `api/` FastAPI app with routers (design doc 20). `jobs/` Celery app, beat schedule, tasks.
   `cli.py` typer CLI. `admin/` Streamlit ops dashboard. `golden.py` golden-set runner.
 - `web/` React + TypeScript (types generated from OpenAPI). `office-addin/` Excel task pane.

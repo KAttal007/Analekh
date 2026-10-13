@@ -36,7 +36,7 @@ export function SearchPage() {
       </div>
       <div className="steps">
         {STEPS.map((s, i) => (
-          <div key={s.title} className="card step">
+          <div key={s.title} className="card card-hover step">
             <span className="step-number">{i + 1}</span>
             <h2>{s.title}</h2>
             <p>{s.text}</p>

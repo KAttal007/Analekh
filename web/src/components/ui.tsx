@@ -7,25 +7,55 @@ export function PageHeader({
   badges,
   meta,
   actions,
+  leading,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   badges?: ReactNode;
   meta?: ReactNode;
   actions?: ReactNode;
+  leading?: ReactNode;
 }) {
   return (
     <div className="page-header">
-      <div>
-        <div className="page-title">
-          <h1>{title}</h1>
-          {badges}
+      <div className="page-heading">
+        {leading}
+        <div>
+          <div className="page-title">
+            <h1>{title}</h1>
+            {badges}
+          </div>
+          {subtitle && <p className="page-subtitle">{subtitle}</p>}
+          {meta && <div className="meta">{meta}</div>}
         </div>
-        {subtitle && <p className="page-subtitle">{subtitle}</p>}
-        {meta && <div className="meta">{meta}</div>}
       </div>
       {actions && <div className="actions">{actions}</div>}
     </div>
+  );
+}
+
+// Initials on a colour picked from the ticker, so each company keeps the same colour.
+const AVATAR_HUES = [212, 262, 190, 152, 28, 340, 232, 14];
+
+export function Avatar({ symbol, name }: { symbol: string; name: string }) {
+  const words = name
+    .replace(/\b(limited|ltd\.?|the)\b/gi, "")
+    .trim()
+    .split(/\s+/);
+  const initials = (
+    words.length > 1 ? words[0][0] + words[1][0] : symbol.slice(0, 2)
+  ).toUpperCase();
+  let h = 0;
+  for (const ch of symbol) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = AVATAR_HUES[h % AVATAR_HUES.length];
+  return (
+    <span
+      className="avatar"
+      aria-hidden="true"
+      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 58%), hsl(${hue} 65% 44%))` }}
+    >
+      {initials}
+    </span>
   );
 }
 
@@ -93,8 +123,35 @@ export function StatusBadge({ status }: { status: string | null | undefined }) {
   return <Badge tone={TONES[status] ?? "neutral"}>{status.replaceAll("_", " ")}</Badge>;
 }
 
-export function Loading() {
-  return <p className="loading">Loading…</p>;
+export function Skeleton({
+  width = "100%",
+  height = 14,
+}: {
+  width?: number | string;
+  height?: number;
+}) {
+  return <span className="skeleton" style={{ width, height }} />;
+}
+
+/** Placeholder while a screen loads: a heading, a row of figure tiles and a table. */
+export function Loading({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="skeleton-stack" role="status" aria-label="Loading">
+      <Skeleton width="38%" height={22} />
+      <Skeleton width="22%" />
+      <SkeletonTable rows={rows} />
+    </div>
+  );
+}
+
+export function SkeletonTable({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="card card-body skeleton-stack">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} width={`${92 - ((i * 13) % 30)}%`} />
+      ))}
+    </div>
+  );
 }
 
 export function ErrorNote({ error }: { error: unknown }) {

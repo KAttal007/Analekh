@@ -26,10 +26,6 @@ class Settings(BaseSettings):
     embeddings_provider: str = "local"
     embedding_dim: int = 1024
 
-    kite_api_key: str = ""
-    kite_api_secret: str = ""
-    kite_access_token: str = ""
-
     feed_poll_seconds: int = 300
     event_feed_poll_seconds: int = 1800
     universe_refresh_cron: str = "0 6 * * 1"  # weekly, Monday 06:00 IST

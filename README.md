@@ -97,7 +97,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
 | V2 exceptional-items sign convention | 🔲 | Confirm on a filing with exceptional items |
-| Kite price pull | ⛔ | `KITE_*` keys |
+| Daily prices | 🔲 | Kite Connect removed (paid). Candidate: NSE/BSE daily bhavcopy; needs rule 1 amended |
 
 #### Phase 1 · Data layer
 
@@ -165,14 +165,22 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |
-| Known vulnerabilities: `autobahn` 19.11.2 (pinned by `kiteconnect`) | 🔲 | Client-side use only; override to a fixed version or accept |
 | Known vulnerabilities: `adm-zip`, `node-forge` (add-in dev tooling only) | 🔲 | Not in the built add-in; wait for Microsoft's tooling to update |
-| Upgrade to Python 3.15 | ⛔ | Windows wheels for pyyaml, playa-pdf, zope-interface, numpy-financial |
+| Upgrade to Python 3.15 | ⛔ | Windows wheels for pyyaml, playa-pdf (via camelot-py), numpy-financial; zope-interface left with Kite |
 
 ### Dev log
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-13** Kite Connect removed (paid, and its pinned `autobahn` carried two known
+  vulnerabilities): `market/kite.py`, the `KITE_*` settings, the spike's `--price` step and
+  the `kiteconnect` dependency with Twisted and autobahn. The `prices` table stays for a
+  free source.
+- **2026-10-13** UI motion and polish: Inter variable font (bundled), light / dark / system theme
+  switch, collapsible sidebar, screens fade in section by section, animated search dropdown,
+  shimmering loading placeholders, cards that lift on hover, company initials badge, figure tiles
+  with icons and green/red changes, gradient revenue chart. Motion is switched off when the
+  system asks for reduced motion.
 - **2026-10-13** Instant company search: the web app loads every company once
   (`GET /companies/index`, about 80 KB gzipped, ETag-revalidated) and ranks matches in the
   browser on each keystroke, in under 3 ms, with results identical to the API on real data. The
