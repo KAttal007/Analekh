@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "./Layout";
+import { Loading } from "./components/ui";
 import { Placeholder } from "./pages/Placeholder";
 import { SearchPage } from "./pages/SearchPage";
 
@@ -18,7 +19,7 @@ const AssumptionReview = lazy(() =>
 const Models = lazy(() => import("./pages/Models").then((m) => ({ default: m.Models })));
 const Templates = lazy(() => import("./pages/Templates").then((m) => ({ default: m.Templates })));
 
-const page = (el: ReactNode) => <Suspense fallback={<p>Loading…</p>}>{el}</Suspense>;
+const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
 // Screens from design doc 19.1. Reports, Q&A, Comps and Settings land in Phases 4-5.
 export const router = createBrowserRouter([

@@ -48,6 +48,10 @@ class Company(Base):
             "results_taxonomy IN ('indas','banking','nbfc','insurance')",
             name="ck_companies_results_taxonomy",
         ),
+        CheckConstraint(
+            "sector_source IN ('user','excel_stocks','nse_indices')",
+            name="ck_companies_sector_source",
+        ),
         Index(
             "ix_companies_name_trgm",
             "name",
@@ -65,6 +69,8 @@ class Company(Base):
     face_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     sector: Mapped[str | None] = mapped_column(Text)
     industry: Mapped[str | None] = mapped_column(Text)
+    # Where the sector came from (universe/sectors.py): user > excel_stocks > nse_indices.
+    sector_source: Mapped[str | None] = mapped_column(Text)
     results_taxonomy: Mapped[str | None] = mapped_column(Text)
     is_sme: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))

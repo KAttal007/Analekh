@@ -13,6 +13,16 @@ class ORM(BaseModel):
 # --- universe and coverage ------------------------------------------------------------------------
 
 
+class CompanyIndexEntry(BaseModel):
+    """One row of the in-browser search index (GET /companies/index)."""
+
+    id: int
+    nse_symbol: str
+    name: str
+    isin: str | None
+    sector: str | None
+
+
 class SearchHitOut(BaseModel):
     id: int
     nse_symbol: str

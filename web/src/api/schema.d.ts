@@ -4,6 +4,30 @@
  */
 
 export interface paths {
+  "/companies/index": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Company Index
+     * @description Every active company, for the web app's in-browser type-ahead.
+     *
+     *     About 3,200 short rows, so the browser loads it once and searches locally on each keystroke;
+     *     /companies/search stays the source of truth (and the typo fallback). The ETag lets the
+     *     browser revalidate with a 304 instead of downloading the list again.
+     */
+    get: operations["company_index_companies_index_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/search": {
     parameters: {
       query?: never;
@@ -11,7 +35,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Search Companies */
+    /**
+     * Search Companies
+     * @description Type-ahead search; page through long lists with ``offset``.
+     */
     get: operations["search_companies_companies_search_get"];
     put?: never;
     post?: never;
@@ -759,6 +786,22 @@ export interface components {
       /** Watched */
       watched: boolean;
     };
+    /**
+     * CompanyIndexEntry
+     * @description One row of the in-browser search index (GET /companies/index).
+     */
+    CompanyIndexEntry: {
+      /** Id */
+      id: number;
+      /** Nse Symbol */
+      nse_symbol: string;
+      /** Name */
+      name: string;
+      /** Isin */
+      isin: string | null;
+      /** Sector */
+      sector: string | null;
+    };
     /** CompsRequest */
     CompsRequest: {
       /** Symbols */
@@ -1083,11 +1126,32 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  company_index_companies_index_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CompanyIndexEntry"][];
+        };
+      };
+    };
+  };
   search_companies_companies_search_get: {
     parameters: {
       query: {
         q: string;
         limit?: number;
+        offset?: number;
       };
       header?: never;
       path?: never;

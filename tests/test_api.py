@@ -44,6 +44,21 @@ def demo(db, store):
     return c
 
 
+def test_company_index_for_in_browser_search(client, demo):
+    first = client.get("/companies/index")
+    rows = {r["nse_symbol"]: r for r in first.json()}
+    assert rows["DEMOFIN"] == {
+        "id": demo.id,
+        "nse_symbol": "DEMOFIN",
+        "name": "Demo Finance Limited",
+        "isin": "INE000D01011",
+        "sector": "Financial Services",
+    }
+    etag = first.headers["ETag"]
+    again = client.get("/companies/index", headers={"If-None-Match": etag})
+    assert again.status_code == 304 and again.headers["ETag"] == etag
+
+
 def test_search_company_page_and_watchlist(client, demo):
     hits = client.get("/companies/search", params={"q": "demo fin"}).json()
     assert hits[0]["nse_symbol"] == "DEMOFIN"

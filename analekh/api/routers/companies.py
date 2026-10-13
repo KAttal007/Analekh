@@ -1,17 +1,39 @@
 """Universe, company pages, watchlist and on-demand coverage (design doc 4, 19.1, 20)."""
 
+import hashlib
+import json
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from sqlalchemy import func, select
 
 from analekh import coverage
 from analekh.api import schemas
 from analekh.api.deps import DB, User, company_or_404, job
-from analekh.db.models import ChangeSet, Fact, Filing, Kpi, Model
+from analekh.db.models import ChangeSet, Company, Fact, Filing, Kpi, Model
 from analekh.universe.search import DEFAULT_LIMIT, search
 
 router = APIRouter(tags=["companies"])
+
+
+@router.get("/companies/index", response_model=list[schemas.CompanyIndexEntry])
+def company_index(db: DB, request: Request, response: Response) -> object:
+    """Every active company, for the web app's in-browser type-ahead.
+
+    About 3,200 short rows, so the browser loads it once and searches locally on each keystroke;
+    /companies/search stays the source of truth (and the typo fallback). The ETag lets the
+    browser revalidate with a 304 instead of downloading the list again."""
+    rows = db.execute(
+        select(Company.id, Company.nse_symbol, Company.name, Company.isin, Company.sector)
+        .where(Company.is_active)
+        .order_by(Company.nse_symbol)
+    ).all()
+    etag = '"' + hashlib.sha1(json.dumps([tuple(r) for r in rows]).encode()).hexdigest() + '"'
+    headers = {"ETag": etag, "Cache-Control": "private, max-age=300"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return [schemas.CompanyIndexEntry(**r._mapping) for r in rows]
 
 
 @router.get("/companies/search", response_model=list[schemas.SearchHitOut])

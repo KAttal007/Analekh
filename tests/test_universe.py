@@ -1,13 +1,17 @@
 from datetime import date
 from decimal import Decimal
 
+import httpx
+import pytest
 from sqlalchemy import select
 
 from analekh import coverage
 from analekh.db.models import Company
+from analekh.ingest.http import PoliteClient
+from analekh.universe import sectors
 from analekh.universe.loader import parse_equity_list, upsert_universe
 from analekh.universe.search import search
-from analekh.universe.sectors import apply_sectors
+from analekh.universe.sectors import apply_sectors, parse_constituents, refresh_sectors
 
 # Column layout of NSE's EQUITY_L.csv (design doc 3.1). Companies are SYNTHETIC.
 EQUITY_L = (
@@ -132,3 +136,102 @@ def test_watchlist_controls_coverage_level(db):
     assert [w.settings for w in coverage.entries(db)] == [{"alerts": False}]
     coverage.remove(db, demo)
     assert not coverage.is_watched(db, demo.id)
+
+
+# Layout of NSE Indices' constituent lists (verify against a real file). Companies are SYNTHETIC.
+NIFTY_HEADER = b"Company Name,Industry,Symbol,Series,ISIN Code\n"
+
+
+def test_parse_constituents_ignores_header_case_and_bom():
+    data = (
+        "﻿company name , INDUSTRY,symbol,Series,ISIN Code\nAcme Ltd,Capital Goods,acme,EQ,X\n"
+    ).encode()
+    assert parse_constituents(data) == {"ACME": ("Capital Goods", None)}
+
+
+def test_refresh_sectors_from_index_lists(db, monkeypatch: pytest.MonkeyPatch):
+    universe = (
+        EQUITY_L
+        + b"""ZEDBANK,Zed Bank Limited,EQ,01-Jan-2001,10,1,INE000Z01077,10
+ZEDLIFE,Zed Life Insurance Limited,EQ,01-Jan-2017,10,1,INE000Z01088,10
+"""
+    )
+    upsert_universe(db, parse_equity_list(universe))
+    oldco = db.scalar(select(Company).where(Company.nse_symbol == "OLDCO"))
+    oldco.sector = "Set by analyst"
+    monkeypatch.setattr(sectors, "load_sector_map", lambda: {})
+
+    lists = {
+        "ind_nifty500list.csv": NIFTY_HEADER
+        + b"""Demo Finance Limited,Financial Services,DEMOFIN,EQ,INE000D01011
+Acme Industries Limited,Capital Goods,ACMEIND,EQ,INE000A01022
+Old Company Limited,Capital Goods,OLDCO,EQ,INE000O01033
+Zed Bank Limited,Financial Services,ZEDBANK,EQ,INE000Z01077
+Zed Life Insurance Limited,Financial Services,ZEDLIFE,EQ,INE000Z01088
+""",
+        "ind_niftybanklist.csv": NIFTY_HEADER
+        + b"Zed Bank Limited,Financial Services,ZEDBANK,EQ,INE000Z01077\n",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.rsplit("/", 1)[-1]
+        return httpx.Response(200, content=lists[name]) if name in lists else httpx.Response(404)
+
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
+    result = refresh_sectors(db, client)
+
+    assert result["lists_fetched"] == 2 and result["lists_total"] == 5  # missing lists skipped
+    assert result["companies_listed"] == 5 and result["banks"] == 1
+    by_symbol = {c.nse_symbol: c for c in db.scalars(select(Company))}
+    assert by_symbol["ACMEIND"].sector == "Capital Goods"
+    assert by_symbol["OLDCO"].sector == "Set by analyst"  # never overwritten
+    assert by_symbol["ZEDBANK"].results_taxonomy == "banking"  # bank index membership
+    # No strong signal: left for the first filing's schema reference to decide.
+    assert by_symbol["ACMEIND"].results_taxonomy is None
+    assert by_symbol["ZEDLIFE"].results_taxonomy is None
+
+
+def test_stocks_workbook_import_and_source_precedence(db, tmp_path):
+    from openpyxl import Workbook
+
+    upsert_universe(db, parse_equity_list(EQUITY_L))
+    by_symbol = {c.nse_symbol: c for c in db.scalars(select(Company))}
+    by_symbol["OLDCO"].sector, by_symbol["OLDCO"].sector_source = "Analyst's call", "user"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Sector", "BSE Stock ID", "Security Code", "ISIN No"])
+    ws.append(["Banking Services", "#VALUE!", "500001", "INE000D01011"])  # DEMOFIN
+    ws.append(["Machinery, Equipment & Components", "#VALUE!", "500002", "INE000A01022"])  # ACME
+    ws.append(["Chemicals", "#VALUE!", "500003", "INE000O01033"])  # OLDCO: user value wins
+    ws.append(["#FIELD!", "#VALUE!", "500004", "INE999X01099"])  # error: skipped
+    ws.append(["Food & Tobacco", "#VALUE!", "500005", "INE999Y01099"])  # not in the universe
+    path = tmp_path / "stocks.xlsx"
+    wb.save(path)
+
+    result = sectors.import_stocks_workbook(db, path)
+    assert result == {"rows": 5, "with_sector": 4, "matched": 3, "updated": 2}
+    assert (by_symbol["DEMOFIN"].sector, by_symbol["DEMOFIN"].sector_source) == (
+        "Banking Services",
+        "excel_stocks",
+    )
+    assert by_symbol["DEMOFIN"].results_taxonomy is None  # LSEG "Banking Services" includes NBFCs
+    assert by_symbol["OLDCO"].sector == "Analyst's call"
+
+    # A lower source (NSE lists) never replaces Excel Stocks; the same source refreshes itself.
+    assert apply_sectors(db, {"ACMEIND": ("Capital Goods", None)}, source="nse_indices") == 0
+    assert by_symbol["ACMEIND"].sector == "Machinery, Equipment & Components"
+    assert (
+        apply_sectors(db, {"ACMEIND": ("Industrial Machinery", None)}, source="excel_stocks") == 1
+    )
+    assert by_symbol["ACMEIND"].sector == "Industrial Machinery"
+
+
+def test_stocks_workbook_needs_sector_and_isin(db, tmp_path):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.active.append(["Name", "Ticker"])
+    wb.save(tmp_path / "bad.xlsx")
+    with pytest.raises(ValueError, match="needs Sector and ISIN No"):
+        sectors.import_stocks_workbook(db, tmp_path / "bad.xlsx")

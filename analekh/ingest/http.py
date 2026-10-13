@@ -1,7 +1,8 @@
 """Polite HTTP client: descriptive User-Agent, timeouts, rate limit, exponential backoff (9.2-9.3).
 
 Design rule (section 3.2): only published RSS feeds, the equity list CSVs and the files the feeds
-link to. Never NSE's internal JSON endpoints or crawled pages: the host allow-list enforces it.
+link to, plus NSE Indices' published index constituent CSVs (added 2026-10-13 for sectors). Never
+NSE's internal JSON endpoints or crawled pages: the host and path allow-lists enforce it.
 """
 
 import threading
@@ -21,6 +22,13 @@ from analekh.config import get_settings
 ALLOWED_HOSTS = {
     "nsearchives.nseindia.com",
     "archives.nseindia.com",
+    "niftyindices.com",
+    "www.niftyindices.com",
+}
+# Hosts limited to certain paths: niftyindices.com only for its published constituent lists.
+ALLOWED_PATHS = {
+    "niftyindices.com": ("/IndexConstituent/",),
+    "www.niftyindices.com": ("/IndexConstituent/",),
 }
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
@@ -90,9 +98,13 @@ class PoliteClient:
     def get(
         self, url: str, etag: str | None = None, last_modified: str | None = None
     ) -> FetchResult:
-        host = httpx.URL(url).host
+        parsed = httpx.URL(url)
+        host = parsed.host
         if host not in self.allowed:
             raise DisallowedHostError(f"{host} is not an allowed source host")
+        prefixes = ALLOWED_PATHS.get(host)
+        if prefixes and not parsed.path.startswith(prefixes):
+            raise DisallowedHostError(f"{parsed.path} is not an allowed path on {host}")
         headers = {}
         if etag:
             headers["If-None-Match"] = etag

@@ -1,9 +1,10 @@
-// Typed API client. Types come from the FastAPI OpenAPI schema (npm run api-types), so the
+// Typed API client. Types come from the FastAPI OpenAPI schema (pnpm api-types), so the
 // front end and back end cannot drift (design doc Appendix G.5).
 import type { components } from "./schema";
 
 export type Schemas = components["schemas"];
 export type SearchHit = Schemas["SearchHitOut"];
+export type CompanyIndexEntry = Schemas["CompanyIndexEntry"];
 export type CompanyDetail = Schemas["CompanyDetail"];
 export type WatchlistEntry = Schemas["WatchlistEntryOut"];
 export type Filing = Schemas["FilingOut"];
@@ -46,6 +47,7 @@ const post = <T>(path: string, body?: unknown) =>
   call<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
+  companyIndex: () => call<CompanyIndexEntry[]>("/companies/index"),
   search: (q: string, offset = 0, limit = 20) =>
     call<SearchHit[]>(
       `/companies/search?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`,

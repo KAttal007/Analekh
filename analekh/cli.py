@@ -1,6 +1,7 @@
 """Operator command line (design doc 19.3, 22.4).
 
 analekh universe load [--file EQUITY_L.csv]   analekh search QUERY
+analekh universe sectors [--stocks-file X]   (Stocks workbook, or curated map + index lists)
 analekh watch SYMBOL | unwatch SYMBOL | watchlist
 analekh refresh SYMBOL                        analekh backfill [SYMBOL]
 analekh template add PATH --name N --sectors NBFC,Gold Finance [--from-model]
@@ -60,6 +61,32 @@ def universe_load(
     typer.echo(
         f"inserted {len(summary.inserted)}, updated {len(summary.updated)}, "
         f"renamed {len(summary.renamed)}, deactivated {len(summary.deactivated)}"
+    )
+
+
+@universe_app.command("sectors")
+def universe_sectors(
+    stocks_file: Path | None = typer.Option(
+        None, help="Workbook converted with Excel's Stocks data type (Sector + ISIN No columns)"
+    ),
+) -> None:
+    """Fill sectors: from a Stocks workbook, or the curated map then NSE Indices' lists."""
+    from analekh.universe.sectors import import_stocks_workbook, refresh_sectors
+
+    if stocks_file:
+        with _session() as s:
+            w = import_stocks_workbook(s, stocks_file)
+        typer.echo(
+            f"{w['rows']} rows, {w['with_sector']} with a sector, {w['matched']} matched by ISIN, "
+            f"{w['updated']} sectors changed"
+        )
+        return
+    with _session() as s:
+        r = refresh_sectors(s)
+    typer.echo(
+        f"lists {r['lists_fetched']}/{r['lists_total']}, {r['companies_listed']} companies listed "
+        f"({r['banks']} banks); sectors set: {r['updated_curated']} curated, "
+        f"{r['updated_from_lists']} from lists"
     )
 
 

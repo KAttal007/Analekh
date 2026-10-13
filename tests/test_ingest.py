@@ -62,6 +62,17 @@ def test_client_refuses_other_hosts():
         PoliteClient().get("https://www.nseindia.com/api/anything")
 
 
+def test_client_allows_niftyindices_constituent_lists_only():
+    client = PoliteClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x")), backoff_base=0
+    )
+    assert (
+        client.get("https://niftyindices.com/IndexConstituent/ind_nifty500list.csv").status == 200
+    )
+    with pytest.raises(DisallowedHostError):
+        client.get("https://niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString")
+
+
 def test_client_retries_then_succeeds():
     calls = {"n": 0}
 

@@ -1,41 +1,88 @@
-import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, type CompanyIndexEntry } from "../api/client";
+import { prepareIndex, searchIndex } from "../lib/companySearch";
+import { Icon } from "./Icon";
 
-const DEBOUNCE_MS = 120;
+const DEBOUNCE_MS = 120; // server searches only
 const PAGE = 20;
+const INDEX_FRESH_MS = 10 * 60_000;
+
+type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
 
 // Type-ahead over every NSE company (design doc F2). The list narrows with each keystroke:
 // "T" lists tickers and names starting with T, "TC" anything with TC in the ticker or name.
-// More results load as the list is scrolled (or arrowed) to the end.
+// The company list loads once in the background and is searched in the browser, so results
+// update on every keystroke with no network wait. The server answers only when the list is not
+// loaded yet, or when nothing matches locally (its fuzzy search catches typos).
 export function CompanySearch() {
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
   const [active, setActive] = useState(0);
+  const [shown, setShown] = useState(PAGE);
   const listRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // "/" jumps to the search box from anywhere, unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = t?.closest("input, textarea, select, [contenteditable='true']");
+      if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setTerm(q.trim()), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
 
-  const { data, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteQuery({
-      queryKey: ["search", term],
-      queryFn: ({ pageParam }) => api.search(term, pageParam, PAGE),
-      initialPageParam: 0,
-      getNextPageParam: (last, pages) => (last.length === PAGE ? pages.length * PAGE : undefined),
-      enabled: term.length >= 1,
-      placeholderData: keepPreviousData, // keep the list on screen while the next one loads
-    });
-  const hits = data?.pages.flat() ?? [];
-  const current = term === q.trim() && !isPlaceholderData; // results match what was typed
+  // Local search: the whole universe, prepared once.
+  const indexQuery = useQuery({
+    queryKey: ["company-index"],
+    queryFn: api.companyIndex,
+    staleTime: INDEX_FRESH_MS,
+  });
+  const index = useMemo(
+    () => (indexQuery.data ? prepareIndex(indexQuery.data) : null),
+    [indexQuery.data],
+  );
+  const local = useMemo(() => (index ? searchIndex(index, q) : null), [index, q]);
+
+  // Server search: before the list has loaded, or as the typo fallback when nothing matched.
+  const askServer = term.length >= 1 && (local === null || (local.length === 0 && term.length > 2));
+  const server = useInfiniteQuery({
+    queryKey: ["search", term],
+    queryFn: ({ pageParam }) => api.search(term, pageParam, PAGE),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => (last.length === PAGE ? pages.length * PAGE : undefined),
+    enabled: askServer,
+    placeholderData: keepPreviousData, // keep the list on screen while the next one loads
+  });
+
+  const fromLocal = local !== null && local.length > 0;
+  const hits: Suggestion[] = fromLocal
+    ? local.slice(0, shown)
+    : askServer
+      ? (server.data?.pages.flat() ?? [])
+      : [];
+  // Results match what was typed: always for local results; for the server once it caught up.
+  const current = fromLocal || (term === q.trim() && !server.isPlaceholderData);
   const selected = Math.min(active, hits.length - 1);
 
   const loadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+    if (fromLocal) {
+      if (shown < local.length) setShown((n) => n + PAGE);
+    } else if (server.hasNextPage && !server.isFetchingNextPage) {
+      void server.fetchNextPage();
+    }
   };
   useEffect(() => {
     listRef.current
@@ -63,25 +110,32 @@ export function CompanySearch() {
     }
   };
 
+  const typed = q.trim();
   return (
     <div className="search">
+      <span className="search-icon">
+        <Icon name="search" />
+      </span>
       <input
+        ref={inputRef}
         aria-label="Search companies"
         placeholder="Search any NSE company by name or ticker"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
           setActive(0);
+          setShown(PAGE);
           listRef.current?.scrollTo?.({ top: 0 });
         }}
         onKeyDown={onKeyDown}
       />
-      {q.trim().length >= 1 && hits.length > 0 && (
+      {!q && <kbd aria-hidden="true">/</kbd>}
+      {typed.length >= 1 && hits.length > 0 && (
         <ul
           ref={listRef}
           className="suggestions"
           role="listbox"
-          aria-busy={!current || isFetchingNextPage}
+          aria-busy={!current || server.isFetchingNextPage}
           onScroll={(e) => {
             const el = e.currentTarget;
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) loadMore();
@@ -96,11 +150,12 @@ export function CompanySearch() {
               onMouseEnter={() => setActive(i)}
               onClick={() => open(h.nse_symbol)}
             >
-              <strong>{h.nse_symbol}</strong> {highlight(h.name, term)}
-              {h.sector && <span className="muted"> · {h.sector}</span>}
+              <strong>{h.nse_symbol}</strong>
+              <span className="name">{highlight(h.name, fromLocal ? typed : term)}</span>
+              {h.sector && <span className="muted">{h.sector}</span>}
             </li>
           ))}
-          {isFetchingNextPage && <li className="muted">Loading more…</li>}
+          {server.isFetchingNextPage && <li className="muted">Loading more…</li>}
         </ul>
       )}
     </div>

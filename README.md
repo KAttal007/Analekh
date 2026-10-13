@@ -70,8 +70,8 @@ gaps are marked `PHASE n` and `# verify` in the code.
    sample beyond one company.
 3. **Parse NSE's `pubDate` format** (`24-Aug-2026 17:39:16`); until then V8 skips with "filing
    date unknown".
-4. **Fill the sector map** so each company gets a `results_taxonomy` (Ind-AS, bank, NBFC,
-   insurance), which decides how its filings are read.
+4. **Run `analekh universe sectors`** once niftyindices.com answers, and confirm the list file
+   names and columns marked `# verify` in `universe/sectors.py`.
 5. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
    `analekh golden-test`.
 6. Run the workbook reader and template onboarding on real templates and models.
@@ -105,11 +105,14 @@ Keep these tables current in the same merge request as the change, and add a lin
 |---|:---:|---|
 | Universe loader | ✅ | 3,186 companies (2,606 main board + 580 SME); renames and delistings not yet seen on real data |
 | Company search (API and CLI) | ✅ | Type-ahead: one letter matches the start, two or more match anywhere in ticker or name; paged |
+| Web design system and app shell (sidebar, tokens, dark mode, shared components) | 🟡 | Every screen restyled; checked with synthetic and empty data only |
 | Web type-ahead search box | 🟡 | Loads more on scroll; lint, tests and build pass; not yet tried against the live API in a browser |
 | Watchlist and coverage levels | 🟡 | |
 | Feed watcher, polite fetcher, linking, storage | 🟡 | Spike read the live feeds; the watcher itself has not run |
 | XBRL parser, validation V1-V9 | 🟡 | Two real files parse; V1-V4, V6, V7, V9 pass; V5 and V8 skip |
-| Sector map (`data/sector_map.csv`), Nifty 500 list | 🔲 | Empty; open question 28.4; drives `results_taxonomy` |
+| Sectors from an Excel Stocks workbook (`analekh universe sectors --stocks-file`) | ✅ | 2,458 of 2,606 main-board companies (LSEG industry groups, matched by ISIN); 148 main board + 580 SME left. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
+| Sectors from NSE Indices' constituent lists (`analekh universe sectors`) | 🟡 | Built and tested on synthetic lists; not yet run (niftyindices.com unreachable). Lower precedence than the Stocks workbook |
+| Nifty 500 list for backfill priority (`universe/data/nifty500.csv`) | 🔲 | Empty |
 | Backfill | 🟡 | First run |
 
 #### Phase 2 · Builder and sync
@@ -170,6 +173,24 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-13** Instant company search: the web app loads every company once
+  (`GET /companies/index`, about 80 KB gzipped, ETag-revalidated) and ranks matches in the
+  browser on each keystroke, in under 3 ms, with results identical to the API on real data. The
+  API's fuzzy search is only asked when nothing matches locally (typos). API responses over
+  1 KB are now gzipped.
+- **2026-10-13** Sectors for 2,458 companies from a BSE securities list converted with Excel's
+  Stocks data type (LSEG industry groups), imported by ISIN. New `companies.sector_source`
+  (migration 0002) ranks sources: user > excel_stocks > nse_indices. Stocks sectors never set
+  the results taxonomy, since LSEG's "Banking Services" also holds NBFCs.
+- **2026-10-13** Sectors: niftyindices.com allowed, limited to its `/IndexConstituent/` lists.
+  `analekh universe sectors` applies curated overrides, then the Nifty 500 and Microcap 250
+  lists; bank index membership marks banks. The results taxonomy is now only set from strong
+  signals, so the first filing's schema reference decides the rest. Not yet run: both NSE hosts
+  stopped answering this machine on 2026-10-13.
+- **2026-10-13** Web UI design pass: left sidebar with grouped navigation, sticky search bar
+  (`/` to focus), shared colour and spacing tokens with automatic dark mode, and common pieces
+  (page headers, cards, figure tiles, badges, alerts, empty states) used on every screen. The
+  watchlist grid and the revenue chart follow the same theme.
 - **2026-10-13** GitLab Free has no dependency scanning, so CI now runs OSV-Scanner on both
   lockfiles (`dependency_audit`, warning only). First run: 27 known vulnerabilities in 5 packages:
   `autobahn` (pinned by `kiteconnect`) and the Excel add-in's dev tooling (see the tracker). Fixed `mirror_to_github`:
@@ -301,8 +322,10 @@ infrastructure run only once it is configured (CI/CD variables, all masked and p
 From design doc 23. These are not optional.
 
 - Only NSE's **published RSS feeds**, the **published equity list CSVs** and the files they
-  link to, at the published TTL. Never NSE's internal JSON endpoints, never crawling.
-  `analekh/ingest/http.py` enforces a host allow-list.
+  link to, plus NSE Indices' **published index constituent lists** (for sectors), at the
+  published TTL. Never NSE's internal JSON endpoints, never crawling.
+  `analekh/ingest/http.py` enforces a host allow-list, and limits `niftyindices.com` to its
+  `/IndexConstituent/` folder.
 - Raw exchange files, user models and keys are **never committed** (`.gitignore` and the
   pre-commit hooks cover `data/`, `import/`, `out/`, `*.xlsx`, `.env`).
 - Get written confirmation from NSE, or license a feed, before any public or commercial use.

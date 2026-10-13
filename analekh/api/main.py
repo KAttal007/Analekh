@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from analekh import __version__
 from analekh.api.routers import change_sets, companies, models, outputs, templates
@@ -9,6 +10,7 @@ from analekh.api.routers import change_sets, companies, models, outputs, templat
 app = FastAPI(
     title="Analekh", version=__version__, description="The analyst's record, kept for you."
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)  # e.g. the company index: ~300 KB -> ~60 KB
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
