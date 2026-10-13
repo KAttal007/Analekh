@@ -29,7 +29,8 @@ pnpm lint && pnpm test && pnpm build      # what CI runs for the front ends
 ```
 
 Run ruff, mypy and pytest before every commit; CI also runs `alembic check`, the web lint, tests
-and build, and GitLab's SAST, secret detection and dependency scanning. After changing
+and build, GitLab's SAST, secret detection and container scanning, and an OSV-Scanner audit of
+`uv.lock` and `pnpm-lock.yaml` (GitLab's own dependency scanning needs Ultimate). After changing
 dependencies, run `uv lock` and re-export the `requirements*.txt` files (Appendix G):
 `uv export --no-hashes --no-emit-project --frozen [--only-group bridge|optional|dev]`.
 Front ends use pnpm (version pinned in the root `package.json`, Node 24 in `.node-version`);

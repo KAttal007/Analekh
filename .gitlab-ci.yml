@@ -5,7 +5,9 @@
 #   deploy_staging / dast   -> STAGING_URL set and the self-hosted `india` runner registered
 #   deploy_production       -> PRODUCTION_URL set (release tags, manual approval)
 #   mirror_to_github        -> GITHUB_MIRROR_TOKEN / _USER / _REPO set (protected, masked)
-# Scanner template paths follow GitLab's documentation (checked October 2026).
+# Scanner template paths follow GitLab's documentation (checked October 2026). GitLab's own
+# dependency scanning needs the Ultimate tier, so dependency_audit (OSV-Scanner) covers the
+# lockfiles on the Free tier.
 
 stages: [lint, test, build, scan, deploy-staging, dast, release, mirror]
 
@@ -18,7 +20,6 @@ variables:
 include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
-  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
   - template: Jobs/Container-Scanning.gitlab-ci.yml
   - template: Security/DAST.gitlab-ci.yml
 
@@ -101,6 +102,15 @@ web:
     - pnpm test
     - pnpm build # web app and Excel task pane
 
+dependency_audit:
+  stage: test
+  image:
+    name: ghcr.io/google/osv-scanner:v2.7.0
+    entrypoint: [""]
+  allow_failure: true # findings show as a warning, like the other security scanners
+  script:
+    - /osv-scanner scan source --lockfile uv.lock --lockfile pnpm-lock.yaml
+
 golden_set:
   extends: .py
   stage: test
@@ -165,7 +175,9 @@ deploy_production:
 
 mirror_to_github:
   stage: mirror
-  image: alpine/git:latest
+  image:
+    name: alpine/git:latest
+    entrypoint: [""] # the image's entrypoint is `git`; the runner needs a shell
   resource_group: github-mirror
   rules:
     - if: $GITHUB_MIRROR_TOKEN == null || $GITHUB_MIRROR_TOKEN == ""

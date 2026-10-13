@@ -161,12 +161,19 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | All 70 tests run locally, none skipped |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
+| Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |
+| Known vulnerabilities: `autobahn` 19.11.2 (pinned by `kiteconnect`) | 🔲 | Client-side use only; override to a fixed version or accept |
+| Known vulnerabilities: `adm-zip`, `node-forge` (add-in dev tooling only) | 🔲 | Not in the built add-in; wait for Microsoft's tooling to update |
 | Upgrade to Python 3.15 | ⛔ | Windows wheels for pyyaml, playa-pdf, zope-interface, numpy-financial |
 
 ### Dev log
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-13** GitLab Free has no dependency scanning, so CI now runs OSV-Scanner on both
+  lockfiles (`dependency_audit`, warning only). First run: 27 known vulnerabilities in 5 packages:
+  `autobahn` (pinned by `kiteconnect`) and the Excel add-in's dev tooling (see the tracker). Fixed `mirror_to_github`:
+  the `alpine/git` image's entrypoint swallowed the job's shell.
 - **2026-10-13** Front ends moved to a pnpm workspace (`web/`, `office-addin/`, one lockfile),
   Node 24 pinned in `.node-version`. CI now also builds the Excel task pane. Dependency install
   scripts are denied by default; the three the add-in tooling wanted are listed in
@@ -278,7 +285,9 @@ the API: `pnpm api-types` (the API must be running). Commit `pnpm-lock.yaml` wit
 ## CI/CD
 
 `.gitlab-ci.yml` runs lint, tests (PostgreSQL + Redis services), the web build, GitLab SAST,
-secret detection, dependency and container scanning, and builds the image. Jobs that need
+secret detection and container scanning, audits `uv.lock` and `pnpm-lock.yaml` for known
+vulnerabilities with OSV-Scanner (`dependency_audit`; GitLab's own dependency scanning needs the
+Ultimate tier), and builds the image. Jobs that need
 infrastructure run only once it is configured (CI/CD variables, all masked and protected):
 
 | Job | Needs |
