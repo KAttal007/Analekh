@@ -4,27 +4,28 @@ Element names follow the BSE Ind-AS results taxonomy (prefix ``in-bse-fin``). Ba
 insurance filers use different element sets; each taxonomy gets its own table here.
 
 PHASE 0: confirm every name below against real instance files (open question 22.1). Names marked
-``# verify`` were taken from the taxonomy's conventions, not yet from a sampled file.
+``# verify`` were taken from the taxonomy's conventions, not yet from a sampled file. Unmarked
+Ind-AS names were seen in the 2026-10-13 spike (Ind-AS_entry_point_2020-03-31.xsd, one company).
 """
 
 # Logical name -> candidate element local-names, first match wins.
 INDAS: dict[str, tuple[str, ...]] = {
     "revenue": ("RevenueFromOperations",),
     "other_income": ("OtherIncome",),
-    "total_income": ("Income", "TotalIncome"),  # verify
-    "total_expenses": ("Expenses", "TotalExpenses"),  # verify
+    "total_income": ("Income", "TotalIncome"),  # verify TotalIncome (Income seen)
+    "total_expenses": ("Expenses", "TotalExpenses"),  # verify TotalExpenses (Expenses seen)
     "finance_costs": ("FinanceCosts",),
-    "depreciation": ("DepreciationDepletionAndAmortisationExpense",),  # verify
-    "exceptional_items": ("ExceptionalItemsBeforeTax",),  # verify
+    "depreciation": ("DepreciationDepletionAndAmortisationExpense",),
+    "exceptional_items": ("ExceptionalItemsBeforeTax",),
     "pbt": ("ProfitBeforeTax",),
-    "tax": ("TaxExpense",),  # verify
-    "pat_continuing": ("ProfitLossForPeriodFromContinuingOperations",),  # verify
+    "tax": ("TaxExpense",),
+    "pat_continuing": ("ProfitLossForPeriodFromContinuingOperations",),
     "pat": ("ProfitLossForPeriod",),
-    "eps_basic": ("BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations",),  # verify
+    "eps_basic": ("BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations",),
     "total_assets": ("Assets",),
-    "equity_and_liabilities": ("EquityAndLiabilities",),  # verify
-    "total_equity": ("Equity",),  # verify
-    "total_liabilities": ("Liabilities",),  # verify
+    "equity_and_liabilities": ("EquityAndLiabilities",),
+    "total_equity": ("Equity",),
+    "total_liabilities": ("Liabilities",),
     "borrowings_noncurrent": ("BorrowingsNoncurrent",),
     "cfo": ("CashFlowsFromUsedInOperatingActivities",),
 }
@@ -36,7 +37,7 @@ INSURANCE: dict[str, tuple[str, ...]] = {}
 
 BY_TAXONOMY = {"indas": INDAS, "banking": BANKING, "nbfc": NBFC, "insurance": INSURANCE}
 
-# Non-numeric facts that describe the filing itself. verify all in Phase 0.
+# Non-numeric facts that describe the filing itself. All seen in the 2026-10-13 spike.
 META_ELEMENTS = {
     "symbol": "Symbol",
     "scrip_code": "ScripCode",

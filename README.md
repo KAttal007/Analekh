@@ -12,18 +12,75 @@ after a green pipeline on `main` (design doc 22.5).
 
 ## Status
 
-This is a **skeleton of all phases**. Every engine has a working core and tests. Nothing has
-been run against real NSE data yet, because the build sandbox could not reach NSE. Search for
-`PHASE n` and `# verify` markers to see what each phase still needs.
+This is a **skeleton of all phases**. Every engine has a working core and tests (green in CI),
+but nothing has been run against real NSE data yet: the build sandbox could not reach NSE.
+NSE's published archives are now reachable from a development machine, so Phase 0 is
+unblocked. Search for `PHASE n` and `# verify` markers in the code for the exact gaps.
 
-| Phase (design doc 26) | In this skeleton | Still needed |
-|---|---|---|
-| 0 Spike | `scripts/phase0_spike.py`: universe lists, two feeds, XBRL parse + validate, element census, optional Kite price pull | Run from an Indian network; hand-check values; confirm element names, SME list path, pubDate format |
-| 1 Data layer | Universe loader (renames, delistings), sector -> taxonomy, search (pg_trgm), watchlist and coverage levels, feeds, polite fetcher, linking, XBRL, V1-V10, backfill | Real fixtures; bank/NBFC/insurance element tables; sector map and Nifty 500 list; backfill run |
-| 2 Builder and sync | Workbook understanding engine, template onboarding + test build, built-in NBFC and consumer templates, Coverage Builder (fill, propose assumptions, finalize with checks), discovery and tags, change sets, headless apply, Excel bridge CLI, review screens | Try on your real templates and models; balance sheet and cash flow in built-ins; xlwings on your machine |
-| 3 Document AI | PDF read, page classifier, Claude KPI extraction with quote check, chunking, transcripts | API key, golden set, classifier tuning, embeddings choice, V10 wiring |
-| 4 GenAI outputs | Tools (incl. model reader), calc, grounding check, report loop (flash, note, initiation), Q&A, Word/PowerPoint writers | Prompt tuning on 10 companies; reports as Celery jobs |
-| 5 Discovery, IB, polish | Discovery and linking, comps, profile slide, pitch refresh, alerts, Office.js task pane, Streamlit admin | EBITDA/debt/cash elements, branded templates, demo |
+### Tracker
+
+✅ verified on real data · 🟡 built, synthetic tests only · 🔲 to do · ⛔ blocked (reason given)
+
+Keep this table current in the same merge request as the change, and add a line to the
+dev log below.
+
+**Next up**
+
+1. Run the Phase 0 spike (`--limit 10`, then named symbols across sectors) and hand-check values.
+2. Fill `xbrl/elements.py` from `elements.csv`, including the bank, NBFC and insurance tables.
+3. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
+   `analekh golden-test`.
+4. Run the workbook reader and template onboarding on real templates and models.
+
+| Phase (design doc 26) | Item | Status | Still needed |
+|---|---|---|---|
+| 0 Spike | NSE published archives reachable | ✅ | |
+| | `scripts/phase0_spike.py` (lists, two feeds, XBRL parse + validate, element census) | 🟡 | First real run |
+| | XBRL element names (`# verify` in `xbrl/elements.py`) | 🔲 | Confirm from `elements.csv` |
+| | Bank, NBFC and insurance element tables | 🔲 | Empty; fill from `elements.csv` |
+| | SME list path, feed `pubDate` format | 🔲 | Confirm from spike output |
+| | V2 exceptional-items sign convention | 🔲 | Confirm on real filings |
+| | Kite price pull | ⛔ | `KITE_*` keys |
+| 1 Data layer | Universe loader (renames, delistings), search (pg_trgm) | 🟡 | Load the real equity list |
+| | Watchlist and coverage levels | 🟡 | |
+| | Feed watcher, polite fetcher, linking, storage | 🟡 | Run against live feeds |
+| | XBRL parser, validation V1-V9 | 🟡 | Real fixtures |
+| | Sector map (`data/sector_map.csv`), Nifty 500 list | 🔲 | Empty; open question 28.4 |
+| | Backfill | 🟡 | First run |
+| 2 Builder and sync | Workbook understanding engine | 🟡 | Real templates and models |
+| | Template onboarding + test build | 🟡 | Real templates |
+| | Built-in NBFC and consumer templates | 🟡 | P&L and KPIs only; balance sheet and cash flow 🔲 |
+| | Coverage Builder (fill, propose assumptions, finalize) | 🟡 | |
+| | Discovery and tags, change sets, headless apply | 🟡 | |
+| | Excel bridge (xlwings) | 🟡 | First run on an analyst's machine |
+| | Web review screens (change sets, assumptions, models, templates) | 🟡 | |
+| 3 Document AI | PDF read, page classifier, KPI extraction with quote check, chunking, transcripts | 🟡 | API key, golden set, classifier tuning |
+| | V10 (XBRL wins over KPI values) in `docs/pipeline.py` | 🔲 | Map KPI names to XBRL names |
+| | Embeddings | ⛔ | Provider undecided (open question 28.7) |
+| 4 GenAI outputs | Tools (incl. model reader), calc, grounding check | 🟡 | |
+| | Report loop (flash, note, initiation), Q&A, Word/PowerPoint writers | 🟡 | Prompt tuning on 10 companies |
+| | Reports as Celery jobs, files in object storage | 🔲 | Run inline in the API today |
+| | Web Reports and Q&A screens | 🔲 | Placeholders |
+| 5 Discovery, IB, polish | Comps | 🟡 | EBITDA, debt, cash, book value not sourced |
+| | Profile slide, pitch refresh | 🟡 | Branded templates |
+| | Alerts, Office.js task pane, Streamlit admin | 🟡 | |
+| | Web Comps and Settings screens | 🔲 | Placeholders |
+| | Demo | 🔲 | |
+| CI/CD | GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
+| | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
+| Platform | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
+| | Upgrade to Python 3.15 | ⛔ | Windows wheels for pyyaml, playa-pdf, zope-interface, numpy-financial |
+
+### Dev log
+
+Newest first. One line per notable change: what moved, and what it unblocks.
+
+- **2026-10-13** First local development instance. NSE's published archives respond from it,
+  so the Phase 0 spike can run. Pinned Python 3.12 in `.python-version` to match CI and the
+  Dockerfile; 53 tests pass locally, 15 skip without PostgreSQL. Python 3.15 waits for Windows
+  wheels of four dependencies (see the tracker); to upgrade, change `.python-version`, the
+  Dockerfile and `.gitlab-ci.yml` together.
+- **2026-10-12** Skeleton of all phases committed; GitLab CI added, first green pipeline on `main`.
 
 ## Quick start
 
@@ -60,6 +117,8 @@ original workbook; `SAVE_MODE=versioned` (the default) writes a new file per app
 See `office-addin/README.md`.
 
 ## Development
+
+Python 3.12, pinned in `.python-version` (`uv python install 3.12` if you don't have it).
 
 ```bash
 uv sync                  # dev group installs by default
