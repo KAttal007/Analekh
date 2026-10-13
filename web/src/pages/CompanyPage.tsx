@@ -12,6 +12,7 @@ import {
   PageHeader,
   StatusBadge,
 } from "../components/ui";
+import { companyQuery } from "../lib/preload";
 import { useTheme } from "../lib/theme";
 
 const REVENUE = "RevenueFromOperations";
@@ -46,7 +47,7 @@ export function CompanyPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { resolved: theme } = useTheme(); // chart colours follow the theme
-  const company = useQuery({ queryKey: ["company", symbol], queryFn: () => api.company(symbol) });
+  const company = useQuery(companyQuery(symbol));
   const filings = useQuery({ queryKey: ["filings", symbol], queryFn: () => api.filings(symbol) });
   const revenue = useQuery({
     queryKey: ["facts", symbol, REVENUE],

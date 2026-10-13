@@ -146,3 +146,16 @@ def test_backfill_from_import_folder(db, store, company, tmp_path):
     summary = run_backfill(db, store, tmp_path / "import")
     assert len(summary.ingested) == 2 and summary.unknown_symbols == ["NOSUCH"]
     assert len(db.scalars(select(Filing).where(Filing.company_id == company.id)).all()) == 2
+
+
+def test_s3_store_unreachable_raises_storage_unavailable():
+    from botocore.exceptions import EndpointConnectionError
+
+    from analekh.ingest.storage import S3Store, StorageUnavailable
+
+    class Down:
+        def head_bucket(self, **_):
+            raise EndpointConnectionError(endpoint_url="http://localhost:9000/analekh")
+
+    with pytest.raises(StorageUnavailable, match="not reachable"):
+        S3Store(client=Down())

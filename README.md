@@ -17,8 +17,13 @@ numbers, builds a model from your own template (or updates the model you already
 to Excel only after you approve, and drafts the results flash, earnings note, initiation, slides
 and comps with every number traced to its source.
 
-> **Design document:** *Analekh Technical Design Document v1.0.1*. Section numbers in code
+> **Design document:** *Analekh Technical Design Document v0.0.2*
+> ([docs/design/technical-design.md](docs/design/technical-design.md)). Section numbers in code
 > comments (e.g. "design doc 12.3") refer to it.
+>
+> **Versions** follow the build phases: v0.0.x during Phase 0, v0.1.x once Phase 0 is complete,
+> v0.2.x once Phase 1 is complete, and so on. The first release for proper testing is
+> v1.0.0-pre-release.
 >
 > **Source control:** GitLab is the source of truth. GitHub is a read-only mirror, updated by CI
 > after a green pipeline on `main` (design doc 22.5). Never push to GitHub directly.
@@ -172,6 +177,10 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-14** Object storage: MinIO no longer publishes community images, so compose builds it
+  from source (`deploy/minio/Dockerfile`, pinned release). When storage is down the API now
+  answers 503 within seconds instead of hanging, and the Models and Templates pages show the
+  error instead of loading forever.
 - **2026-10-13** Kite Connect removed (paid, and its pinned `autobahn` carried two known
   vulnerabilities): `market/kite.py`, the `KITE_*` settings, the spike's `--price` step and
   the `kiteconnect` dependency with Twisted and autobahn. The `prices` table stays for a
@@ -250,7 +259,7 @@ Without NSE access, load the universe from a file downloaded by hand:
 ### Python on the host, services in Docker
 
 ```bash
-docker compose up -d postgres            # add redis minio for jobs and file storage
+docker compose up -d postgres minio      # add redis for jobs; MinIO is built from source on first run
 uv sync
 uv run alembic upgrade head
 uv run analekh universe load

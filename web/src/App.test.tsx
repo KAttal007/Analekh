@@ -76,3 +76,16 @@ test("falls back to the server's fuzzy search when nothing matches locally", asy
     expect.anything(),
   );
 });
+
+test("prefetches the highlighted company so its page opens with data", async () => {
+  const fetch = mockApi();
+  const input = renderSearch();
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()),
+  );
+  fireEvent.change(input, { target: { value: "demo" } });
+  expect(await screen.findByText("DEMOFIN")).toBeTruthy();
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith("/api/companies/DEMOFIN", expect.anything()),
+  );
+});

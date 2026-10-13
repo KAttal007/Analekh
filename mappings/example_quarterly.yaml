@@ -1,4 +1,4 @@
-# Example template mapping (design doc v1.0.1, Appendix B). Suggested by the workbook
+# Example template mapping (design doc v0.0.1, Appendix B). Suggested by the workbook
 # understanding engine, confirmed once per template; rows are matched by label.
 template: nbfc_quarterly
 version: 3

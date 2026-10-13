@@ -212,6 +212,17 @@ kbd {
     transform: none;
   }
 }
+/* Screen entry starts partly visible, so content reads at once instead of fading in from blank. */
+@keyframes page-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -230,19 +241,20 @@ kbd {
     background-position: -200% 0;
   }
 }
-/* Each section of a screen fades up in turn when the screen opens (see Layout.tsx). */
+/* Each section of a screen fades up in turn when the screen opens (see Layout.tsx). Kept short:
+   content is readable from the first frame and settles within about 0.25 s. */
 .page-enter > .page > *,
 .page-enter > :not(.page) {
-  animation: fade-up var(--slow) var(--ease-out) both;
+  animation: page-in 180ms var(--ease-out) both;
 }
 .page-enter > .page > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 20ms;
 }
 .page-enter > .page > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 40ms;
 }
 .page-enter > .page > :nth-child(n + 4) {
-  animation-delay: 120ms;
+  animation-delay: 60ms;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

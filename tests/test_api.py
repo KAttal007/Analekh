@@ -202,3 +202,15 @@ def test_discover_and_link(client, db, demo):
     ).json()["candidates"]
     assert again[0]["method"] == "tag" and again[0]["model_id"] == linked["id"]
     assert db.scalar(select(Filing).where(Filing.company_id == demo.id)) is not None
+
+
+def test_storage_down_is_a_fast_503(client):
+    from analekh.ingest.storage import StorageUnavailable
+
+    def down():
+        raise StorageUnavailable("object storage is not reachable at localhost:9000")
+
+    app.dependency_overrides[get_store] = down
+    r = client.get("/templates")
+    assert r.status_code == 503
+    assert "docker compose up -d minio" in r.json()["detail"]

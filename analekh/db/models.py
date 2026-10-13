@@ -1,4 +1,4 @@
-"""SQLAlchemy models mirroring the core DDL (design doc v1.0.1, Appendix A).
+"""SQLAlchemy models mirroring the core DDL (design doc v0.0.1, Appendix A).
 
 Monetary values are NUMERIC, never float. Raw files live in object storage; rows hold keys.
 """

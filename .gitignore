@@ -39,6 +39,7 @@ office-addin/dist/
 # Generated documents
 *.docx
 *.pptx
+!docs/design/*.docx
 
 # OS / editors
 .DS_Store

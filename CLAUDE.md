@@ -6,7 +6,13 @@ Guidance for Claude Code working in this repository.
 
 Analekh (`analekh/`): any NSE-listed company in; validated XBRL facts, a built or updated Excel
 model (analyst-approved) and grounded research drafts out. Section numbers in comments (e.g.
-"design doc 12.3") refer to *Analekh Technical Design Document v1.0.1*.
+"design doc 12.3") refer to *Analekh Technical Design Document v0.0.2*
+(`docs/design/technical-design.md`, converted from the `.docx`; v0.0.1 is kept as the original
+record). Record every departure from it in `docs/design/deviations.md`.
+
+Versions follow the build phases (design doc 26): v0.0.x during Phase 0, v0.1.x once Phase 0 is
+complete, v0.2.x once Phase 1 is complete, and so on; v1.0.0-pre-release is the first release for
+proper testing. "v1" in the design doc means that first release.
 
 GitLab (`kaushal-self/Kaushal-Analekh`) is the source of truth. GitHub is a read-only mirror
 fed only by the `mirror_to_github` CI job: never push to GitHub directly (design doc 22.5).
@@ -18,6 +24,7 @@ uv sync                                   # install (dev group is the default)
 uv run pytest -q                          # all tests; DB tests skip if PostgreSQL is down
 uv run ruff check . && uv run ruff format . && uv run mypy analekh
 docker compose up -d postgres             # PostgreSQL 16 + pgvector + pg_trgm for DB tests
+docker compose up -d minio                # object storage (built from source on first run)
 uv run alembic upgrade head               # migrations (analekh/db/migrations)
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py
 uv run analekh --help                     # CLI: universe, search, watch, template, build, sync

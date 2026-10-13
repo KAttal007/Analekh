@@ -49,28 +49,44 @@ class LocalStore:
         return (self.root / key).exists()
 
 
+class StorageUnavailable(RuntimeError):
+    """Object storage can't be reached (e.g. MinIO not running). The API answers 503."""
+
+
 class S3Store:
     def __init__(self, client: Any = None) -> None:
         import boto3
+        from botocore.config import Config
 
         s = get_settings()
         self.bucket = s.minio_bucket
+        self.endpoint = s.minio_endpoint
         scheme = "https" if s.minio_secure else "http"
+        # Fail in seconds, not minutes, when storage is down: botocore's defaults (60 s connect
+        # timeout, several retries) leave API requests hanging.
+        config = Config(
+            connect_timeout=2,
+            read_timeout=30,
+            retries={"mode": "standard", "total_max_attempts": 1},
+        )
         self.client = client or boto3.client(
             "s3",
             endpoint_url=f"{scheme}://{s.minio_endpoint}",
             aws_access_key_id=s.minio_access_key,
             aws_secret_access_key=s.minio_secret_key,
+            config=config,
         )
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:
-        from botocore.exceptions import ClientError
+        from botocore.exceptions import ClientError, ConnectTimeoutError, EndpointConnectionError
 
         try:
             self.client.head_bucket(Bucket=self.bucket)
         except ClientError:
             self.client.create_bucket(Bucket=self.bucket)
+        except (EndpointConnectionError, ConnectTimeoutError) as exc:
+            raise StorageUnavailable(f"object storage is not reachable at {self.endpoint}") from exc
 
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         if not self.exists(key):

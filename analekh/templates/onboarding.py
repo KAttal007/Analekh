@@ -160,6 +160,10 @@ def ensure_builtin_templates(
             select(Template).where(Template.owner == BUILTIN_OWNER, Template.name == spec.key)
         )
         if existing is not None:
+            if not store.exists(existing.storage_key):
+                # The row outlived its file (storage wiped or swapped): rebuild it from the spec.
+                data, _ = build(spec, reference)
+                store.put(existing.storage_key, data, XLSX)
             out.append(existing)
             continue
         data, mapping = build(spec, reference)

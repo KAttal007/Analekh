@@ -1,5 +1,6 @@
 """Shared API dependencies. Tests override get_session and get_store."""
 
+from functools import lru_cache
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException
@@ -13,7 +14,10 @@ from analekh.ingest.storage import ObjectStore, default_store
 from analekh.universe.search import get as get_company
 
 
+@lru_cache
 def get_store() -> ObjectStore:
+    """One store per process. A failed connect raises (and isn't cached), so the next request
+    tries again once storage is up."""
     return default_store()
 
 

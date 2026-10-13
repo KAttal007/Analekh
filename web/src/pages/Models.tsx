@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { Badge, EmptyState, Loading, PageHeader } from "../components/ui";
+import { Badge, EmptyState, ErrorNote, Loading, PageHeader } from "../components/ui";
 
 export function Models() {
-  const { data = [], isLoading } = useQuery({ queryKey: ["models"], queryFn: api.models });
+  const { data = [], isLoading, isError, error } = useQuery({
+    queryKey: ["models"],
+    queryFn: api.models,
+  });
   return (
     <div className="page">
       <PageHeader
@@ -14,6 +17,8 @@ export function Models() {
       />
       {isLoading ? (
         <Loading />
+      ) : isError ? (
+        <ErrorNote error={error} />
       ) : data.length === 0 ? (
         <EmptyState icon="table" title="No models yet">
           Open a company and press Start coverage to build one from a template, or run the Excel

@@ -204,3 +204,15 @@ def test_discovery_and_linking(db, store, company, tmp_path):
     assert again.method == "tag" and again.model_id == model.id
     assert link(db, company, hints_for(path)).id == model.id  # relinking is idempotent
     assert db.scalar(select(ModelBuild)) is None
+
+
+def test_builtin_template_file_is_rebuilt_when_storage_lost_it(db, store, tmp_path):
+    from analekh.ingest.storage import LocalStore
+    from analekh.templates.onboarding import ensure_builtin_templates
+
+    first = ensure_builtin_templates(db, store)
+    fresh = LocalStore(tmp_path / "empty")  # same rows, storage wiped
+    again = ensure_builtin_templates(db, fresh)
+    assert [t.id for t in again] == [t.id for t in first]
+    for t in again:
+        assert fresh.get(t.storage_key).startswith(b"PK")

@@ -2,14 +2,13 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "./Layout";
 import { Loading } from "./components/ui";
+import { loadCompanyPage } from "./lib/preload";
 import { Placeholder } from "./pages/Placeholder";
 import { SearchPage } from "./pages/SearchPage";
 
 // Heavy screens (AG Grid, ECharts) load on demand.
 const Watchlist = lazy(() => import("./pages/Watchlist").then((m) => ({ default: m.Watchlist })));
-const CompanyPage = lazy(() =>
-  import("./pages/CompanyPage").then((m) => ({ default: m.CompanyPage })),
-);
+const CompanyPage = lazy(() => loadCompanyPage().then((m) => ({ default: m.CompanyPage })));
 const ChangeSetReview = lazy(() =>
   import("./pages/ChangeSetReview").then((m) => ({ default: m.ChangeSetReview })),
 );

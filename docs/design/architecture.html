@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analekh Architecture</title>
+<!--
+  Source of "Analekh - Architecture v0.0.2.pdf" (design doc v0.0.2). Three A4 landscape pages.
+  Render: msedge --headless --no-pdf-header-footer --print-to-pdf="<out>.pdf" architecture.html
+  Diagrams are drawn by the script at the bottom from plain coordinate lists.
+-->
+<style>
+  @font-face {
+    font-family: "Inter";
+    src: url("../../web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 900;
+  }
+  :root {
+    --page: #f2f4f1;
+    --panel: #ffffff;
+    --line: #d5dbd6;
+    --ink: #1c2420;
+    --muted: #5f6a64;
+    --faint: #8a948e;
+    --source: #e7ece8;
+    --amber: #b0601d;
+    --amber-soft: #f6efe7;
+    --blue: #3567b0;
+    --blue-soft: #eef3fa;
+    --pending: #9a8f78;
+    --pending-soft: #f5f2ea;
+  }
+  @page { size: 297mm 210mm; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); }
+  body {
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page {
+    width: 297mm;
+    height: 210mm;
+    padding: 8mm 11mm 7mm;
+    overflow: hidden;
+    break-after: page;
+    background: var(--page);
+  }
+  .page:last-child { break-after: auto; }
+  .kicker {
+    font: 500 7.5pt "Consolas", ui-monospace, monospace;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  h1 { font-size: 21pt; font-weight: 700; letter-spacing: -0.01em; margin: 1.5mm 0 0.5mm; }
+  .tagline { color: var(--amber); font-style: italic; font-size: 10pt; margin: 0 0 2.5mm; }
+  .lead { font-size: 8.6pt; line-height: 1.5; color: #46504b; max-width: 205mm; margin: 0 0 3mm; }
+  h2 { font-size: 11.5pt; font-weight: 700; margin: 0 0 2mm; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 2.5mm;
+    padding: 3mm 4mm;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .legend {
+    display: flex; gap: 7mm; align-items: center; flex-wrap: wrap;
+    font-size: 7.4pt; color: var(--muted); margin: 2mm 0 1.6mm;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 1.6mm; }
+  .legend i { display: inline-block; width: 9mm; height: 0; border-top: 1.4px solid var(--ink); }
+  .legend i.ctl { border-top-style: dashed; }
+  .legend i.apr { border-top-color: var(--amber); border-top-width: 1.8px; }
+  .legend i.ai { border-top: 1.6px dotted var(--blue); }
+  .legend i.pend { border-top: 1.4px dashed var(--pending); }
+  .legend b {
+    display: inline-block; width: 6mm; height: 3.2mm; border: 1px dashed #8d968f;
+    background: var(--source); border-radius: 0.6mm;
+  }
+  .legend b.pend { border-color: var(--pending); background: var(--pending-soft); }
+  .note { font-size: 7.9pt; line-height: 1.5; color: #46504b; max-width: 200mm; margin: 0; }
+  .two { display: grid; grid-template-columns: 1.05fr 1fr; gap: 6mm; margin-top: 3mm; }
+  .changes { font-size: 7.9pt; line-height: 1.45; color: #46504b; margin: 0; padding-left: 4mm; }
+  .changes li { margin-bottom: 1.1mm; }
+  .changes b { color: var(--ink); }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm 6mm; margin-top: 3mm; }
+  .card { border-top: 1px solid #c3cbc5; padding-top: 1.8mm; }
+  .card h3 { font-size: 8.6pt; margin: 0 0 1mm; }
+  .card p { font-size: 7.6pt; line-height: 1.45; color: #46504b; margin: 0; }
+  .card p.mono { font-family: "Consolas", ui-monospace, monospace; font-size: 7.3pt; }
+</style>
+</head>
+<body>
+
+<!-- Page 1: components and data flow -->
+<section class="page">
+  <div class="kicker">System design v0.0.2 · October 2026 · Phase 0</div>
+  <h1>Analekh Architecture</h1>
+  <p class="tagline">The analyst’s record, kept for you.</p>
+  <p class="lead">
+    Every NSE-listed company is preloaded and its results are parsed as they are filed. For a company
+    you follow, the system finds and updates your Excel model after you approve each change, or builds
+    a new model from your sector template and drafts an initiation. Core numbers come from XBRL; the AI
+    writes the analysis and pulls every figure from the database. The price source is still undecided.
+  </p>
+  <h2>Components and data flow</h2>
+  <div class="panel"><svg id="flow" viewBox="0 0 1240 548" role="img" aria-label="Components and data flow"></svg></div>
+  <div class="legend">
+    <span><i></i>data</span>
+    <span><i class="ctl"></i>control / return</span>
+    <span><i class="apr"></i>analyst approval</span>
+    <span><i class="ai"></i>Claude API call</span>
+    <span><i class="pend"></i>pending (no source yet)</span>
+    <span><b></b>external source</span>
+    <span><b class="pend"></b>undecided source</span>
+  </div>
+  <p class="note">
+    The NSE equity and SME lists preload every company and NSE’s RSS feeds are polled on a schedule, so
+    results for all filers are parsed automatically and “newest filing for this ticker” is a database
+    lookup. Sectors are imported by precedence (user override, then Excel’s Stocks data type, then NSE
+    Indices lists) and recorded per company. Only the relevant PDF pages reach Claude. Nothing is written
+    to Excel until the analyst approves.
+  </p>
+</section>
+
+<!-- Page 2: quarterly update -->
+<section class="page">
+  <h2>What happens when an analyst enters a ticker</h2>
+  <div class="panel"><svg id="update" viewBox="0 0 1240 452" role="img" aria-label="Quarterly update sequence"></svg></div>
+  <div class="two">
+    <p class="note">
+      The ticker search runs in the browser over the whole universe, so the company opens at once.
+      Steps 3 and 4 run only when the filing isn’t already in the database. The linked model is found
+      through watched folders or the open workbook, identified by a hidden tag, its file name or its
+      contents. Steps 6 and 7 are the approval gate: the analyst sees which cells change and which
+      forecasts need rolling forward, accepts or edits each one, and only then is a new model version
+      saved.
+    </p>
+    <div>
+      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.2</h2>
+      <ul class="changes">
+        <li><b>Prices:</b> Kite Connect removed. Undecided: Excel’s Stocks data type in the workbook now,
+          NSE’s end-of-day bhavcopy later; one static reference price at a time.</li>
+        <li><b>Sectors:</b> user override, then the Stocks data type (LSEG industry), then NSE Indices
+          constituent lists; the source is recorded per company.</li>
+        <li><b>Search:</b> ranked type-ahead; the universe loads once and is searched in the browser.</li>
+        <li><b>Build and CI:</b> GitLab Free with OSV-Scanner; pnpm workspace, Node 24.</li>
+        <li><b>Versions</b> follow the build phases: v0.0.x in Phase 0, v0.1.x once it is complete;
+          <span style="white-space:nowrap">v1.0.0-pre-release</span> is the first release for testing.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Page 3: start coverage -->
+<section class="page">
+  <h2>What happens when an analyst starts coverage</h2>
+  <div class="panel"><svg id="coverage" viewBox="0 0 1240 452" role="img" aria-label="Start coverage sequence"></svg></div>
+  <p class="note" style="margin-top:2.5mm">
+    Used when no model exists yet. The analyst picks a company and a sector template (their own upload or
+    a built-in one). The builder fills the template’s inputs with sourced history and keeps its formulas.
+    Proposed assumptions pass through the same approval gate before the tagged model is saved. From the
+    next results onward, the quarterly update flow takes over.
+  </p>
+  <div class="cards">
+    <div class="card"><h3>Numbers come from data</h3><p>Figures in drafts are fetched from the database or
+      the model through tool calls, and each one carries its XBRL tag or PDF page reference.</p></div>
+    <div class="card"><h3>Data rights</h3><p>NSE’s published RSS feeds at their stated interval, its
+      published lists, NSE Indices’ constituent CSVs and company IR pages. No NSE internal endpoints.
+      Stocks data type fields are for your own use. Written confirmation or a licence before any public
+      release.</p></div>
+    <div class="card"><h3>Your templates</h3><p>Upload a model template per sector. The system reads its
+      structure, you confirm the mapping once, and a test build must pass before it is used.</p></div>
+    <div class="card"><h3>Prices (undecided)</h3><p>One static reference price at a time: the day’s close
+      after the market closes, the day’s open during market hours. Stocks data type in Excel now; NSE’s
+      bhavcopy, which is end of day only, later.</p></div>
+    <div class="card"><h3>Runs from India</h3><p>NSE’s main site is geo-restricted, so the scheduler and
+      fetchers run on an Indian network or VM. When NSE hosts stop answering, fetchers retry later with
+      single requests.</p></div>
+    <div class="card"><h3>Stack</h3><p class="mono">Python 3.12 · FastAPI · Celery + Redis · Arelle ·
+      PyMuPDF · Claude API · Postgres + pgvector · MinIO · xlwings · React + pnpm · Docker Compose ·
+      GitLab CI</p></div>
+  </div>
+</section>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const C = {
+  ink: "#1c2420", muted: "#5f6a64", line: "#c9d0cb", source: "#e7ece8", amber: "#b0601d",
+  amberSoft: "#f6efe7", blue: "#3567b0", blueSoft: "#eef3fa", pending: "#9a8f78", pendingSoft: "#f5f2ea",
+};
+const SANS = "Inter, Segoe UI, sans-serif";
+const MONO = "Consolas, ui-monospace, monospace";
+
+function el(parent, tag, attrs = {}, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+}
+
+// Text on a solid background rect (a stroke halo would duplicate the text in the PDF).
+function label(svg, attrs, text, bg = "#fff") {
+  const t = el(svg, "text", attrs, text);
+  const b = t.getBBox();
+  const r = document.createElementNS(NS, "rect");
+  for (const [k, v] of Object.entries({ x: b.x - 2, y: b.y - 0.5, width: b.width + 4, height: b.height + 1,
+    fill: bg, ...(attrs.transform ? { transform: attrs.transform } : {}) })) r.setAttribute(k, v);
+  svg.insertBefore(r, t);
+  return t;
+}
+
+function defs(svg) {
+  const d = el(svg, "defs");
+  for (const [id, color] of [["ink", C.ink], ["amber", C.amber], ["blue", C.blue], ["pending", C.pending]]) {
+    const m = el(d, "marker", { id: `ah-${svg.id}-${id}`, viewBox: "0 0 10 10", refX: 9, refY: 5,
+      markerWidth: 6.5, markerHeight: 6.5, orient: "auto-start-reverse" });
+    el(m, "path", { d: "M0,0 L10,5 L0,10 z", fill: color });
+  }
+  const p = el(d, "pattern", { id: `hatch-${svg.id}`, width: 6, height: 6, patternUnits: "userSpaceOnUse",
+    patternTransform: "rotate(45)" });
+  el(p, "rect", { width: 6, height: 6, fill: C.pendingSoft });
+  el(p, "line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#e6dfcf", "stroke-width": 2 });
+}
+
+// kind: solid | source | amber | pending | core
+function box(svg, { x, y, w, h, title, sub = [], kind = "solid" }) {
+  const style = {
+    solid: { fill: "#fff", stroke: C.ink, dash: null, sw: 1 },
+    amber: { fill: "#fff", stroke: C.amber, dash: null, sw: 1.8 },
+    source: { fill: C.source, stroke: "#8d968f", dash: "4 3", sw: 1 },
+    pending: { fill: `url(#hatch-${svg.id})`, stroke: C.pending, dash: "4 3", sw: 1.2 },
+    core: { fill: "#edf1ee", stroke: C.ink, dash: null, sw: 1 },
+  }[kind];
+  el(svg, "rect", { x, y, width: w, height: h, rx: 5, fill: style.fill, stroke: style.stroke,
+    "stroke-width": style.sw, ...(style.dash ? { "stroke-dasharray": style.dash } : {}) });
+  el(svg, "text", { x: x + 10, y: y + 17, "font-family": SANS, "font-size": 11.5, "font-weight": 700,
+    fill: C.ink }, title);
+  sub.forEach((s, i) => el(svg, "text", { x: x + 10, y: y + 31 + i * 12, "font-family": MONO,
+    "font-size": 9.4, fill: kind === "pending" ? "#7a6f58" : C.muted,
+    ...(kind === "pending" ? { "font-style": "italic" } : {}) }, s));
+}
+
+// kind: data | control | approval | claude | pending
+function arrow(svg, { d, kind = "data", label: text, at, anchor = "middle", rotate, color }) {
+  const s = {
+    data: { stroke: C.ink, dash: null, w: 1.2, m: "ink" },
+    control: { stroke: C.ink, dash: "4 3", w: 1.2, m: "ink" },
+    approval: { stroke: C.amber, dash: null, w: 1.8, m: "amber" },
+    approvalBack: { stroke: C.amber, dash: "6 4", w: 1.8, m: "amber" },
+    claude: { stroke: C.blue, dash: "1.5 3", w: 1.5, m: "blue" },
+    pending: { stroke: C.pending, dash: "4 3", w: 1.3, m: "pending" },
+  }[kind];
+  el(svg, "path", { d, fill: "none", stroke: s.stroke, "stroke-width": s.w,
+    ...(s.dash ? { "stroke-dasharray": s.dash } : {}), "marker-end": `url(#ah-${svg.id}-${s.m})` });
+  if (text) {
+    const [lx, ly] = at;
+    const textColor = color || { approval: C.amber, approvalBack: C.amber, claude: C.blue,
+      pending: "#7a6f58" }[kind] || C.muted;
+    label(svg, { x: lx, y: ly, "text-anchor": anchor, "font-family": MONO, "font-size": 8.8,
+      fill: textColor, ...(rotate ? { transform: `rotate(${rotate} ${lx} ${ly})` } : {}) }, text);
+  }
+}
+
+function heading(svg, x, w, text) {
+  el(svg, "text", { x, y: 20, "font-family": MONO, "font-size": 9, fill: C.muted, "letter-spacing": 1 }, text);
+  el(svg, "line", { x1: x, y1: 27, x2: x + w, y2: 27, stroke: C.line });
+}
+
+/* ---------- Page 1: components and data flow ---------- */
+(function flow() {
+  const svg = document.getElementById("flow");
+  defs(svg);
+  const col = { src: [16, 172], ing: [228, 160], pro: [442, 176], core: [664, 150], eng: [862, 166], ui: [1104, 128] };
+  heading(svg, col.src[0], col.src[1], "SOURCES");
+  heading(svg, col.ing[0], col.ing[1], "INGESTION");
+  heading(svg, col.pro[0], col.pro[1], "PROCESSING");
+  heading(svg, col.core[0], col.core[1], "CORE DATA");
+  heading(svg, col.eng[0], col.eng[1], "ENGINES");
+  heading(svg, col.ui[0], col.ui[1], "INTERFACES");
+
+  const [sx, sw] = col.src;
+  const sources = [
+    ["Financial Results RSS", "NSE · links XBRL"],
+    ["Announcements RSS", "NSE · links PDFs"],
+    ["Event RSS feeds", "board mtgs, insider, RPT"],
+    ["Company IR pages", "fallback + backfill"],
+    ["NSE equity + SME lists", "every listed company"],
+    ["NSE Indices lists", "sectors · constituent CSVs"],
+    ["Excel Stocks data type", "sectors · LSEG via M365"],
+  ];
+  sources.forEach(([t, s], i) => box(svg, { x: sx, y: 40 + i * 52, w: sw, h: 42, title: t, sub: [s], kind: "source" }));
+  box(svg, { x: sx, y: 408, w: sw, h: 54, title: "Price source", sub: ["undecided: Stocks data", "type now, bhavcopy later"], kind: "pending" });
+
+  const [ix, iw] = col.ing;
+  box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["every 5 to 15 min"] });
+  box(svg, { x: ix, y: 100, w: iw, h: 42, title: "Feed Watcher", sub: ["all filers, keep history"] });
+  box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Filing Fetcher", sub: ["download once, hash", "polite, host allow-list"] });
+  box(svg, { x: ix, y: 248, w: iw, h: 42, title: "Universe Loader", sub: ["all NSE cos · weekly"] });
+  box(svg, { x: ix, y: 322, w: iw, h: 54, title: "Sector Import", sub: ["user > Stocks > Indices", "per-company source"] });
+  box(svg, { x: ix, y: 408, w: iw, h: 54, title: "Price Fetcher", sub: ["static reference price", "waits for a source"], kind: "pending" });
+
+  const [px, pw] = col.pro;
+  box(svg, { x: px, y: 40, w: pw, h: 42, title: "Raw Filing Store", sub: ["MinIO · XBRL + PDF"] });
+  box(svg, { x: px, y: 100, w: pw, h: 42, title: "XBRL Parser", sub: ["every filer · no AI"] });
+  box(svg, { x: px, y: 160, w: pw, h: 54, title: "Document Pipeline", sub: ["watchlist / on demand", "page classifier → Claude"] });
+  box(svg, { x: px, y: 232, w: pw, h: 42, title: "Validation", sub: ["V1–V10: ties, balances"] });
+
+  const [cx, cw] = col.core;
+  box(svg, { x: cx, y: 40, w: cw, h: 422, title: "Core Database", sub: ["Postgres + pgvector"], kind: "core" });
+  const tables = ["companies · sector_source", "watchlist", "filings · facts", "kpis", "documents · chunks",
+    "prices", "templates", "models · versions", "assumptions", "change_sets", "peer_lists"];
+  tables.forEach((t, i) => {
+    const y = 84 + i * 33;
+    const pending = t === "prices";
+    el(svg, "rect", { x: cx + 10, y, width: cw - 20, height: 24, rx: 3,
+      fill: pending ? `url(#hatch-${svg.id})` : "#fff", stroke: pending ? C.pending : C.line,
+      ...(pending ? { "stroke-dasharray": "4 3" } : {}) });
+    el(svg, "text", { x: cx + 18, y: y + 16, "font-family": MONO, "font-size": 9.4,
+      fill: pending ? "#7a6f58" : C.ink }, pending ? "prices (empty for now)" : t);
+  });
+
+  const [ex, ew] = col.eng;
+  box(svg, { x: ex, y: 40, w: ew, h: 66, title: "Model Sync Engine", sub: ["workbook reader + mapping", "dependency scan", "roll-forward → change set"], kind: "amber" });
+  box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["flash, variance bridge", "call digest, red flags", "initiation draft, Q&A"] });
+  box(svg, { x: ex, y: 212, w: ew, h: 66, title: "Coverage Builder", sub: ["template → new model", "sourced history", "proposed assumptions"], kind: "amber" });
+  box(svg, { x: ex, y: 298, w: ew, h: 54, title: "IB Output Engine", sub: ["comps (need prices)", "company profile slide"] });
+
+  const [ux, uw] = col.ui;
+  box(svg, { x: ux, y: 40, w: uw, h: 54, title: "Excel", sub: ["links your models", "xlwings → Office.js"] });
+  box(svg, { x: ux, y: 112, w: uw, h: 54, title: "Web App", sub: ["instant search", "review · templates"] });
+  box(svg, { x: ux, y: 196, w: uw, h: 42, title: "Word + PPT", sub: ["notes, initiation"] });
+  box(svg, { x: ux, y: 268, w: uw, h: 42, title: "Alerts", sub: ["email / Telegram"] });
+
+  // Claude API
+  el(svg, "rect", { x: px, y: 496, width: 640, height: 40, rx: 5, fill: C.blueSoft, stroke: C.blue, "stroke-width": 1.2 });
+  el(svg, "text", { x: px + 12, y: 513, "font-family": SANS, "font-size": 11.5, "font-weight": 700 }, "Claude API");
+  el(svg, "text", { x: px + 12, y: 528, "font-family": MONO, "font-size": 9.4, fill: C.muted },
+    "PDF input · tool use · structured JSON · Batch API for backfills");
+
+  // Sources -> ingestion
+  arrow(svg, { d: "M188,61 C208,61 208,115 226,115" });
+  arrow(svg, { d: "M188,113 C206,113 206,121 226,121", label: "poll", at: [207, 98] });
+  arrow(svg, { d: "M188,165 C208,165 208,127 226,127" });
+  arrow(svg, { d: "M188,217 C208,217 208,190 226,190", label: "fallback", at: [205, 238] });
+  arrow(svg, { d: "M188,269 H226", label: "weekly", at: [207, 263] });
+  arrow(svg, { d: "M188,321 C206,321 206,343 226,343" });
+  arrow(svg, { d: "M188,373 C206,373 206,355 226,355", label: "import", at: [207, 395] });
+  arrow(svg, { d: "M188,435 H226", kind: "pending" });
+
+  // Ingestion internals
+  arrow(svg, { d: "M308,82 V98", kind: "control", label: "trigger", at: [314, 94], anchor: "start" });
+  arrow(svg, { d: "M308,142 V158", label: "new link", at: [314, 154], anchor: "start" });
+
+  // Ingestion -> processing
+  arrow(svg, { d: "M388,187 C414,187 414,61 440,61", label: "store raw", at: [414, 128] });
+  arrow(svg, { d: "M530,82 V98", label: "XBRL", at: [536, 94], anchor: "start" });
+  arrow(svg, { d: "M442,74 H430 V198 H440", label: "PDFs", at: [426, 214], anchor: "end" });
+  arrow(svg, { d: "M618,121 H640 V258 H620", label: "facts", at: [629, 114] });
+  arrow(svg, { d: "M530,214 V230" });
+
+  // -> core data
+  arrow(svg, { d: "M618,266 H662", label: "validated", at: [641, 288] });
+  arrow(svg, { d: "M388,269 H420 V302 H662", label: "companies", at: [540, 297] });
+  arrow(svg, { d: "M388,349 H662", label: "sectors", at: [540, 344] });
+  arrow(svg, { d: "M388,435 H662", kind: "pending", label: "prices, once a source is chosen", at: [526, 429] });
+
+  // Core -> engines
+  arrow(svg, { d: "M814,72 H860", label: "facts", at: [837, 66] });
+  arrow(svg, { d: "M814,158 H860", label: "facts, docs", at: [837, 152] });
+  arrow(svg, { d: "M814,244 H860", label: "history", at: [837, 238] });
+  arrow(svg, { d: "M814,326 H860", label: "facts", at: [837, 320] });
+  arrow(svg, { d: "M814,342 H860", kind: "pending" });
+  arrow(svg, { d: "M945,106 V124", kind: "control", label: "estimates", at: [951, 119], anchor: "start" });
+
+  // Engines -> interfaces (vertical runs at x=1082 and x=1094 share the gap)
+  arrow(svg, { d: "M1030,56 H1102", label: "write", at: [1066, 50] });
+  arrow(svg, { d: "M1104,80 H1032", kind: "approvalBack", label: "approve", at: [1066, 75] });
+  arrow(svg, { d: "M1030,150 H1102", label: "flash, Q&A", at: [1053, 144] });
+  arrow(svg, { d: "M1104,158 H1094 V250 H1032", kind: "approvalBack", label: "approve", at: [1100, 206], rotate: -90 });
+  arrow(svg, { d: "M1030,222 H1082 V88 H1102", label: "new model", at: [1077, 192], rotate: -90 });
+  arrow(svg, { d: "M1030,268 C1070,268 1070,217 1102,217", label: "initiation", at: [1036, 284], anchor: "start" });
+  arrow(svg, { d: "M1030,318 C1070,318 1070,226 1102,226" });
+  arrow(svg, { d: "M1030,334 C1072,334 1072,289 1102,289", label: "slides, alerts", at: [1036, 352], anchor: "start" });
+
+  // Claude API calls
+  arrow(svg, { d: "M442,206 H436 V516 H440", kind: "claude", label: "pages → JSON", at: [430, 486], anchor: "end" });
+  arrow(svg, { d: "M1030,176 H1042 V494", kind: "claude", label: "tool calls", at: [1048, 470], anchor: "start" });
+})();
+
+/* ---------- Sequence diagrams ---------- */
+function sequence(id, actors, steps, highlight) {
+  const svg = document.getElementById(id);
+  defs(svg);
+  const xs = actors.map((_, i) => 150 + i * 188);
+  // approval band
+  el(svg, "rect", { x: 92, y: 274, width: 1060, height: 84, rx: 7, fill: C.amberSoft, stroke: C.amber,
+    "stroke-dasharray": "3 3" });
+  el(svg, "text", { x: 102, y: 288, "font-family": MONO, "font-size": 8.5, fill: C.amber, "letter-spacing": 1 }, "APPROVAL GATE");
+  actors.forEach((a, i) => {
+    el(svg, "line", { x1: xs[i], y1: 54, x2: xs[i], y2: 440, stroke: "#c9d0cb", "stroke-dasharray": "3 4" });
+    const hi = i === highlight;
+    el(svg, "rect", { x: xs[i] - 70, y: 18, width: 140, height: 34, rx: 5, fill: "#fff",
+      stroke: hi ? C.amber : C.ink, "stroke-width": hi ? 1.8 : 1 });
+    el(svg, "text", { x: xs[i], y: 39, "text-anchor": "middle", "font-family": SANS, "font-size": 11,
+      "font-weight": 700 }, a);
+  });
+  steps.forEach(([n, from, to, label_, kind], i) => {
+    const y = [86, 126, 166, 206, 246, 306, 342, 388, 428][i];
+    const x1 = xs[from], x2 = xs[to];
+    const dir = Math.sign(x2 - x1);
+    arrow(svg, { d: `M${x1 + dir * 4},${y} H${x2 - dir * 6}`, kind: kind || "data" });
+    const amber = kind === "approval" || kind === "approvalBack";
+    label(svg, { x: (x1 + x2) / 2, y: y - 7, "text-anchor": "middle", "font-family": MONO,
+      "font-size": 9.6, fill: amber ? C.amber : C.muted, "font-weight": amber ? 700 : 400 },
+      label_, amber ? C.amberSoft : "#fff");
+    const bx = x1 - dir * 14;
+    el(svg, "circle", { cx: bx, cy: y - 12, r: 7.5, fill: amber ? C.amber : C.ink });
+    el(svg, "text", { x: bx, y: y - 8.6, "text-anchor": "middle", "font-family": SANS, "font-size": 9,
+      "font-weight": 700, fill: "#fff" }, n);
+  });
+}
+
+sequence("update",
+  ["Analyst", "Excel / Web App", "DB (all companies)", "Fetcher + Parser", "Model Sync", "GenAI Engine"],
+  [
+    [1, 0, 1, "search ticker (instant)"],
+    [2, 1, 2, "newest filing?"],
+    [3, 2, 3, "not cached: fetch"],
+    [4, 3, 2, "validated facts", "control"],
+    [5, 2, 4, "new-period facts + linked model"],
+    [6, 4, 0, "change set: cells hit, roll-forwards", "approval"],
+    [7, 0, 4, "approve / edit", "approvalBack"],
+    [8, 4, 5, "updated model + variance"],
+    [9, 5, 0, "flash, draft note, slides"],
+  ], 4);
+
+sequence("coverage",
+  ["Analyst", "Web App", "Coverage Builder", "DB + Doc Pipeline", "GenAI Engine", "Excel"],
+  [
+    [1, 0, 1, "start coverage, pick template"],
+    [2, 1, 2, "build for ticker"],
+    [3, 2, 3, "history + KPIs (backfill if missing)"],
+    [4, 3, 2, "sourced actuals", "control"],
+    [5, 2, 4, "propose drivers"],
+    [6, 4, 0, "assumptions with citations", "approval"],
+    [7, 0, 2, "accept / edit", "approvalBack"],
+    [8, 2, 5, "tagged model, checks pass"],
+    [9, 4, 0, "initiation draft, comps, slides"],
+  ], 2);
+</script>
+</body>
+</html>

@@ -7,7 +7,10 @@ import { Badge, EmptyState, ErrorNote, Loading, PageHeader, StatusBadge } from "
 // Template onboarding (design doc 14): upload, review suggested mapping, test build, activate.
 export function Templates() {
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["templates"], queryFn: api.templates });
+  const { data = [], isLoading, isError, error } = useQuery({
+    queryKey: ["templates"],
+    queryFn: api.templates,
+  });
   const [symbol, setSymbol] = useState("");
   const upload = useMutation({
     mutationFn: (form: FormData) => api.uploadTemplate(form),
@@ -82,6 +85,10 @@ export function Templates() {
         {isLoading ? (
           <div className="card-body">
             <Loading />
+          </div>
+        ) : isError ? (
+          <div className="card-body">
+            <ErrorNote error={error} />
           </div>
         ) : data.length === 0 ? (
           <div className="card-body">

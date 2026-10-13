@@ -1,13 +1,15 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type CompanyIndexEntry } from "../api/client";
 import { prepareIndex, searchIndex } from "../lib/companySearch";
+import { companyQuery, loadCompanyPage } from "../lib/preload";
 import { Icon } from "./Icon";
 
 const DEBOUNCE_MS = 120; // server searches only
 const PAGE = 20;
 const INDEX_FRESH_MS = 10 * 60_000;
+const PREFETCH_MS = 150; // pause on a highlighted result before fetching its company page
 
 type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
 
@@ -24,6 +26,7 @@ export function CompanySearch() {
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   // "/" jumps to the search box from anywhere, unless the user is already typing somewhere.
   useEffect(() => {
@@ -90,6 +93,14 @@ export function CompanySearch() {
       ?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
 
+  // Fetch the highlighted company ahead of the click, so its page opens with data in hand.
+  const highlighted = hits[selected]?.nse_symbol;
+  useEffect(() => {
+    if (!highlighted) return;
+    const t = setTimeout(() => void qc.prefetchQuery(companyQuery(highlighted)), PREFETCH_MS);
+    return () => clearTimeout(t);
+  }, [highlighted, qc]);
+
   const open = (symbol: string) => {
     setQ("");
     setTerm("");
@@ -128,6 +139,7 @@ export function CompanySearch() {
           listRef.current?.scrollTo?.({ top: 0 });
         }}
         onKeyDown={onKeyDown}
+        onFocus={() => void loadCompanyPage()} // load the company page's code before it's needed
       />
       {!q && <kbd aria-hidden="true">/</kbd>}
       {typed.length >= 1 && hits.length > 0 && (
