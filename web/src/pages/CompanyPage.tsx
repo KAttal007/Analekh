@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { Icon } from "../components/Icon";
 import {
@@ -15,8 +15,47 @@ import {
 import { companyQuery } from "../lib/preload";
 import { useTheme } from "../lib/theme";
 
-const REVENUE = "RevenueFromOperations";
+// "revenue" is resolved per results format on the server; these name what each format calls it.
+const TOP_LINE: Record<string, { short: string; full: string }> = {
+  banking: { short: "Interest earned", full: "interest earned" },
+  insurance: { short: "Premium earned", full: "premium earned" },
+};
+const topLine = (taxonomy?: string | null) =>
+  TOP_LINE[taxonomy ?? ""] ?? { short: "Revenue", full: "revenue from operations" };
 const CRORE = 1e7;
+const DAY_MS = 86_400_000;
+
+// Filings carry year-to-date figures next to the quarter's; keep quarter-length durations only.
+const isQuarter = (f: { period_start?: string | null; period_end: string }) => {
+  if (!f.period_start) return false;
+  const days = (Date.parse(f.period_end) - Date.parse(f.period_start)) / DAY_MS + 1;
+  return days >= 80 && days <= 100;
+};
+
+// Source files for a filing, readable first: NSE's iXBRL web page, the results PDF, raw XBRL.
+const LINK_KINDS = [
+  ["ixbrl", "iXBRL"],
+  ["pdf", "PDF"],
+  ["xbrl", "XBRL"],
+] as const;
+
+type FilingLink = { kind: string; label: string; url: string };
+
+const filingLinks = (f: { meta?: Record<string, unknown>; source_url?: string | null }) => {
+  const stored = (f.meta?.links ?? {}) as Record<string, unknown>;
+  const urls: Record<string, unknown> = { xbrl: f.source_url, ...stored };
+  return LINK_KINDS.flatMap(([kind, label]): FilingLink[] => {
+    const url = urls[kind];
+    // Only web links: backfilled files carry "import:<name>", and nothing else is trusted.
+    return typeof url === "string" && url.startsWith("https://") ? [{ kind, label, url }] : [];
+  });
+};
+
+type Basis = "consolidated" | "standalone";
+const BASES: { basis: Basis; label: string }[] = [
+  { basis: "consolidated", label: "Consolidated" },
+  { basis: "standalone", label: "Standalone" },
+];
 
 const cssVar = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -49,9 +88,23 @@ export function CompanyPage() {
   const { resolved: theme } = useTheme(); // chart colours follow the theme
   const company = useQuery(companyQuery(symbol));
   const filings = useQuery({ queryKey: ["filings", symbol], queryFn: () => api.filings(symbol) });
+  // Many companies file both standalone and consolidated results: every figure on the page
+  // follows one basis at a time, consolidated first when the company files it.
+  // Kept in the URL (?basis=standalone): the view can be shared and survives leaving the page.
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("basis");
+  const chosen: Basis | null = asked === "consolidated" || asked === "standalone" ? asked : null;
+  const allFilings = filings.data ?? [];
+  const filed = {
+    consolidated: allFilings.some((f) => f.consolidated === true),
+    standalone: allFilings.some((f) => f.consolidated === false),
+  };
+  const basis: Basis =
+    chosen && filed[chosen] ? chosen : filed.consolidated ? "consolidated" : "standalone";
   const revenue = useQuery({
-    queryKey: ["facts", symbol, REVENUE],
-    queryFn: () => api.facts(symbol, REVENUE),
+    queryKey: ["facts", symbol, "revenue", basis],
+    queryFn: () => api.logicalFacts(symbol, "revenue", basis === "consolidated"),
+    enabled: filings.isSuccess,
   });
   const watch = useMutation({
     mutationFn: async () => {
@@ -70,11 +123,11 @@ export function CompanyPage() {
   if (!company.data) return <Loading />;
   const c = company.data;
   const quarters = (revenue.data ?? [])
-    .filter((f) => f.period_start && f.consolidated)
+    .filter(isQuarter)
     .sort((a, b) => a.period_end.localeCompare(b.period_end));
   const latest = quarters.at(-1);
   const previous = quarters.at(-2);
-  const rows = filings.data ?? [];
+  const rows = allFilings.filter((f) => (basis === "consolidated") === (f.consolidated !== false));
   const coverage = COVERAGE[c.coverage_level as keyof typeof COVERAGE] ?? COVERAGE.universe;
   const qoq =
     latest && previous && Number(previous.value)
@@ -147,13 +200,36 @@ export function CompanyPage() {
       )}
       {start.isError && <ErrorNote error={start.error} />}
 
+      {allFilings.length > 0 && (
+        <div className="basis-bar">
+          <span className="muted">Figures</span>
+          {filed.consolidated && filed.standalone ? (
+            <div className="segmented" role="tablist" aria-label="Basis of figures">
+              {BASES.map((b) => (
+                <button
+                  key={b.basis}
+                  type="button"
+                  role="tab"
+                  aria-selected={basis === b.basis}
+                  onClick={() => setParams({ basis: b.basis }, { replace: true })}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <Badge>{basis === "consolidated" ? "Consolidated only" : "Standalone only"}</Badge>
+          )}
+        </div>
+      )}
+
       <div className="stat-grid">
         <div className="card card-hover stat">
           <span className="stat-icon">
             <Icon name="rupee" />
           </span>
           <div>
-            <div className="stat-label">Revenue, latest quarter</div>
+            <div className="stat-label">{topLine(c.results_taxonomy).short}, latest quarter</div>
             <div className="stat-value">{latest ? crore(Number(latest.value ?? 0)) : "–"}</div>
             <div className="stat-note">
               {latest ? `Quarter ended ${latest.period_end}` : "No results loaded yet"}
@@ -173,7 +249,10 @@ export function CompanyPage() {
             >
               {qoq === null ? "–" : `${qoq > 0 ? "+" : ""}${qoq.toFixed(1)}%`}
             </div>
-            <div className="stat-note">Consolidated revenue from operations</div>
+            <div className="stat-note">
+              {basis === "standalone" ? "Standalone" : "Consolidated"}{" "}
+              {topLine(c.results_taxonomy).full}
+            </div>
           </div>
         </div>
         <div className="card card-hover stat">
@@ -200,22 +279,28 @@ export function CompanyPage() {
 
       <div className="card">
         <div className="card-header">
-          <h2>Revenue by quarter</h2>
-          <span className="muted">₹ crore · consolidated</span>
+          <h2>{topLine(c.results_taxonomy).short} by quarter</h2>
+          <span className="muted">₹ crore · {basis}</span>
         </div>
         <div className="card-body">
           {quarters.length > 1 ? (
             <ReactECharts
               key={theme}
-              style={{ height: 280 }}
+              style={{ height: 320 }}
               option={{
-                grid: { left: 48, right: 16, top: 16, bottom: 32 },
+                // Headroom above the plot: the hover popup fits over even the tallest bar.
+                grid: { left: 48, right: 16, top: 64, bottom: 32 },
+                // Hovering a bar shows its value; no band across the column (an opaque axis
+                // shadow painted over the bar in dark mode).
                 tooltip: {
-                  trigger: "axis",
+                  trigger: "item",
+                  position: "top", // above the bar, clear of the bar and the axis labels
+                  confine: true, // and inside the chart, never over the card header
                   backgroundColor: cssVar("--surface"),
                   borderColor: cssVar("--border"),
                   textStyle: { color: cssVar("--text") },
-                  axisPointer: { type: "shadow", shadowStyle: { color: cssVar("--accent-soft") } },
+                  formatter: (p: { name: string; value: number }) =>
+                    `Quarter ended ${p.name}<br/><b>₹${p.value.toLocaleString("en-IN")} cr</b>`,
                 },
                 animationDuration: 600,
                 animationEasing: "cubicOut",
@@ -231,9 +316,11 @@ export function CompanyPage() {
                 },
                 series: [
                   {
-                    name: "Revenue",
+                    name: topLine(c.results_taxonomy).short,
                     type: "bar",
                     barMaxWidth: 36,
+                    cursor: "default",
+                    emphasis: { focus: "none", itemStyle: { color: cssVar("--accent-hover") } },
                     itemStyle: {
                       borderRadius: [4, 4, 0, 0],
                       color: {
@@ -265,7 +352,9 @@ export function CompanyPage() {
       <div className="card">
         <div className="card-header">
           <h2>Filings</h2>
-          <span className="muted">{rows.length} received</span>
+          <span className="muted">
+            {rows.length} {basis} received
+          </span>
         </div>
         {rows.length ? (
           <div className="table-wrap">
@@ -274,35 +363,59 @@ export function CompanyPage() {
                 <tr>
                   <th>Period end</th>
                   <th>Kind</th>
-                  <th>Basis</th>
                   <th>Status</th>
                   <th>Checks</th>
+                  <th>Files</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((f) => (
-                  <tr key={f.id}>
-                    <td>{f.period_end ?? "-"}</td>
-                    <td>{f.kind}</td>
-                    <td>
-                      {f.consolidated == null
-                        ? "-"
-                        : f.consolidated
-                          ? "Consolidated"
-                          : "Standalone"}
-                    </td>
-                    <td>
-                      <StatusBadge status={f.status} />
-                    </td>
-                    <td>
-                      {f.meta?.blocks_auto_apply ? (
-                        <Badge tone="error">blocked</Badge>
-                      ) : (
-                        <Badge tone="ok">passed</Badge>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((f) => {
+                  const links = filingLinks(f);
+                  const main = links[0];
+                  return (
+                    <tr key={f.id}>
+                      <td>
+                        {main ? (
+                          <a
+                            href={main.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Open the ${main.label} filing on NSE`}
+                          >
+                            {f.period_end ?? "-"}
+                          </a>
+                        ) : (
+                          (f.period_end ?? "-")
+                        )}
+                      </td>
+                      <td>{f.kind}</td>
+                      <td>
+                        <StatusBadge status={f.status} />
+                      </td>
+                      <td>
+                        {f.meta?.blocks_auto_apply ? (
+                          <Badge tone="error">blocked</Badge>
+                        ) : (
+                          <Badge tone="ok">passed</Badge>
+                        )}
+                      </td>
+                      <td className="file-links">
+                        {links.length
+                          ? links.map((l) => (
+                              <a
+                                key={l.kind}
+                                href={l.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {l.label}
+                              </a>
+                            ))
+                          : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

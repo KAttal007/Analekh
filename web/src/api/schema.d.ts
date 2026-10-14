@@ -161,7 +161,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Facts */
+    /**
+     * Facts
+     * @description Facts by element name, or by ``logical`` name (e.g. revenue), resolved for the company's
+     *     results format: a bank's revenue is interest earned, an insurer's premium earned.
+     */
     get: operations["facts_companies__symbol__facts_get"];
     put?: never;
     post?: never;
@@ -1395,7 +1399,8 @@ export interface operations {
         elements?: string | null;
         start?: string | null;
         end?: string | null;
-        consolidated?: boolean;
+        consolidated?: boolean | null;
+        logical?: string | null;
       };
       header?: never;
       path: {

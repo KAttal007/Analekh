@@ -16,7 +16,12 @@ from analekh.xbrl.parser import ParsedFact, ParsedFiling, period_type
 Status = Literal["pass", "fail", "skip"]
 Action = Literal["block", "flag", "warn", "highlight", "label", "info"]
 
-LATE_FILING_DAYS = 180
+# SEBI LODR regulation 33(3): results within 45 days of the end of each quarter (half-year for
+# SME filers), audited annual results within 60 days of the end of the financial year. XBRL is
+# due within 24 hours of the PDF results, so the feed date gets one day's grace.
+RESULTS_DEADLINE_DAYS = 45
+ANNUAL_RESULTS_DEADLINE_DAYS = 60
+XBRL_GRACE_DAYS = 1
 SWING_THRESHOLD = Decimal("0.5")
 RELATIVE_TOLERANCE = Decimal("0.0005")
 
@@ -131,29 +136,62 @@ def _identity(
     return RuleResult(rule, "fail", action, f"{label}: off by {diff}", details)
 
 
+def _with_optional(
+    ctx: ValidationContext,
+    required: list[tuple[str, int]],
+    optional: list[tuple[str, int, str]],
+) -> tuple[list[ParsedFact | None], list[int], str]:
+    """Terms for an identity: required logical names, plus those optional ones the filing tags
+    (a bank's provisions, an insurer's investment income). Returns facts, signs and the label's
+    extra wording."""
+    facts: list[ParsedFact | None] = [ctx.fact(name) for name, _ in required]
+    signs = [sign for _, sign in required]
+    words = ""
+    for name, sign, label in optional:
+        fact = ctx.fact(name)
+        if fact is not None:
+            facts.append(fact)
+            signs.append(sign)
+            words += f" {'+' if sign > 0 else '-'} {label}"
+    return facts, signs, words
+
+
 def v1_total_income(ctx: ValidationContext) -> RuleResult:
+    facts, signs, words = _with_optional(
+        ctx,
+        [("revenue", 1), ("other_income", 1)],
+        [("investment_income", 1, "investment income")],  # insurers
+    )
     return _identity(
         "V1",
         "block",
-        "Revenue + other income = total income",
-        [ctx.fact("revenue"), ctx.fact("other_income")],
+        f"Revenue + other income{words} = total income",
+        facts,
         ctx.fact("total_income"),
+        signs,
     )
 
 
 def v2_pbt(ctx: ValidationContext) -> RuleResult:
-    exceptional = ctx.fact("exceptional_items")
-    lhs = [ctx.fact("total_income"), ctx.fact("total_expenses")]
-    signs = [1, -1]
-    if exceptional is not None:
-        # PHASE 0: confirm the sign convention of exceptional items in real filings.
-        lhs.append(exceptional)
-        signs.append(-1)
+    # Exceptional items are tagged with their sign: a charge is negative, a gain positive
+    # (confirmed on Tata Elxsi, Q3 FY26: -956,888,000 for the labour-code charge), so they are
+    # added. Banks also deduct provisions; insurers go through the shareholders' account.
+    facts, signs, words = _with_optional(
+        ctx,
+        [("total_income", 1), ("total_expenses", -1)],
+        [
+            ("provisions", -1, "provisions"),
+            ("exceptional_items", 1, "exceptional items"),
+            ("shareholders_investment_income", 1, "shareholders' investment income"),
+            ("shareholders_other_income", 1, "shareholders' other income"),
+            ("non_operating_expenses", -1, "non-operating expenses"),
+        ],
+    )
     return _identity(
         "V2",
         "block",
-        "Total income - total expenses (- exceptional) = PBT",
-        lhs,
+        f"Total income - total expenses{words} = PBT",
+        facts,
         ctx.fact("pbt"),
         signs,
     )
@@ -260,17 +298,43 @@ def v7_swing(ctx: ValidationContext) -> RuleResult:
     return RuleResult("V7", "pass", "highlight", "No QoQ swing above 50%")
 
 
+def is_year_end(ctx: ValidationContext) -> bool:
+    """The filing closes a financial year: a full-year duration ends on the period end, or the
+    period ends on 31 March (the financial year under the Companies Act)."""
+    end = ctx.period_end
+    if end is None:
+        return False
+    if (end.month, end.day) == (3, 31):
+        return True
+    return any(
+        f.period_end == end and period_type(f.period_start, f.period_end) == "FY"
+        for f in ctx.filing.facts
+        if not f.is_instant
+    )
+
+
 def v8_late_filing(ctx: ValidationContext) -> RuleResult:
+    """Filed after SEBI's results deadline (LODR 33(3)): 45 days, or 60 for the year end."""
     end = ctx.period_end
     if ctx.filed_at is None or end is None:
         return RuleResult("V8", "skip", "label", "Filing date unknown")
+    deadline = ANNUAL_RESULTS_DEADLINE_DAYS if is_year_end(ctx) else RESULTS_DEADLINE_DAYS
     lag = (ctx.filed_at - end).days
-    if lag > LATE_FILING_DAYS:
+    details = {"lag_days": lag, "deadline_days": deadline}
+    if lag > deadline + XBRL_GRACE_DAYS:
         return RuleResult(
-            "V8", "fail", "label", f"Filed {lag} days after period end (late)", {"lag_days": lag}
+            "V8",
+            "fail",
+            "label",
+            f"Filed {lag} days after period end, past SEBI's {deadline}-day deadline (late)",
+            details,
         )
     return RuleResult(
-        "V8", "pass", "label", f"Filed {lag} days after period end", {"lag_days": lag}
+        "V8",
+        "pass",
+        "label",
+        f"Filed {lag} days after period end, within SEBI's {deadline}-day deadline",
+        details,
     )
 
 

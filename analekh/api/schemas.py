@@ -272,3 +272,6 @@ class QaRequest(BaseModel):
 class CompsRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list)
     peer_list: str | None = None
+    # One basis for every company; None picks per company (consolidated when it has four
+    # consolidated quarters, else standalone) and the export's Basis column shows which.
+    consolidated: bool | None = None

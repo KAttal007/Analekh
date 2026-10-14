@@ -21,7 +21,7 @@ from analekh.universe.loader import parse_equity_list, upsert_universe
 from analekh.workbook.mapping import Mapping
 from tests.test_builder import QUARTERS, history
 from tests.test_universe import EQUITY_L
-from tests.xbrl_factory import quarter_instance
+from tests.xbrl_factory import BS, Q2, build_instance, pnl, quarter_instance
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -81,6 +81,21 @@ def test_search_company_page_and_watchlist(client, demo):
         params={"elements": "RevenueFromOperations", "start": "2026-09-30"},
     ).json()
     assert [f["value"] for f in facts] == ["975000000.0000"]
+
+
+def test_facts_fall_back_to_standalone_when_company_files_no_consolidated(client, db, store):
+    solo = Company(nse_symbol="SOLO", name="Solo Systems Limited", isin="INE000S01011")
+    db.add(solo)
+    db.flush()
+    q = pnl(500_000_000, 10_000_000, 400_000_000, 25_000_000)
+    standalone = build_instance(**Q2, values_q=q, values_instant=BS, nature="Standalone")
+    ingest_results_xbrl(db, store, solo, standalone)
+    facts = client.get("/companies/SOLO/facts", params={"elements": "RevenueFromOperations"})
+    assert {f["value"] for f in facts.json()} == {"500000000.0000"}  # quarter and YTD
+    asked = client.get(
+        "/companies/SOLO/facts", params={"elements": "RevenueFromOperations", "consolidated": True}
+    )
+    assert asked.json() == []
 
 
 def test_start_coverage_assumptions_finalize_then_review_and_apply(client, db, store, demo):
@@ -214,3 +229,15 @@ def test_storage_down_is_a_fast_503(client):
     r = client.get("/templates")
     assert r.status_code == 503
     assert "docker compose up -d minio" in r.json()["detail"]
+
+
+def test_comps_export_shows_each_company_basis(client, db, store):
+    solo = Company(nse_symbol="SOLO", name="Solo Systems Limited", isin="INE000S01011")
+    db.add(solo)
+    db.flush()
+    q = pnl(500_000_000, 10_000_000, 400_000_000, 25_000_000)
+    ingest_results_xbrl(db, store, solo, build_instance(**Q2, values_q=q, nature="Standalone"))
+    ws = load_workbook(io.BytesIO(client.post("/comps", json={"symbols": ["SOLO"]}).content))
+    assert ws["Comps"]["B5"].value == "Standalone"
+    forced = client.post("/comps", json={"symbols": ["SOLO"], "consolidated": True}).content
+    assert load_workbook(io.BytesIO(forced))["Comps"]["B5"].value == "Consolidated"

@@ -134,6 +134,64 @@ def refresh(symbol: str) -> None:
     typer.echo(refresh_company(symbol))
 
 
+@app.command("results-backfill")
+def results_backfill(
+    symbols: str | None = typer.Option(
+        None, help="Comma-separated tickers; default: every company with a sector."
+    ),
+    limit: int | None = typer.Option(None, help="Stop after this many companies."),
+    quarters: int = typer.Option(8, help="Newest N quarters per company."),
+    one_basis: bool = typer.Option(
+        False, help="One basis per quarter (consolidated when filed); default: both."
+    ),
+    redo: bool = typer.Option(False, help="Include companies that already have results filings."),
+    interval: float | None = typer.Option(
+        None, help="Seconds between requests to NSE (default: DOWNLOAD_RATE_PER_SECOND)."
+    ),
+) -> None:
+    """Fetch results XBRL from NSE's integrated filings for many companies (resumable)."""
+    from analekh.jobs.tasks import bulk_fetch_results
+
+    result = bulk_fetch_results(
+        [x.strip() for x in symbols.split(",")] if symbols else None,
+        limit=limit,
+        quarters=quarters,
+        one_basis=one_basis,
+        skip_done=not redo,
+        interval_seconds=interval,
+    )
+    typer.echo(result)
+
+
+@app.command()
+def revalidate(
+    symbols: list[str] = typer.Argument(None, help="Tickers; default: every company with results."),
+) -> None:
+    """Re-run format detection and V1-V10 on stored results files (no downloads)."""
+    from sqlalchemy import exists, select
+
+    from analekh.db.models import Company, Filing
+    from analekh.ingest.pipeline import revalidate_company
+
+    store = _store()
+    with _session() as s:
+        q = select(Company.nse_symbol).where(
+            exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
+        )
+        if symbols:
+            q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
+        todo = list(s.scalars(q.order_by(Company.nse_symbol)))
+    for symbol in todo:
+        with _session() as s:
+            company = s.scalar(select(Company).where(Company.nse_symbol == symbol))
+            assert company is not None
+            filings = revalidate_company(s, store, company)
+            blocked = sum(bool((f.meta or {}).get("blocks_auto_apply")) for f in filings)
+            typer.echo(
+                f"{symbol}: {company.results_taxonomy}, {len(filings)} filings, {blocked} blocked"
+            )
+
+
 @app.command()
 def backfill(symbol: str | None = typer.Argument(None)) -> None:
     """Ingest files from IMPORT_DIR/<SYMBOL>/ through the normal parser and validation path."""

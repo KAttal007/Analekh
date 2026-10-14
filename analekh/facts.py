@@ -14,6 +14,15 @@ from analekh.db.models import Fact, Filing, Kpi
 from analekh.workbook.mapping import Mapping, RowMap, apply_transform
 
 
+def files_consolidated(session: Session, company_id: int) -> bool:
+    """Default basis for a company's figures: consolidated when it files consolidated results,
+    else standalone (many companies file standalone only, e.g. Tata Elxsi)."""
+    found = session.scalar(
+        select(Fact.id).where(Fact.company_id == company_id, Fact.consolidated).limit(1)
+    )
+    return found is not None
+
+
 @dataclass
 class SourceValue:
     value: Decimal

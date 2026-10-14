@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 
 from lxml import etree
 
-from analekh.xbrl.elements import META_ELEMENTS
+from analekh.xbrl.elements import META_ELEMENTS, detect_taxonomy
 
 XBRLI = "http://www.xbrl.org/2003/instance"
 LINK = "http://www.xbrl.org/2003/linkbase"
@@ -81,7 +81,10 @@ class ParsedFiling:
         return audited.startswith("audited")
 
     def taxonomy(self) -> str:
-        """Best guess of results_taxonomy from the schema reference (confirmed per company)."""
+        """results_taxonomy from the elements tagged, else from the schema reference."""
+        detected = detect_taxonomy({f.element for f in self.facts})
+        if detected:
+            return detected
         ref = (self.schema_ref or "").lower()
         if "bank" in ref:
             return "banking"
@@ -219,8 +222,10 @@ def _parse_context(el: etree._Element) -> Context:
     if period is None:
         raise ValueError(f"context {el.get('id')} has no period")
     instant = period.findtext(f"{{{XBRLI}}}instant")
+    # A typed member's value sits in a child element (integrated filings break totals down this
+    # way, e.g. OtherCurrentFinancialAssetsDomain1..3), an explicit member's in its own text.
     dims = {
-        m.get("dimension", ""): (m.text or "").strip()
+        m.get("dimension", ""): "".join(m.itertext()).strip()
         for m in el.iter(f"{{{XBRLDI}}}explicitMember", f"{{{XBRLDI}}}typedMember")
     }
     if instant:

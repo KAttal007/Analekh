@@ -103,6 +103,32 @@ def test_v8_late_filing():
     assert by_rule(validate(ctx))["V8"].status == "fail"
 
 
+def v8(instance: bytes, filed_at: date):
+    return by_rule(validate(ValidationContext(parse_instance(instance), filed_at=filed_at)))["V8"]
+
+
+def test_v8_quarter_deadline_is_45_days():
+    # Quarter ended 30 September: day 45 is 14 November; XBRL may follow the PDF a day later.
+    assert v8(q2_instance(), date(2026, 11, 14)).details == {"lag_days": 45, "deadline_days": 45}
+    assert v8(q2_instance(), date(2026, 11, 15)).status == "pass"
+    late = v8(q2_instance(), date(2026, 11, 16))
+    assert late.status == "fail" and late.action == "label"
+
+
+def test_v8_year_end_deadline_is_60_days():
+    q4 = build_instance(
+        q_start=date(2027, 1, 1),
+        q_end=date(2027, 3, 31),
+        ytd_start=date(2026, 4, 1),
+        values_q=pnl(1_000_000_000, 50_000_000, 800_000_000, 62_500_000),
+        values_ytd=pnl(4_000_000_000, 200_000_000, 3_200_000_000, 250_000_000),
+        values_instant=BS,
+    )
+    assert v8(q4, date(2027, 5, 30)).details == {"lag_days": 60, "deadline_days": 60}
+    assert v8(q4, date(2027, 5, 30)).status == "pass"
+    assert v8(q4, date(2027, 6, 1)).status == "fail"
+
+
 def test_v9_restatement_diff():
     history = [
         HistoryFact(
@@ -127,3 +153,100 @@ def test_report_is_json_serialisable():
 
     report = validate(ValidationContext(parse_instance(q2_instance()), history=Q1_HISTORY))
     json.dumps(report.as_dict())
+
+
+def test_v2_adds_exceptional_items_as_tagged():
+    # Tata Elxsi, Q3 FY26 (standalone): a labour-code charge tagged as a negative exceptional item.
+    q = {
+        "RevenueFromOperations": 9_534_743_000,
+        "OtherIncome": 460_382_000,
+        "Income": 9_995_125_000,
+        "Expenses": 7_575_520_000,
+        "ExceptionalItemsBeforeTax": -956_888_000,
+        "ProfitBeforeTax": 1_462_717_000,
+    }
+    instance = build_instance(
+        q_start=date(2025, 10, 1),
+        q_end=date(2025, 12, 31),
+        ytd_start=date(2025, 10, 1),
+        values_q=q,
+    )
+    result = by_rule(validate(ValidationContext(parse_instance(instance))))["V2"]
+    assert result.status == "pass", result.message
+
+
+def _quarter(values: dict[str, int], instant: dict[str, int] | None = None) -> bytes:
+    return build_instance(
+        q_start=date(2026, 1, 1),
+        q_end=date(2026, 3, 31),
+        ytd_start=date(2026, 1, 1),
+        values_q=values,
+        values_instant=instant,
+    )
+
+
+# HDFC Bank, March 2026 quarter (consolidated), in rupees.
+HDFC_BANK = {
+    "InterestEarned": 871_825_000_000,
+    "InterestExpended": 452_204_400_000,
+    "OtherIncome": 297_374_400_000,
+    "Income": 1_169_199_400_000,
+    "OperatingExpenses": 405_878_200_000,
+    "ExpenditureExcludingProvisionsAndContingencies": 858_082_600_000,
+    "OperatingProfitBeforeProvisionAndContingencies": 311_116_800_000,
+    "ProvisionsOtherThanTaxAndContingencies": 34_400_500_000,
+    "ExceptionalItems": -7_234_600_000,
+    "ProfitLossFromOrdinaryActivitiesBeforeTax": 269_481_700_000,
+    "TaxExpense": 65_974_100_000,
+    "ProfitLossFromOrdinaryActivitiesAfterTax": 203_507_600_000,
+    "ProfitLossForThePeriod": 203_507_600_000,
+}
+HDFC_BANK_BS = {"Assets": 49_080_408_400_000, "CapitalAndLiabilities": 49_080_408_400_000}
+
+# ICICI Lombard, June 2026 quarter (standalone), general insurer.
+ICICI_LOMBARD = {
+    "GrossPremiumsWritten": 88_602_700_000,
+    "PremiumEarned": 59_500_400_000,
+    "IncomeFromInvestmentsNet": 8_578_700_000,
+    "OtherIncome": 58_000_000,
+    "OperatingIncome": 68_137_100_000,
+    "OperatingExpenses": 65_799_200_000,
+    "OperatingProfitOrLoss": 2_337_900_000,
+    "ShareholdersAccountIncomeFromInvestments": 2_803_100_000,
+    "ShareholdersAccountOtherIncome": 78_000_000,
+    "NonOperatingExpense": -138_000_000,
+    "ProfitOrLossBeforeTax": 5_357_000_000,
+    "ProvisionForTax": 1_325_300_000,
+    "ProfitLossAfterTax": 4_031_700_000,
+}
+
+
+def test_detects_banks_and_insurers_from_their_line_items():
+    from analekh.xbrl.elements import detect_taxonomy
+
+    assert parse_instance(_quarter(HDFC_BANK)).taxonomy() == "banking"
+    assert parse_instance(_quarter(ICICI_LOMBARD)).taxonomy() == "insurance"
+    # NBFCs tag InterestEarned inside their revenue (Bajaj Finance): still Ind-AS.
+    assert detect_taxonomy({"RevenueFromOperations", "InterestEarned", "InterestExpended"}) is None
+
+
+def test_bank_identities_include_provisions():
+    ctx = ValidationContext(parse_instance(_quarter(HDFC_BANK, HDFC_BANK_BS)), "banking")
+    results = by_rule(validate(ctx))
+    for rule in ("V1", "V2", "V3", "V4"):
+        assert results[rule].status == "pass", (rule, results[rule].message)
+    assert "provisions" in results["V2"].message
+
+
+def test_insurer_identities_run_through_the_shareholders_account():
+    ctx = ValidationContext(parse_instance(_quarter(ICICI_LOMBARD)), "insurance")
+    results = by_rule(validate(ctx))
+    for rule in ("V1", "V2", "V3"):
+        assert results[rule].status == "pass", (rule, results[rule].message)
+    assert results["V4"].status == "skip"  # IRDAI balance sheet not mapped yet
+
+
+def test_bank_provisions_left_out_fail_v2():
+    missing = {**HDFC_BANK, "ProvisionsOtherThanTaxAndContingencies": 0}
+    ctx = ValidationContext(parse_instance(_quarter(missing)), "banking")
+    assert by_rule(validate(ctx))["V2"].status == "fail"

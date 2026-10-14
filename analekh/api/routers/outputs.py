@@ -95,7 +95,9 @@ def comps(body: schemas.CompsRequest, db: DB) -> Response:
         if pl is None:
             raise HTTPException(404, "peer list not found")
         symbols = pl.symbols
-    rows = [compute(gather(db, company_or_404(db, s).nse_symbol)) for s in symbols]
+    rows = [
+        compute(gather(db, company_or_404(db, s).nse_symbol, body.consolidated)) for s in symbols
+    ]
     return Response(to_xlsx(rows), media_type=XLSX)
 
 

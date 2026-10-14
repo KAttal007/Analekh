@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     backfill_priority: str = "NIFTY500"
     download_rate_per_second: float = 1.0
     user_agent: str = "Analekh/0.1"
+    # Sent as the HTTP From header. NSE's CDN stalls requests whose User-Agent holds an email
+    # address or a URL (seen 2026-10-14), so the contact never goes in the User-Agent.
+    contact_email: str | None = None
     http_timeout_seconds: float = 30.0
 
     import_dir: Path = Path("./import")

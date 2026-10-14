@@ -48,7 +48,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 - `universe/` loader (published equity and SME lists, renames, delistings), sectors (curated
   map, then published index lists -> sector; strong signals only -> results taxonomy), search (symbol, ISIN, pg_trgm name). `coverage.py` = watchlist and
   coverage levels (universe / numbers / deep).
-- `ingest/` feeds (RSS watcher), http (polite client + host allow-list), linking (feed item ->
+- `ingest/` feeds (RSS watcher), integrated (NSE integrated-filing lookup: results XBRL per
+  company), http (polite client + host allow-list), linking (feed item ->
   company), storage (hash-keyed S3/local), pipeline (hash -> parse -> validate -> facts,
   restatements), backfill.
 - `xbrl/` lxml instance parser, element vocabulary per taxonomy. `validate/rules.py` V1-V10.
@@ -76,8 +77,12 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 
 1. **NSE access**: only the published RSS feeds, the published equity list CSVs and the files
    they link to, plus NSE Indices' published constituent CSVs (`niftyindices.com`, limited to
-   `/IndexConstituent/` by `ALLOWED_PATHS`; added 2026-10-13 for sectors). Never add NSE website
-   or internal API hosts to `ALLOWED_HOSTS` in `analekh/ingest/http.py`; never crawl pages.
+   `/IndexConstituent/` by `ALLOWED_PATHS`; added 2026-10-13 for sectors), plus the
+   integrated-filing lookup on `www.nseindia.com`, limited by `ALLOWED_PATHS` to `/` (home page
+   only, for cookies) and `/api/integrated-filing-results` (approved by the owner 2026-10-14: the
+   results feed stopped carrying filings). No other NSE website page or internal API: never widen
+   `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
+   never crawl pages. Requests identify as Analekh: never disguise them as a browser.
 2. **Human in the loop**: nothing writes to an analyst's model without an approved change set
    (sync) or approved assumptions (build). The original workbook is never overwritten; every
    write saves a new `model_versions` row. A new model-to-company link needs user confirmation.
@@ -93,13 +98,12 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 
 Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 
-- `xbrl/elements.py`: names marked `# verify` were never checked against a real file; bank,
-  NBFC and insurance tables are empty. Fill from `scripts/phase0_spike.py` output (elements.csv).
+- `xbrl/elements.py`: names marked `# verify` were never checked against a real file. Bank and
+  general-insurer tables come from real integrated filings; life insurers and the insurers'
+  balance sheet are not mapped yet. After changing tables or rules, run `analekh revalidate`.
 - `universe/loader.py`: SME list path unconfirmed. `universe/sectors.py`: index list file names
   and columns marked `# verify` (niftyindices.com unreachable when written); `data/sector_map.csv`
   holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
-- `ingest/feeds.py`: NSE pubDate format unconfirmed.
-- `validate/rules.py` V2: exceptional-items sign convention unconfirmed.
 - Test fixtures (`tests/xbrl_factory.py`, built-in templates) are SYNTHETIC. Put real files
   under `tests/fixtures/golden/` (gitignored unless licensing is clear) with a `manifest.yaml`
   and run `uv run analekh golden-test`.

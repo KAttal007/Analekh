@@ -16,9 +16,11 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, FeedItem, Filing
+from analekh.ingest.feeds import IST
 from analekh.ingest.http import PoliteClient
 from analekh.ingest.storage import ObjectStore, sha256, storage_key
 from analekh.validate.rules import HistoryFact, ValidationContext, ValidationReport, validate
+from analekh.xbrl.elements import detect_taxonomy
 from analekh.xbrl.parser import dims_hash, parse_instance, period_type
 
 _NO_DIMS = dims_hash({})
@@ -71,12 +73,18 @@ def ingest_results_xbrl(
     store.put(key, data, "application/xml")
     parsed = parse_instance(data)
 
-    if company.results_taxonomy is None:
-        company.results_taxonomy = parsed.taxonomy()
+    # The filing's own line items are the strongest signal of a bank or an insurer: they correct
+    # a guess from the sector or from an earlier, less telling filing.
+    detected = detect_taxonomy({f.element for f in parsed.facts})
+    if detected or company.results_taxonomy is None:
+        company.results_taxonomy = detected or parsed.taxonomy()
     consolidated = parsed.consolidated if parsed.consolidated is not None else True
     history = load_history(session, company.id, consolidated)
     ctx = ValidationContext(
-        parsed, company.results_taxonomy, filed_at.date() if filed_at else None, history
+        parsed,
+        company.results_taxonomy,
+        filed_at.astimezone(IST).date() if filed_at else None,
+        history,
     )
     report = validate(ctx)
 
@@ -229,3 +237,41 @@ def store_document(
     session.add(filing)
     session.flush()
     return filing
+
+
+def revalidate_company(session: Session, store: ObjectStore, company: Company) -> list[Filing]:
+    """Re-run detection and V1-V10 on a company's stored results files, after the rules or the
+    element tables change. Reads the stored files; downloads nothing."""
+    filings = list(
+        session.scalars(
+            select(Filing)
+            .where(Filing.company_id == company.id, Filing.kind == "results_xbrl")
+            .order_by(Filing.period_end)
+        )
+    )
+    parsed = {f.id: parse_instance(store.get(f.storage_key)) for f in filings if f.storage_key}
+    detected = next(
+        (t for p in parsed.values() if (t := detect_taxonomy({x.element for x in p.facts}))), None
+    )
+    if detected:
+        company.results_taxonomy = detected
+    for filing in filings:
+        if filing.id not in parsed:
+            continue
+        history = [
+            h
+            for h in load_history(session, company.id, bool(filing.consolidated))
+            if h.filing_id != filing.id
+        ]
+        filed = filing.filed_at.astimezone(IST).date() if filing.filed_at else None
+        report = validate(
+            ValidationContext(
+                parsed[filing.id], company.results_taxonomy or "indas", filed, history
+            )
+        )
+        filing.meta = {
+            **(filing.meta or {}),
+            "validation": report.as_dict(),
+            "blocks_auto_apply": report.blocks_auto_apply,
+        }
+    return filings

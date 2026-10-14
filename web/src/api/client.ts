@@ -56,6 +56,12 @@ export const api = {
   filings: (symbol: string) => call<Filing[]>(`/companies/${symbol}/filings`),
   facts: (symbol: string, elements: string) =>
     call<Fact[]>(`/companies/${symbol}/facts?elements=${encodeURIComponent(elements)}`),
+  // By logical name (e.g. "revenue"), resolved for the company's results format on the server.
+  logicalFacts: (symbol: string, logical: string, consolidated?: boolean) =>
+    call<Fact[]>(
+      `/companies/${symbol}/facts?logical=${encodeURIComponent(logical)}` +
+        (consolidated === undefined ? "" : `&consolidated=${consolidated}`),
+    ),
   watchlist: () => call<WatchlistEntry[]>("/watchlist"),
   watch: (symbol: string) => post<CompanyDetail>("/watchlist", { symbol }),
   unwatch: (symbol: string) => call<void>(`/watchlist/${symbol}`, { method: "DELETE" }),

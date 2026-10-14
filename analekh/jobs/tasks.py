@@ -15,6 +15,7 @@ from analekh.db.session import session_scope
 from analekh.ingest.backfill import run_backfill
 from analekh.ingest.feeds import FeedWatcher
 from analekh.ingest.http import PoliteClient
+from analekh.ingest.integrated import fetch_results
 from analekh.ingest.pipeline import process_feed_item
 from analekh.ingest.storage import default_store
 from analekh.jobs.app import app
@@ -81,7 +82,8 @@ def process_documents(limit: int = 10, company_id: int | None = None) -> int:
 
 @app.task
 def refresh_company(symbol: str) -> dict:
-    """Newest results filing for a ticker (workflow 6.1 steps 2-4)."""
+    """Newest results filing for a ticker (workflow 6.1 steps 2-4): pending feed items, then
+    NSE's integrated-filing list for anything the feed missed."""
     with session_scope() as s:
         company = get_company(s, symbol)
         if company is None:
@@ -96,6 +98,7 @@ def refresh_company(symbol: str) -> dict:
         store, client = default_store(), PoliteClient()
         for item in pending:
             process_feed_item(s, store, client, item)
+        integrated = fetch_results(s, store, client, company)
         latest = s.scalar(
             select(Filing)
             .where(Filing.company_id == company.id, Filing.kind == "results_xbrl")
@@ -105,6 +108,7 @@ def refresh_company(symbol: str) -> dict:
             "filing_id": latest.id if latest else None,
             "period_end": str(latest.period_end) if latest else None,
             "fetched": len(pending),
+            "integrated_new": integrated.new,
         }
 
 
@@ -193,3 +197,87 @@ def sync_model(model_id: int, filing_id: int) -> dict:
             proposal.warnings.insert(0, "Validation failures on this filing: review before apply")
         cs = save_proposal(s, model_id, version.version, filing_id, proposal)
         return {"change_set_id": cs.id, **proposal.summary}
+
+
+@app.task
+def bulk_fetch_results(
+    symbols: list[str] | None = None,
+    *,
+    limit: int | None = None,
+    quarters: int | None = 8,
+    one_basis: bool = False,  # both standalone and consolidated
+    skip_done: bool = True,
+    log_dir: str = "out/bulk",
+    interval_seconds: float | None = None,
+) -> dict:
+    """Integrated-filing results for many companies (default: every company with a sector).
+
+    One company per transaction, so a stopped run keeps what it stored; ``skip_done`` skips
+    companies that already have a results filing, so rerunning resumes. Stops at the first sign
+    that NSE is refusing or throttling us (403/429, timeouts) instead of retrying into a block.
+    Progress goes to one JSON line per company under ``log_dir``.
+    """
+    import json
+    import time
+    from datetime import datetime
+
+    from analekh.db.models import Company
+    from analekh.ingest.integrated import record_gap, refused
+
+    with session_scope() as s:
+        q = select(Company.nse_symbol).where(Company.is_active).order_by(Company.nse_symbol)
+        if symbols:
+            q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
+        else:
+            q = q.where(Company.sector.is_not(None))
+        if skip_done:
+            q = q.where(
+                ~exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
+            )
+        todo = list(s.scalars(q))[:limit]
+
+    log = Path(log_dir) / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
+    gaps = Path(log_dir) / "no-filings.csv"  # running list across runs: companies with nothing
+    log.parent.mkdir(parents=True, exist_ok=True)
+    rate = 1 / interval_seconds if interval_seconds else None  # e.g. 5 s: one request per 5 s
+    store, client = default_store(), PoliteClient(max_attempts=2, rate_per_second=rate)
+    summary: dict = {"companies": len(todo), "done": 0, "filings": 0, "errors": 0, "log": str(log)}
+    summary["interval_seconds"] = interval_seconds
+    started = time.monotonic()
+    with log.open("a", encoding="utf-8") as out:
+        for symbol in todo:
+            t0 = time.monotonic()
+            entry: dict[str, object] = {"symbol": symbol}
+            try:
+                with session_scope() as s:
+                    company = get_company(s, symbol)
+                    assert company is not None
+                    outcome = fetch_results(
+                        s, store, client, company, quarters=quarters, one_basis=one_basis
+                    )
+                    entry.update(listed=outcome.listed, new=outcome.new)
+                    entry["blocked"] = sum(
+                        bool(r.report and r.report.blocks_auto_apply) for r in outcome.results
+                    )
+                    if outcome.gap:
+                        entry["gap"] = outcome.gap
+                    record_gap(gaps, company, outcome.gap, outcome)
+                summary["done"] += 1
+                summary["filings"] += outcome.new
+            except Exception as exc:  # noqa: BLE001 - one bad company must not stop the run
+                entry["error"] = f"{type(exc).__name__}: {exc}"[:300]
+                summary["errors"] += 1
+                if not refused(exc):  # a refusal says nothing about the company
+                    with session_scope() as s:
+                        company = get_company(s, symbol)
+                        if company is not None:
+                            record_gap(gaps, company, f"error: {entry['error']}", None)
+                if refused(exc):
+                    summary["stopped"] = f"NSE refused or stalled at {symbol}: {entry['error']}"
+                    out.write(json.dumps(entry) + "\n")
+                    break
+            entry["seconds"] = round(time.monotonic() - t0, 1)
+            out.write(json.dumps(entry) + "\n")
+            out.flush()
+    summary["seconds"] = round(time.monotonic() - started)
+    return summary

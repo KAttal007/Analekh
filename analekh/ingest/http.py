@@ -1,10 +1,13 @@
 """Polite HTTP client: descriptive User-Agent, timeouts, rate limit, exponential backoff (9.2-9.3).
 
 Design rule (section 3.2): only published RSS feeds, the equity list CSVs and the files the feeds
-link to, plus NSE Indices' published index constituent CSVs (added 2026-10-13 for sectors). Never
-NSE's internal JSON endpoints or crawled pages: the host and path allow-lists enforce it.
+link to, plus NSE Indices' published index constituent CSVs (added 2026-10-13 for sectors) and
+the integrated-filing lookup on www.nseindia.com (added 2026-10-14: the results feed stopped
+carrying filings). No other NSE website page or JSON endpoint, never crawled pages: the host and
+path allow-lists enforce it.
 """
 
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -24,14 +27,40 @@ ALLOWED_HOSTS = {
     "archives.nseindia.com",
     "niftyindices.com",
     "www.niftyindices.com",
+    "www.nseindia.com",
 }
-# Hosts limited to certain paths: niftyindices.com only for its published constituent lists.
+# Hosts limited to certain paths: niftyindices.com only for its published constituent lists;
+# www.nseindia.com only for the integrated-filing lookup, plus its home page ("/" matches only
+# itself), which sets the cookies the lookup needs.
 ALLOWED_PATHS = {
     "niftyindices.com": ("/IndexConstituent/",),
     "www.niftyindices.com": ("/IndexConstituent/",),
+    "www.nseindia.com": ("/", "/api/integrated-filing-results"),
 }
 
+
+def path_allowed(host: str, path: str) -> bool:
+    rules = ALLOWED_PATHS.get(host)
+    if rules is None:
+        return True
+    return any(path == rule if rule == "/" else path.startswith(rule) for rule in rules)
+
+
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_CONTACT = re.compile(r"\s*\([^)]*(?:@|https?://)[^)]*\)|\s*(?:https?://\S+|[\w.+-]+@\S+)")
+
+
+def identity_headers(user_agent: str, contact_email: str | None = None) -> dict[str, str]:
+    """User-Agent and From headers. NSE's CDN never answers a request whose User-Agent holds an
+    email address or a URL (seen 2026-10-14; it stalls instead of refusing), so any contact found
+    there moves to the From header, which is where HTTP puts the requester's email."""
+    contact = contact_email or next(iter(_EMAIL.findall(user_agent)), None)
+    headers = {"User-Agent": _CONTACT.sub("", user_agent).strip() or "Analekh"}
+    if contact:
+        headers["From"] = contact
+    return headers
 
 
 class DisallowedHostError(ValueError):
@@ -78,12 +107,13 @@ class PoliteClient:
         transport: httpx.BaseTransport | None = None,
         max_attempts: int = 4,
         backoff_base: float = 2.0,
+        rate_per_second: float | None = None,
     ) -> None:
         s = get_settings()
         self.allowed = ALLOWED_HOSTS | (extra_allowed_hosts or set())
-        self.limiter = RateLimiter(s.download_rate_per_second)
+        self.limiter = RateLimiter(rate_per_second or s.download_rate_per_second)
         self.client = httpx.Client(
-            headers={"User-Agent": s.user_agent, "Accept": "*/*"},
+            headers={**identity_headers(s.user_agent, s.contact_email), "Accept": "*/*"},
             timeout=s.http_timeout_seconds,
             follow_redirects=True,
             transport=transport,
@@ -96,16 +126,19 @@ class PoliteClient:
         )(self._get_once)
 
     def get(
-        self, url: str, etag: str | None = None, last_modified: str | None = None
+        self,
+        url: str,
+        etag: str | None = None,
+        last_modified: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> FetchResult:
         parsed = httpx.URL(url)
         host = parsed.host
         if host not in self.allowed:
             raise DisallowedHostError(f"{host} is not an allowed source host")
-        prefixes = ALLOWED_PATHS.get(host)
-        if prefixes and not parsed.path.startswith(prefixes):
+        if not path_allowed(host, parsed.path):
             raise DisallowedHostError(f"{parsed.path} is not an allowed path on {host}")
-        headers = {}
+        headers = dict(headers or {})
         if etag:
             headers["If-None-Match"] = etag
         if last_modified:

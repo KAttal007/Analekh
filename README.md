@@ -73,13 +73,11 @@ gaps are marked `PHASE n` and `# verify` in the code.
 2. **Rerun the spike** during the September-quarter results season (mid to late October) with
    bank and NBFC symbols, to fill the `BANKING` and `NBFC` element tables and widen the Ind-AS
    sample beyond one company.
-3. **Parse NSE's `pubDate` format** (`24-Aug-2026 17:39:16`); until then V8 skips with "filing
-   date unknown".
-4. **Run `analekh universe sectors`** once niftyindices.com answers, and confirm the list file
+3. **Run `analekh universe sectors`** once niftyindices.com answers, and confirm the list file
    names and columns marked `# verify` in `universe/sectors.py`.
-5. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
+4. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
    `analekh golden-test`.
-6. Run the workbook reader and template onboarding on real templates and models.
+5. Run the workbook reader and template onboarding on real templates and models.
 
 ### Tracker
 
@@ -97,11 +95,11 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Ind-AS element names in `xbrl/elements.py` | ✅ | Seen in real files (one company, 2020-03-31 taxonomy); fallbacks `TotalIncome`, `TotalExpenses` unconfirmed |
 | Filing metadata element names (symbol, period, nature, audited) | ✅ | All nine seen |
 | SME equity list path and columns | ✅ | 580 companies; two-digit-year dates now parsed |
-| Bank, NBFC and insurance element tables | 🔲 | Empty; no such filings in the feed yet |
-| Feed `pubDate` format | 🔲 | Format is `DD-Mon-YYYY HH:MM:SS`; not parsed yet, so V8 skips |
+| Bank, NBFC and insurance element tables | 🟡 | Banks (HDFC Bank, SBI) and general insurers (ICICI Lombard) mapped and tying out; NBFCs use the Ind-AS names. Life insurers not yet seen; insurers' balance sheet (V4) not mapped |
+| Feed `pubDate` format | 🟡 | `DD-Mon-YYYY HH:MM:SS`, no offset (IST); parsed since 2026-10-14, so V8 runs. Not yet seen through the live watcher |
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
-| V2 exceptional-items sign convention | 🔲 | Confirm on a filing with exceptional items |
+| V2 exceptional-items sign convention | ✅ | Tagged with their sign (a charge is negative) and added: Tata Elxsi Q3 FY26 labour-code charge |
 | Daily prices | 🔲 | Kite Connect removed (paid). Candidate: NSE/BSE daily bhavcopy; needs rule 1 amended |
 
 #### Phase 1 · Data layer
@@ -113,8 +111,9 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Web design system and app shell (sidebar, tokens, dark mode, shared components) | 🟡 | Every screen restyled; checked with synthetic and empty data only |
 | Web type-ahead search box | 🟡 | Loads more on scroll; lint, tests and build pass; not yet tried against the live API in a browser |
 | Watchlist and coverage levels | 🟡 | |
-| Feed watcher, polite fetcher, linking, storage | 🟡 | Spike read the live feeds; the watcher itself has not run |
-| XBRL parser, validation V1-V9 | 🟡 | Two real files parse; V1-V4, V6, V7, V9 pass; V5 and V8 skip |
+| Feed watcher, polite fetcher, linking, storage | 🟡 | Polled once on 2026-10-14 (118 items, dated, 97 linked); not yet running on a schedule. The results feed is frozen since 24 August; results now come as integrated filings |
+| Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. Tata Elxsi: 7 quarters (Mar 2025 to Sep 2026) parsed, validated and on the company page |
+| XBRL parser, validation V1-V9 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. Tata Elxsi's 7 filings pass V1-V9 (V4 skips without a balance sheet) |
 | Sectors from an Excel Stocks workbook (`analekh universe sectors --stocks-file`) | ✅ | 2,458 of 2,606 main-board companies (LSEG industry groups, matched by ISIN); 148 main board + 580 SME left. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
 | Sectors from NSE Indices' constituent lists (`analekh universe sectors`) | 🟡 | Built and tested on synthetic lists; not yet run (niftyindices.com unreachable). Lower precedence than the Stocks workbook |
 | Nifty 500 list for backfill priority (`universe/data/nifty500.csv`) | 🔲 | Empty |
@@ -177,6 +176,31 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-14** Standalone and consolidated side by side: the bulk fetch now takes both bases
+  for every quarter (`--one-basis` to opt out), and the company page has a Consolidated /
+  Standalone switch (kept in the URL as `?basis=`) that drives the figures, chart and filings
+  table. Companies with nothing to store are listed with the reason in
+  `out/bulk/no-filings.csv`, kept across runs.
+- **2026-10-14** Banks and insurers understood: element tables filled from real filings, the
+  results format now detected from the line items (integrated filings share one schema), V1/V2
+  take each format's extra terms (bank provisions; an insurer's investment income and
+  shareholders' account), and company pages chart interest earned or premium earned.
+  `analekh revalidate` re-runs the checks on stored files. Bulk fetch started for the 2,458
+  companies with a sector (`analekh results-backfill --interval 5`, about a day).
+- **2026-10-14** First real company end to end: Tata Elxsi's last seven quarters fetched,
+  validated and shown on its company page. NSE's results feed has been frozen since 24 August
+  (results moved to SEBI's integrated filings), so rule 1 was amended to allow NSE's
+  integrated-filing lookup (`/api/integrated-filing-results` only) and `analekh refresh` uses
+  it. Found and fixed on real files: NSE's CDN stalls any User-Agent holding an email or URL
+  (contact now goes in `From:`); typed XBRL dimensions were read as empty; V2 subtracted
+  exceptional items that filings tag as negative; the company page showed nothing for
+  standalone-only filers and would have mixed year-to-date figures into the quarterly chart.
+- **2026-10-14** V8 (late filing) follows SEBI's results deadlines (LODR 33(3)): 45 days after
+  a quarter, 60 after the financial year end, plus a day for the XBRL to follow the PDF. It was
+  180 days, which only caught stale filings.
+- **2026-10-14** Feed dates: NSE writes `pubDate` as `24-Aug-2026 17:39:16` (IST, no offset),
+  which feedparser can't read, so every feed item had no date and V8 (late filing) always
+  skipped. `parse_rss` now falls back to NSE's format and stores the time in UTC.
 - **2026-10-14** Object storage: MinIO no longer publishes community images, so compose builds it
   from source (`deploy/minio/Dockerfile`, pinned release). When storage is down the API now
   answers 503 within seconds instead of hanging, and the Models and Templates pages show the

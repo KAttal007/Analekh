@@ -1,8 +1,10 @@
 """Comparable companies table (design doc 12).
 
 EV = market cap + debt - cash from the latest balance sheet. TTM figures are the sum of the last
-four reported quarters. Multiples that would divide by zero or a negative denominator are left
-blank (shown as "n.m."), never forced.
+four reported quarters, all on one basis: consolidated when the company has four consolidated
+quarters, else standalone (many companies file standalone only), unless the caller fixes the
+basis. Each row records its basis so a mixed table is visible. Multiples that would divide by
+zero or a negative denominator are left blank (shown as "n.m."), never forced.
 """
 
 import io
@@ -15,10 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Price
+from analekh.facts import files_consolidated
 from analekh.xbrl.elements import candidates
 from analekh.xbrl.parser import period_type
 
 CRORE = Decimal(10_000_000)
+BASIS_LABEL = {True: "Consolidated", False: "Standalone", None: "n.a."}
 
 
 @dataclass
@@ -34,6 +38,7 @@ class CompInputs:
     book_value: Decimal | None
     as_of: date | None = None
     notes: list[str] = field(default_factory=list)
+    consolidated: bool | None = None  # basis of the figures; None when nothing was found
 
 
 @dataclass
@@ -116,15 +121,25 @@ def ttm(
     return sum((q.value for q in quarters if q.value is not None), Decimal(0)), []
 
 
-def gather(session: Session, symbol: str) -> CompInputs:
-    """PHASE 5: EBITDA and debt/cash element choices need confirming per taxonomy."""
+def gather(session: Session, symbol: str, consolidated: bool | None = None) -> CompInputs:
+    """Inputs for one company. ``consolidated`` fixes the basis; None picks consolidated when it
+    gives four quarters, else standalone.
+    PHASE 5: EBITDA and debt/cash element choices need confirming per taxonomy."""
     company = session.scalar(select(Company).where(Company.nse_symbol == symbol))
     if company is None:
         raise LookupError(symbol)
     tax = company.results_taxonomy or "indas"
     notes: list[str] = []
-    revenue, n1 = ttm(session, company.id, "revenue", tax)
-    pat, n2 = ttm(session, company.id, "pat", tax)
+    basis = consolidated
+    if basis is None:
+        has_consolidated = files_consolidated(session, company.id)
+        basis = has_consolidated
+        short = has_consolidated and ttm(session, company.id, "revenue", tax, True)[0] is None
+        if short and ttm(session, company.id, "revenue", tax, False)[0] is not None:
+            basis = False
+            notes.append("standalone: fewer than four consolidated quarters")
+    revenue, n1 = ttm(session, company.id, "revenue", tax, basis)
+    pat, n2 = ttm(session, company.id, "pat", tax, basis)
     notes += n1 + n2
     price = session.scalar(
         select(Price).where(Price.company_id == company.id).order_by(Price.trade_date.desc())
@@ -143,6 +158,7 @@ def gather(session: Session, symbol: str) -> CompInputs:
         book_value=None,
         as_of=price.trade_date if price else None,
         notes=notes,
+        consolidated=basis,
     )
 
 
@@ -154,9 +170,12 @@ def to_xlsx(rows: list[CompRow], title: str = "Comparable companies") -> bytes:
     num = wb.add_format({"num_format": "#,##0"})
     mult = wb.add_format({"num_format": '0.0"x"'})
     ws.write(0, 0, title, wb.add_format({"bold": True, "font_size": 14}))
-    ws.write(1, 0, "INR crore; multiples on TTM; n.m. = not meaningful")
+    ws.write(
+        1, 0, "INR crore; multiples on TTM; n.m. = not meaningful; check Basis before comparing"
+    )
     headers = [
         "Company",
+        "Basis",
         "Mkt cap",
         "EV",
         "TTM revenue",
@@ -171,20 +190,21 @@ def to_xlsx(rows: list[CompRow], title: str = "Comparable companies") -> bytes:
     for r, row in enumerate(rows, start=4):
         i = row.inputs
         ws.write(r, 0, i.name)
-        for c, v in enumerate([i.market_cap, row.ev, i.ttm_revenue, i.ttm_pat], start=1):
+        ws.write(r, 1, BASIS_LABEL[i.consolidated])
+        for c, v in enumerate([i.market_cap, row.ev, i.ttm_revenue, i.ttm_pat], start=2):
             ws.write(r, c, float(v / CRORE), num) if v is not None else ws.write(r, c, "n.a.")
-        for c, v in enumerate([row.ev_sales, row.ev_ebitda, row.pe, row.pb], start=5):
+        for c, v in enumerate([row.ev_sales, row.ev_ebitda, row.pe, row.pb], start=6):
             ws.write(r, c, float(v), mult) if v is not None else ws.write(r, c, "n.m.")
     stats = summary_stats(rows)
     base = 4 + len(rows) + 1
     for k, label in enumerate(("median", "mean")):
         ws.write(base + k, 0, label.capitalize(), bold)
-        for c, metric in enumerate(("ev_sales", "ev_ebitda", "pe", "pb"), start=5):
+        for c, metric in enumerate(("ev_sales", "ev_ebitda", "pe", "pb"), start=6):
             v = stats[metric][label]
             ws.write(base + k, c, float(v), mult) if v is not None else ws.write(
                 base + k, c, "n.m."
             )
     ws.set_column(0, 0, 32)
-    ws.set_column(1, 8, 12)
+    ws.set_column(1, 9, 12)
     wb.close()
     return out.getvalue()

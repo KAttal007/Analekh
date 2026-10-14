@@ -11,7 +11,9 @@ from analekh import coverage
 from analekh.api import schemas
 from analekh.api.deps import DB, User, company_or_404, job
 from analekh.db.models import ChangeSet, Company, Fact, Filing, Kpi, Model
+from analekh.facts import files_consolidated
 from analekh.universe.search import DEFAULT_LIMIT, search
+from analekh.xbrl.elements import candidates
 
 router = APIRouter(tags=["companies"])
 
@@ -137,10 +139,24 @@ def facts(
     elements: str | None = None,
     start: date | None = None,
     end: date | None = None,
-    consolidated: bool = True,
+    consolidated: bool | None = None,
+    logical: str | None = None,
 ) -> list[Fact]:
+    """Facts by element name, or by ``logical`` name (e.g. revenue), resolved for the company's
+    results format: a bank's revenue is interest earned, an insurer's premium earned."""
+    company = company_or_404(db, symbol)
+    company_id = company.id
+    if logical:
+        names = [
+            e
+            for x in logical.split(",")
+            for e in candidates(x, company.results_taxonomy or "indas")
+        ]
+        elements = ",".join(names) or "-"  # nothing in this format: no facts
+    if consolidated is None:
+        consolidated = files_consolidated(db, company_id)
     q = select(Fact).where(
-        Fact.company_id == company_or_404(db, symbol).id,
+        Fact.company_id == company_id,
         Fact.is_latest,
         Fact.consolidated == consolidated,
     )

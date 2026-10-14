@@ -7,7 +7,8 @@ upsert on (feed, item_key) makes polling idempotent.
 import hashlib
 from calendar import timegm
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
+from time import struct_time
 
 import feedparser
 from sqlalchemy import select
@@ -30,6 +31,11 @@ FEEDS: dict[str, tuple[str, str]] = {
     "related_party": ("Related_Party_Trans.xml", "slow"),
     "encumbrance": ("Sast_ReasonForEncumbrance.xml", "slow"),
 }
+
+# NSE's feeds write pubDate as "24-Aug-2026 17:39:16" (seen in Phase 0): not RFC 822, so
+# feedparser gives up on it. No offset is given; the time is IST, which has no daylight saving.
+NSE_PUB_DATE_FORMAT = "%d-%b-%Y %H:%M:%S"
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 @dataclass(frozen=True)
@@ -54,19 +60,30 @@ def parse_rss(data: bytes) -> list[RssItem]:
     items = []
     for e in parsed.entries:
         raw_date = e.get("published")
-        struct = e.get("published_parsed")
-        # PHASE 0: confirm NSE's pubDate format; feedparser handles RFC 822 and most variants.
-        when = datetime.fromtimestamp(timegm(struct), UTC) if struct else None
         items.append(
             RssItem(
                 title=(e.get("title") or "").strip() or None,
                 link=(e.get("link") or "").strip() or None,
                 description=(e.get("description") or e.get("summary") or "").strip() or None,
                 pub_date_raw=raw_date,
-                pub_date=when,
+                pub_date=parse_pub_date(raw_date, e.get("published_parsed")),
             )
         )
     return items
+
+
+def parse_pub_date(raw: str | None, struct: struct_time | None = None) -> datetime | None:
+    """UTC datetime from a feed pubDate: feedparser's parse if it managed one, else NSE's format."""
+    if struct:
+        return datetime.fromtimestamp(timegm(struct), UTC)
+    if not raw:
+        return None
+    try:
+        return (
+            datetime.strptime(raw.strip(), NSE_PUB_DATE_FORMAT).replace(tzinfo=IST).astimezone(UTC)
+        )
+    except ValueError:
+        return None
 
 
 def store_items(
