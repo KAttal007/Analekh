@@ -86,6 +86,79 @@ class FilingOut(ORM):
     meta: dict[str, Any]
 
 
+class DeskRowOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str | None
+    taxonomy: str  # indas, banking, insurance, life_insurance: what "revenue" means for this row
+    consolidated: bool
+    filed_at: datetime | None
+    revenue: Decimal | None
+    revenue_yoy: Decimal | None  # % on the same quarter a year earlier
+    pat: Decimal | None
+    pat_yoy: Decimal | None
+    ebitda_margin: Decimal | None  # %, Ind-AS only
+    ebitda_margin_yoy: Decimal | None  # basis points
+    blocked: bool  # a validation check blocks this filing
+    yoy_note: str | None = None  # why the YoY columns are blank, for the dash's tooltip
+
+
+class SectorProgressOut(BaseModel):
+    sector: str
+    reported: int
+    total: int
+    median_revenue_yoy: Decimal | None
+    median_pat_yoy: Decimal | None
+
+
+class QuarterCountOut(BaseModel):
+    quarter_end: date
+    quarter_label: str
+    reported: int
+
+
+class DeskOut(BaseModel):
+    quarter_end: date | None
+    quarter_label: str | None
+    quarters: list[QuarterCountOut]
+    companies_in_scope: int
+    reported: int
+    filings_total: int
+    latest_filed_at: datetime | None
+    rows: list[DeskRowOut]
+    rows_total: int
+    revenue_top: list[DeskRowOut]
+    revenue_bottom: list[DeskRowOut]
+    profit_top: list[DeskRowOut]
+    profit_bottom: list[DeskRowOut]
+    turned_profitable: list[DeskRowOut]
+    turned_loss: list[DeskRowOut]
+    sectors: list[SectorProgressOut]
+
+
+class GlanceLineOut(BaseModel):
+    key: str
+    label: str
+    kind: Literal["inr", "eps", "pct"]  # rupees, rupees per share, percent
+    value: Decimal | None
+    qoq: Decimal | None  # % change on the previous quarter; basis points for "pct"
+    yoy: Decimal | None  # same, against the same quarter a year earlier
+    note: str | None = None  # how a derived line is computed
+
+
+class GlanceOut(BaseModel):
+    consolidated: bool
+    taxonomy: str
+    period_start: date | None
+    period_end: date | None
+    quarter_label: str | None
+    previous_end: date | None
+    year_ago_end: date | None
+    previous_note: str | None = None  # why QoQ is blank on every line
+    year_ago_note: str | None = None  # why YoY is blank on every line
+    lines: list[GlanceLineOut]
+
+
 class FactOut(ORM):
     id: int
     filing_id: int

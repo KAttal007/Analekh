@@ -50,7 +50,7 @@ const readCollapsed = () => {
 
 function Item({ item }: { item: NavItem }) {
   return (
-    <NavLink to={item.to} end={item.to === "/"} title={item.label}>
+    <NavLink to={item.to} end={item.to === "/"} title={item.label} aria-label={item.label}>
       <Icon name={item.icon} />
       <span className="nav-label">{item.label}</span>
       {item.soon && <span className="badge soon">Soon</span>}

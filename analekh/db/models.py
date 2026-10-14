@@ -45,7 +45,7 @@ class Company(Base):
     __tablename__ = "companies"
     __table_args__ = (
         CheckConstraint(
-            "results_taxonomy IN ('indas','banking','nbfc','insurance')",
+            "results_taxonomy IN ('indas','banking','nbfc','insurance','life_insurance')",
             name="ck_companies_results_taxonomy",
         ),
         CheckConstraint(

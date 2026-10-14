@@ -169,6 +169,53 @@ def facts(
     return list(db.scalars(q.order_by(Fact.period_end.desc(), Fact.element)))
 
 
+@router.get("/desk", response_model=schemas.DeskOut)
+def results_desk(
+    db: DB,
+    user: User,
+    quarter_end: date | None = None,
+    sector: str | None = None,
+    watchlist: bool = False,
+    days: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> schemas.DeskOut:
+    """Results desk (Home): who reported the quarter (newest first, latest quarter by default),
+    year-on-year movers and progress by sector."""
+    from dataclasses import asdict
+
+    from analekh.desk import desk
+    from analekh.glance import quarter_label
+
+    d = desk(
+        db,
+        quarter_end=quarter_end,
+        sector=sector,
+        watchlist_user=user if watchlist else None,
+        days=days,
+        limit=min(max(limit, 1), 200),
+        offset=max(offset, 0),
+    )
+    data = asdict(d)
+    data["quarters"] = [
+        {"quarter_end": end, "quarter_label": quarter_label(end), "reported": n}
+        for end, n in d.quarters
+    ]
+    return schemas.DeskOut.model_validate(data)
+
+
+@router.get("/companies/{symbol}/glance", response_model=schemas.GlanceOut)
+def company_glance(symbol: str, db: DB, consolidated: bool | None = None) -> schemas.GlanceOut:
+    """Latest quarter at a glance: P&L lines in the company's format, with QoQ and YoY change."""
+    from dataclasses import asdict
+
+    from analekh.glance import glance
+
+    return schemas.GlanceOut.model_validate(
+        asdict(glance(db, company_or_404(db, symbol), consolidated))
+    )
+
+
 @router.get("/companies/{symbol}/kpis", response_model=list[schemas.KpiOut])
 def kpis(symbol: str, db: DB, names: str | None = None) -> list[Kpi]:
     q = select(Kpi).where(Kpi.company_id == company_or_404(db, symbol).id)

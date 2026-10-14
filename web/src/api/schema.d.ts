@@ -175,6 +175,47 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/desk": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Results Desk
+     * @description Results desk (Home): who reported the quarter (newest first, latest quarter by default),
+     *     year-on-year movers and progress by sector.
+     */
+    get: operations["results_desk_desk_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{symbol}/glance": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Company Glance
+     * @description Latest quarter at a glance: P&L lines in the company's format, with QoQ and YoY change.
+     */
+    get: operations["company_glance_companies__symbol__glance_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/{symbol}/kpis": {
     parameters: {
       query?: never;
@@ -812,6 +853,8 @@ export interface components {
       symbols?: string[];
       /** Peer List */
       peer_list?: string | null;
+      /** Consolidated */
+      consolidated?: boolean | null;
     };
     /** CoverageRequest */
     CoverageRequest: {
@@ -838,6 +881,72 @@ export interface components {
       decisions?: components["schemas"]["Decision"][];
       /** Accept Kinds */
       accept_kinds?: string[];
+    };
+    /** DeskOut */
+    DeskOut: {
+      /** Quarter End */
+      quarter_end: string | null;
+      /** Quarter Label */
+      quarter_label: string | null;
+      /** Quarters */
+      quarters: components["schemas"]["QuarterCountOut"][];
+      /** Companies In Scope */
+      companies_in_scope: number;
+      /** Reported */
+      reported: number;
+      /** Filings Total */
+      filings_total: number;
+      /** Latest Filed At */
+      latest_filed_at: string | null;
+      /** Rows */
+      rows: components["schemas"]["DeskRowOut"][];
+      /** Rows Total */
+      rows_total: number;
+      /** Revenue Top */
+      revenue_top: components["schemas"]["DeskRowOut"][];
+      /** Revenue Bottom */
+      revenue_bottom: components["schemas"]["DeskRowOut"][];
+      /** Profit Top */
+      profit_top: components["schemas"]["DeskRowOut"][];
+      /** Profit Bottom */
+      profit_bottom: components["schemas"]["DeskRowOut"][];
+      /** Turned Profitable */
+      turned_profitable: components["schemas"]["DeskRowOut"][];
+      /** Turned Loss */
+      turned_loss: components["schemas"]["DeskRowOut"][];
+      /** Sectors */
+      sectors: components["schemas"]["SectorProgressOut"][];
+    };
+    /** DeskRowOut */
+    DeskRowOut: {
+      /** Symbol */
+      symbol: string;
+      /** Name */
+      name: string;
+      /** Sector */
+      sector: string | null;
+      /** Taxonomy */
+      taxonomy: string;
+      /** Consolidated */
+      consolidated: boolean;
+      /** Filed At */
+      filed_at: string | null;
+      /** Revenue */
+      revenue: string | null;
+      /** Revenue Yoy */
+      revenue_yoy: string | null;
+      /** Pat */
+      pat: string | null;
+      /** Pat Yoy */
+      pat_yoy: string | null;
+      /** Ebitda Margin */
+      ebitda_margin: string | null;
+      /** Ebitda Margin Yoy */
+      ebitda_margin_yoy: string | null;
+      /** Blocked */
+      blocked: boolean;
+      /** Yoy Note */
+      yoy_note?: string | null;
     };
     /** DiscoverRequest */
     DiscoverRequest: {
@@ -896,6 +1005,49 @@ export interface components {
       meta: {
         [key: string]: unknown;
       };
+    };
+    /** GlanceLineOut */
+    GlanceLineOut: {
+      /** Key */
+      key: string;
+      /** Label */
+      label: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "inr" | "eps" | "pct";
+      /** Value */
+      value: string | null;
+      /** Qoq */
+      qoq: string | null;
+      /** Yoy */
+      yoy: string | null;
+      /** Note */
+      note?: string | null;
+    };
+    /** GlanceOut */
+    GlanceOut: {
+      /** Consolidated */
+      consolidated: boolean;
+      /** Taxonomy */
+      taxonomy: string;
+      /** Period Start */
+      period_start: string | null;
+      /** Period End */
+      period_end: string | null;
+      /** Quarter Label */
+      quarter_label: string | null;
+      /** Previous End */
+      previous_end: string | null;
+      /** Year Ago End */
+      year_ago_end: string | null;
+      /** Previous Note */
+      previous_note?: string | null;
+      /** Year Ago Note */
+      year_ago_note?: string | null;
+      /** Lines */
+      lines: components["schemas"]["GlanceLineOut"][];
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -973,6 +1125,18 @@ export interface components {
       /** Question */
       question: string;
     };
+    /** QuarterCountOut */
+    QuarterCountOut: {
+      /**
+       * Quarter End
+       * Format: date
+       */
+      quarter_end: string;
+      /** Quarter Label */
+      quarter_label: string;
+      /** Reported */
+      reported: number;
+    };
     /** ReportRequest */
     ReportRequest: {
       /** Symbol */
@@ -1006,6 +1170,19 @@ export interface components {
       is_active: boolean;
       /** Score */
       score: number;
+    };
+    /** SectorProgressOut */
+    SectorProgressOut: {
+      /** Sector */
+      sector: string;
+      /** Reported */
+      reported: number;
+      /** Total */
+      total: number;
+      /** Median Revenue Yoy */
+      median_revenue_yoy: string | null;
+      /** Median Pat Yoy */
+      median_pat_yoy: string | null;
     };
     /** SyncRequest */
     SyncRequest: {
@@ -1417,6 +1594,75 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["FactOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  results_desk_desk_get: {
+    parameters: {
+      query?: {
+        quarter_end?: string | null;
+        sector?: string | null;
+        watchlist?: boolean;
+        days?: number | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DeskOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  company_glance_companies__symbol__glance_get: {
+    parameters: {
+      query?: {
+        consolidated?: boolean | null;
+      };
+      header?: never;
+      path: {
+        symbol: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GlanceOut"];
         };
       };
       /** @description Validation Error */

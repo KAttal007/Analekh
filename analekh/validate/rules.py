@@ -160,7 +160,10 @@ def v1_total_income(ctx: ValidationContext) -> RuleResult:
     facts, signs, words = _with_optional(
         ctx,
         [("revenue", 1), ("other_income", 1)],
-        [("investment_income", 1, "investment income")],  # insurers
+        [
+            ("investment_income", 1, "investment income"),  # insurers
+            ("transfer_from_shareholders", 1, "transfer from shareholders"),  # life insurers
+        ],
     )
     return _identity(
         "V1",
@@ -176,6 +179,17 @@ def v2_pbt(ctx: ValidationContext) -> RuleResult:
     # Exceptional items are tagged with their sign: a charge is negative, a gain positive
     # (confirmed on Tata Elxsi, Q3 FY26: -956,888,000 for the labour-code charge), so they are
     # added. Banks also deduct provisions; insurers go through the shareholders' account.
+    if ctx.taxonomy == "life_insurance":
+        # The policyholders' total income less expenses is the surplus, not PBT: PBT is struck
+        # in the shareholders' account (Canara HSBC Life, every quarter to the rupee).
+        return _identity(
+            "V2",
+            "block",
+            "Shareholders' account income - expenses = PBT",
+            [ctx.fact("shareholders_income"), ctx.fact("shareholders_expenses")],
+            ctx.fact("pbt"),
+            [1, -1],
+        )
     facts, signs, words = _with_optional(
         ctx,
         [("total_income", 1), ("total_expenses", -1)],

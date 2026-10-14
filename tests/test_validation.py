@@ -221,11 +221,33 @@ ICICI_LOMBARD = {
 }
 
 
+# Canara HSBC Life, September 2026 quarter (standalone), life insurer. Policyholders' account:
+# net premium + investment income + other income + transfer from shareholders = income; income -
+# expenses = surplus. Shareholders' account: income - expenses = PBT.
+CANARA_HSBC_LIFE = {
+    "GrossPremiumIncome": 25_812_500_000,
+    "NetPremiumIncome": 25_531_600_000,
+    "IncomeFromInvestmentsNet": -334_200_000,
+    "PolicyholdersAccountOtherIncome": 64_000_000,
+    "TransferOfFundsFromShareholdersAccount": -151_400_000,
+    "Income": 25_110_000_000,
+    "Expenses": 25_224_900_000,
+    "SurplusShownInTheRevenueAccount": -114_900_000,
+    "ShareholdersAccountIncome": 378_000_000,
+    "ShareholdersAccountExpenses": -104_100_000,
+    "ProfitLossBeforeTax": 482_100_000,
+    "ProvisionsForTaxes": 51_600_000,
+    "ProfitLossAfterTaxBeforeExtraordinaryItems": 430_500_000,
+    "ProfitLossAfterTaxAndExtraordinaryItems": 430_500_000,
+}
+
+
 def test_detects_banks_and_insurers_from_their_line_items():
     from analekh.xbrl.elements import detect_taxonomy
 
     assert parse_instance(_quarter(HDFC_BANK)).taxonomy() == "banking"
     assert parse_instance(_quarter(ICICI_LOMBARD)).taxonomy() == "insurance"
+    assert parse_instance(_quarter(CANARA_HSBC_LIFE)).taxonomy() == "life_insurance"
     # NBFCs tag InterestEarned inside their revenue (Bajaj Finance): still Ind-AS.
     assert detect_taxonomy({"RevenueFromOperations", "InterestEarned", "InterestExpended"}) is None
 
@@ -244,6 +266,17 @@ def test_insurer_identities_run_through_the_shareholders_account():
     for rule in ("V1", "V2", "V3"):
         assert results[rule].status == "pass", (rule, results[rule].message)
     assert results["V4"].status == "skip"  # IRDAI balance sheet not mapped yet
+
+
+def test_life_insurer_identities_run_through_both_accounts():
+    ctx = ValidationContext(parse_instance(_quarter(CANARA_HSBC_LIFE)), "life_insurance")
+    results = by_rule(validate(ctx))
+    for rule in ("V1", "V2", "V3"):
+        assert results[rule].status == "pass", (rule, results[rule].message)
+    assert "transfer from shareholders" in results["V1"].message
+    # Policyholders' income - expenses is the surplus (-11.49 crore), not PBT (48.21 crore).
+    assert "Shareholders' account" in results["V2"].message
+    assert results["V4"].status == "skip"  # balance sheet not mapped yet
 
 
 def test_bank_provisions_left_out_fail_v2():

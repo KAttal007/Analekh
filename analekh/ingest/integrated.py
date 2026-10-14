@@ -9,7 +9,7 @@ before. The endpoint answers without the home page's cookies; requests stay hone
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import urlencode
@@ -58,13 +58,22 @@ class IntegratedFiling:
             symbol=(row.get("symbol") or "").strip().upper(),
             period_end=_date(row.get("qe_Date")),
             consolidated=True if "consolidated" in nature else False if nature else None,
-            xbrl_url=(row.get("xbrl") or "").strip() or None,
+            xbrl_url=_url(row.get("xbrl")),
             # Revisions can come without a broadcast date (seen on Tata Elxsi, March 2026).
             broadcast_at=_ist(row.get("broadcast_Date")) or _ist(row.get("creation_Date")),
             revision=row.get("type_Sub"),
-            ixbrl_url=(row.get("ixbrl") or "").strip() or None,
-            pdf_url=(row.get("pdf_attach") or "").strip() or None,
+            ixbrl_url=_url(row.get("ixbrl")),
+            pdf_url=_url(row.get("pdf_attach")),
         )
+
+
+def _url(raw: str | None) -> str | None:
+    """A file link, or None. NSE fills a missing attachment with its base path plus "null"
+    (".../corporate/null", on about 1 in 3 filings): that is no link."""
+    url = (raw or "").strip()
+    if not url or url.rstrip("/").rsplit("/", 1)[-1].lower() in ("null", "undefined", "none"):
+        return None
+    return url
 
 
 def _date(raw: str | None) -> date | None:
@@ -139,6 +148,7 @@ class FetchOutcome:
     listed: int  # integrated financials filings NSE lists for the company
     with_xbrl: int  # of those, how many link an XBRL file
     results: list[IngestResult]
+    missing: list[str] = field(default_factory=list)  # XBRL links NSE lists but answers 404 for
 
     @property
     def new(self) -> int:
@@ -151,6 +161,8 @@ class FetchOutcome:
             return "no integrated financials filings listed on NSE"
         if self.with_xbrl == 0:
             return f"{self.listed} filings listed, none with an XBRL file"
+        if self.missing and not self.results:
+            return f"{len(self.missing)} XBRL files listed but missing on NSE (404)"
         return None
 
 
@@ -167,18 +179,88 @@ def fetch_results(
     urls = session.scalars(select(Filing.source_url).where(Filing.company_id == company.id))
     known = {u for u in urls if u}
     listed = lookup(client, company.nse_symbol, sme=company.is_sme)
-    results = []
+    results: list[IngestResult] = []
+    missing: list[str] = []
     for f in select_filings(listed, known, quarters=quarters, one_basis=one_basis):
-        assert f.xbrl_url is not None
-        data = client.get(f.xbrl_url).content
-        with session.begin_nested():
-            result = ingest_results_xbrl(
-                session, store, company, data, source_url=f.xbrl_url, filed_at=f.broadcast_at
-            )
-            if not result.skipped:
-                result.filing.meta = {**result.filing.meta, "links": f.links}
+        result = _download_and_ingest(session, store, client, company, f)
+        if result is None:
+            missing.append(f.xbrl_url or "")
+        else:
             results.append(result)
-    return FetchOutcome(len(listed), sum(1 for f in listed if f.xbrl_url), results)
+    return FetchOutcome(len(listed), sum(1 for f in listed if f.xbrl_url), results, missing)
+
+
+def _download_and_ingest(
+    session: Session,
+    store: ObjectStore,
+    client: PoliteClient,
+    company: Company,
+    f: IntegratedFiling,
+) -> IngestResult | None:
+    """One listed filing into the store; None when NSE lists a file it no longer serves (seen on
+    Adani Enterprises), so the company's other filings are kept rather than all lost."""
+    assert f.xbrl_url is not None
+    try:
+        data = client.get(f.xbrl_url).content
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (404, 410):
+            return None
+        raise
+    with session.begin_nested():
+        result = ingest_results_xbrl(
+            session, store, company, data, source_url=f.xbrl_url, filed_at=f.broadcast_at
+        )
+        if not result.skipped:
+            result.filing.meta = {**result.filing.meta, "links": f.links}
+    return result
+
+
+# The daily results watcher reads NSE's latest-results list once (the owner's choice: one request
+# a day), so it asks for a page big enough for a busy results day.
+LATEST_PAGE_SIZE = 500
+
+
+@dataclass
+class LatestOutcome:
+    listed: int  # rows on the page
+    new: int  # filings downloaded and stored
+    unknown_symbols: list[str] = field(default_factory=list)  # not in our universe
+    missing: list[str] = field(default_factory=list)
+    page_full: bool = False  # every row was new: there may be more than one page of news
+
+
+def fetch_latest(
+    session: Session, store: ObjectStore, client: PoliteClient, size: int = LATEST_PAGE_SIZE
+) -> LatestOutcome:
+    """New results filings across all companies from ONE request to NSE's latest-results list
+    (the integrated-filing lookup without a ticker), then the XBRL for each filing we lack."""
+    query = urlencode({"index": "equity", "type": FINANCIALS, "page": 1, "size": size})
+    result = client.get(
+        f"{LOOKUP_URL}?{query}", headers={"Accept": "application/json", "Referer": PAGE_URL}
+    )
+    listed = [IntegratedFiling.from_row(r) for r in json.loads(result.content).get("data") or []]
+    urls = {f.xbrl_url for f in listed if f.xbrl_url}
+    known = set(session.scalars(select(Filing.source_url).where(Filing.source_url.in_(urls))))
+    companies = {
+        c.nse_symbol: c
+        for c in session.scalars(
+            select(Company).where(Company.nse_symbol.in_({f.symbol for f in listed}))
+        )
+    }
+    out = LatestOutcome(listed=len(listed), new=0)
+    todo = [f for f in listed if f.xbrl_url and f.xbrl_url not in known]
+    out.page_full = bool(listed) and len(todo) == len(listed)
+    for f in select_filings(todo, set()):
+        company = companies.get(f.symbol)
+        if company is None:
+            out.unknown_symbols.append(f.symbol)
+            continue
+        ingested = _download_and_ingest(session, store, client, company, f)
+        if ingested is None:
+            out.missing.append(f.xbrl_url or "")
+        elif not ingested.skipped:
+            out.new += 1
+    return out
 
 
 GAP_FIELDS = [

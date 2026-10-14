@@ -289,3 +289,65 @@ def test_no_filings_list_records_reason_and_drops_resolved(tmp_path):
     record_gap(path, demo, None, FetchOutcome(listed=6, with_xbrl=6, results=[]))  # resolved
     with path.open(newline="", encoding="utf-8") as fh:
         assert [r["symbol"] for r in csv.DictReader(fh)] == ["ABBOTINDIA"]
+
+
+def test_fetch_results_skips_a_missing_file_and_keeps_the_rest(db, store, company):
+    from analekh.ingest.integrated import fetch_results
+
+    good = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_GOOD.xml"
+    gone = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_GONE.xml"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/integrated-filing-results":
+            rows = [
+                {"symbol": company.nse_symbol, "qe_Date": "30-JUN-2026", "xbrl": gone},
+                {"symbol": company.nse_symbol, "qe_Date": "30-SEP-2026", "xbrl": good},
+            ]
+            return httpx.Response(200, json={"data": rows, "totalCount": 2})
+        if str(request.url) == gone:
+            return httpx.Response(404)
+        return httpx.Response(200, content=q2_instance())
+
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
+    outcome = fetch_results(db, store, client, company)
+    assert outcome.missing == [gone] and outcome.new == 1 and outcome.gap is None
+
+
+def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, store, company):
+    from analekh.ingest.integrated import fetch_latest
+
+    new = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_NEW.xml"
+    other = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_OTHER.xml"
+    lookups: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/integrated-filing-results":
+            lookups.append(request)
+            rows = [
+                {"symbol": company.nse_symbol, "qe_Date": "30-SEP-2026", "xbrl": new},
+                {"symbol": "NOTOURS", "qe_Date": "30-SEP-2026", "xbrl": other},
+            ]
+            return httpx.Response(200, json={"data": rows, "totalCount": 2})
+        return httpx.Response(200, content=q2_instance())
+
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
+    first = fetch_latest(db, store, client)
+    assert first.new == 1 and first.unknown_symbols == ["NOTOURS"]
+    (req,) = lookups
+    assert "symbol" not in req.url.params and req.url.params["size"] == "500"
+
+    second = fetch_latest(db, store, client)  # same list again: nothing new to download
+    assert second.new == 0 and len(lookups) == 2
+
+
+def test_integrated_filing_null_attachment_is_no_link():
+    from analekh.ingest.integrated import IntegratedFiling
+
+    row = {
+        "symbol": "DEMO",
+        "qe_Date": "30-SEP-2026",
+        "xbrl": "https://nsearchives.nseindia.com/corporate/xbrl/X.xml",
+        "pdf_attach": "https://nsearchives.nseindia.com/corporate/null",  # as NSE sends it
+    }
+    f = IntegratedFiling.from_row(row)
+    assert f.pdf_url is None and set(f.links) == {"xbrl"}

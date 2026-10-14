@@ -26,6 +26,7 @@ uv run ruff check . && uv run ruff format . && uv run mypy analekh
 docker compose up -d postgres             # PostgreSQL 16 + pgvector + pg_trgm for DB tests
 docker compose up -d minio                # object storage (built from source on first run)
 uv run alembic upgrade head               # migrations (analekh/db/migrations)
+uv sync --group audio                     # Whisper for call recordings (analekh transcribe-audio)
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py
 uv run analekh --help                     # CLI: universe, search, watch, template, build, sync
 uv run python scripts/phase0_spike.py --limit 10  # needs NSE access (Indian network)
@@ -80,7 +81,9 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    `/IndexConstituent/` by `ALLOWED_PATHS`; added 2026-10-13 for sectors), plus the
    integrated-filing lookup on `www.nseindia.com`, limited by `ALLOWED_PATHS` to `/` (home page
    only, for cookies) and `/api/integrated-filing-results` (approved by the owner 2026-10-14: the
-   results feed stopped carrying filings). No other NSE website page or internal API: never widen
+   results feed stopped carrying filings). It is queried per company, plus ONE request a day
+   without a ticker for the latest results (`analekh results-watch`, owner's limit, 2026-10-14).
+   No other NSE website page or internal API: never widen
    `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
    never crawl pages. Requests identify as Analekh: never disguise them as a browser.
 2. **Human in the loop**: nothing writes to an analyst's model without an approved change set
@@ -99,8 +102,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 
 - `xbrl/elements.py`: names marked `# verify` were never checked against a real file. Bank and
-  general-insurer tables come from real integrated filings; life insurers and the insurers'
-  balance sheet are not mapped yet. After changing tables or rules, run `analekh revalidate`.
+  general- and life-insurer tables come from real integrated filings; the insurers' balance
+  sheet is not mapped yet. After changing tables or rules, run `analekh revalidate`.
 - `universe/loader.py`: SME list path unconfirmed. `universe/sectors.py`: index list file names
   and columns marked `# verify` (niftyindices.com unreachable when written); `data/sector_map.csv`
   holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.

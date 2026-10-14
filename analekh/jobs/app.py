@@ -51,6 +51,10 @@ app.conf.update(
             "task": "analekh.jobs.tasks.refresh_universe",
             "schedule": _cron(settings.universe_refresh_cron),
         },
+        "watch-results": {
+            "task": "analekh.jobs.tasks.watch_results",
+            "schedule": _cron(settings.results_watch_cron),
+        },
         "background-backfill": {
             "task": "analekh.jobs.tasks.background_backfill",
             "schedule": crontab(minute=30, hour=1),

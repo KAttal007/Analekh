@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ResultsDesk } from "./ResultsDesk";
 
 const STEPS = [
   {
@@ -15,9 +16,12 @@ const STEPS = [
   },
 ];
 
+/** Home: the results desk, then (for now; the owner may drop it) how Analekh works. */
 export function SearchPage() {
   return (
     <div className="page">
+      <ResultsDesk />
+      <h2 className="section-title">How Analekh works</h2>
       <div className="card hero">
         <h1>Every NSE-listed company, from day one</h1>
         <p>

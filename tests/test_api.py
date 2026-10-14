@@ -241,3 +241,201 @@ def test_comps_export_shows_each_company_basis(client, db, store):
     assert ws["Comps"]["B5"].value == "Standalone"
     forced = client.post("/comps", json={"symbols": ["SOLO"], "consolidated": True}).content
     assert load_workbook(io.BytesIO(forced))["Comps"]["B5"].value == "Consolidated"
+
+
+def test_glance_lines_changes_and_derived_ebitda(client, db, store):
+    glow = Company(nse_symbol="GLOW", name="Glow Industries Limited", isin="INE000G01011")
+    db.add(glow)
+    db.flush()
+    crore = 10_000_000
+
+    def quarter(start, end, revenue, pat):
+        q = {
+            "RevenueFromOperations": revenue * crore,
+            "OtherIncome": 5 * crore,
+            "Income": (revenue + 5) * crore,
+            "Expenses": (revenue - 20) * crore,
+            "FinanceCosts": 2 * crore,
+            "DepreciationDepletionAndAmortisationExpense": 3 * crore,
+            "ProfitBeforeTax": 25 * crore,
+            "TaxExpense": (25 - pat) * crore,
+            "ProfitLossForPeriod": pat * crore,
+        }
+        return build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
+
+    ingest_results_xbrl(db, store, glow, quarter(date(2025, 7, 1), date(2025, 9, 30), 80, 16))
+    ingest_results_xbrl(db, store, glow, quarter(date(2026, 4, 1), date(2026, 6, 30), 90, 18))
+    ingest_results_xbrl(db, store, glow, quarter(date(2026, 7, 1), date(2026, 9, 30), 100, 20))
+    g = client.get("/companies/GLOW/glance").json()
+    assert g["quarter_label"] == "Q2 FY27" and g["previous_end"] == "2026-06-30"
+    lines = {line["key"]: line for line in g["lines"]}
+    assert float(lines["revenue"]["qoq"]) == 11.1 and float(lines["revenue"]["yoy"]) == 25.0
+    # EBITDA = PBT 25 + finance 2 + depreciation 3 - other income 5 = 25 crore
+    assert (
+        float(lines["ebitda"]["value"]) == 25 * crore and "other income" in lines["ebitda"]["note"]
+    )
+    assert (
+        float(lines["ebitda_margin"]["value"]) == 25.0 and lines["ebitda_margin"]["kind"] == "pct"
+    )
+    # Margins change in basis points, worked out from unrounded margins: EBITDA margin 25/100 =
+    # 25.0% against 25/90 = 27.78% is -278 bps; net margin is 20% in all three quarters.
+    assert lines["ebitda_margin"]["qoq"] == "-278" and lines["net_margin"]["qoq"] == "0"
+    assert "exceptional_items" not in lines  # not tagged: no row
+
+    # A lender's finance costs are its cost of business: no EBITDA lines for financial sectors.
+    glow.sector = "Banking Services"
+    db.flush()
+    lender = {line["key"] for line in client.get("/companies/GLOW/glance").json()["lines"]}
+    assert "ebitda" not in lender and "ebitda_margin" not in lender and "revenue" in lender
+
+
+def test_glance_for_a_life_insurer_shows_premium_and_ratios(client, db, store):
+    life = Company(nse_symbol="LIFEX", name="Lifex Life Insurance Limited", isin="INE000L01011")
+    db.add(life)
+    db.flush()
+    crore = 10_000_000
+
+    def quarter(start, end, net_premium, pat, solvency):
+        q = {
+            "GrossPremiumIncome": (net_premium + 30) * crore,
+            "NetPremiumIncome": net_premium * crore,
+            "ProfitLossBeforeTax": (pat + 5) * crore,
+            "ProvisionsForTaxes": 5 * crore,
+            "ProfitLossAfterTaxAndExtraordinaryItems": pat * crore,
+            "SolvencyRatio": solvency,  # tagged as a fraction
+            "PersistencyRatio13ThMonth": "0.8077",
+            "ExpensesOfManagementRatio": "0.2038",
+        }
+        return build_instance(
+            q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone"
+        )
+
+    ingest_results_xbrl(
+        db, store, life, quarter(date(2026, 4, 1), date(2026, 6, 30), 2000, 28, "1.9803")
+    )
+    ingest_results_xbrl(
+        db, store, life, quarter(date(2026, 7, 1), date(2026, 9, 30), 2500, 43, "1.8041")
+    )
+    assert life.results_taxonomy == "life_insurance"  # detected from the premium line items
+    g = client.get("/companies/LIFEX/glance").json()
+    lines = {line["key"]: line for line in g["lines"]}
+    assert list(lines)[:2] == ["gross_premium", "revenue"]
+    assert lines["revenue"]["label"] == "Net premium income"
+    assert float(lines["revenue"]["qoq"]) == 25.0
+    # Ratios read as percentages, and move in bps: 180.41% against 198.03% is -1,762 bps.
+    assert (
+        float(lines["solvency_ratio"]["value"]) == 180.4
+        and lines["solvency_ratio"]["qoq"] == "-1762"
+    )
+    assert "150%" in lines["solvency_ratio"]["note"]
+    assert "ebitda" not in lines and "persistency_61m" not in lines  # not tagged: no row
+
+
+def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store):
+    # Canara Robeco AMC: its first results after listing (Sept 2025) cover April-September only.
+    amc = Company(nse_symbol="HALFAMC", name="Half Year AMC Limited", isin="INE000H01011")
+    db.add(amc)
+    db.flush()
+    crore = 10_000_000
+    q = pnl(120 * crore, 0, 60 * crore, 15 * crore)
+    for start, end in (
+        (date(2025, 4, 1), date(2025, 9, 30)),
+        (date(2026, 7, 1), date(2026, 9, 30)),
+    ):
+        data = build_instance(
+            q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone"
+        )
+        ingest_results_xbrl(db, store, amc, data)
+
+    g = client.get("/companies/HALFAMC/glance").json()
+    revenue = next(line for line in g["lines"] if line["key"] == "revenue")
+    assert revenue["yoy"] is None
+    assert g["year_ago_note"] == (
+        "Q2 FY26 wasn't filed as a quarter: the standalone results for 30 Sep 2025 cover "
+        "1 Apr 2025 to 30 Sep 2025 only"
+    )
+    assert g["previous_note"] == "No standalone results for Q1 FY27 on record"
+
+    d = client.get("/desk", params={"quarter_end": "2026-09-30"}).json()
+    row = next(r for r in d["rows"] if r["symbol"] == "HALFAMC")
+    assert row["revenue_yoy"] is None and row["yoy_note"] == g["year_ago_note"]
+
+
+def test_missing_comparison_quarter_says_why(client, db, store):
+    # Listed mid-year, first results for the half-year only (Canara Robeco AMC, September 2025):
+    # the year-ago quarter was never filed on its own, so YoY is a dash with a reason.
+    halfy = Company(
+        nse_symbol="HALFY",
+        name="Halfy Asset Management Limited",
+        isin="INE000H01011",
+        sector="Half-Year Test Sector",
+    )
+    db.add(halfy)
+    db.flush()
+    for start, end, revenue in (
+        (date(2025, 4, 1), date(2025, 9, 30), 2_287_214_000),  # half-year
+        (date(2026, 4, 1), date(2026, 6, 30), 1_162_014_000),
+        (date(2026, 7, 1), date(2026, 9, 30), 1_215_889_000),
+    ):
+        q = pnl(revenue, 0, revenue // 2, revenue // 10)
+        data = build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
+        ingest_results_xbrl(db, store, halfy, data)
+
+    g = client.get("/companies/HALFY/glance").json()
+    revenue = next(line for line in g["lines"] if line["key"] == "revenue")
+    assert revenue["yoy"] is None and revenue["qoq"] is not None
+    assert g["previous_note"] is None
+    assert g["year_ago_note"].startswith("Q2 FY26 wasn't filed as a quarter")
+    assert "1 Apr 2025 to 30 Sep 2025" in g["year_ago_note"]
+
+    params = {"quarter_end": "2026-09-30", "sector": "Half-Year Test Sector"}
+    row = client.get("/desk", params=params).json()["rows"]
+    mine = next(r for r in row if r["symbol"] == "HALFY")
+    assert mine["revenue_yoy"] is None and mine["yoy_note"] == g["year_ago_note"]
+
+
+def test_results_desk_rows_movers_and_sector_progress(client, db, store):
+    from datetime import UTC, datetime
+
+    crore = 10_000_000
+    sector = "Desk Test Sector"
+
+    def file_quarter(company, start, end, revenue, pat, filed):
+        tax = 5 if pat > 0 else 0
+        q = pnl(revenue * crore, 0, (revenue - pat - tax) * crore, tax * crore)
+        data = build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
+        ingest_results_xbrl(db, store, company, data, filed_at=filed)
+
+    companies = {}
+    for symbol, isin in (
+        ("GROWER", "INE000T01011"),
+        ("SLIDER", "INE000T01029"),
+        ("TINY", "INE000T01037"),
+    ):
+        c = Company(nse_symbol=symbol, name=f"{symbol.title()} Ltd", isin=isin, sector=sector)
+        db.add(c)
+        companies[symbol] = c
+    db.flush()
+    last_year = (date(2025, 7, 1), date(2025, 9, 30))
+    this_year = (date(2026, 7, 1), date(2026, 9, 30))
+    for symbol, (rev0, pat0, rev1, pat1, day) in {
+        "GROWER": (100, 10, 120, 12, 12),  # +20% revenue, +20% profit
+        "SLIDER": (200, 20, 180, -5, 13),  # -10% revenue, turned to a loss
+        "TINY": (20, 2, 40, 4, 11),  # under Rs 50 crore this quarter: in the table, not movers
+    }.items():
+        c = companies[symbol]
+        file_quarter(c, *last_year, rev0, pat0, datetime(2025, 10, day, 12, tzinfo=UTC))
+        file_quarter(c, *this_year, rev1, pat1, datetime(2026, 10, day, 12, tzinfo=UTC))
+
+    d = client.get("/desk", params={"quarter_end": "2026-09-30", "sector": sector}).json()
+    assert d["quarter_label"] == "Q2 FY27" and d["reported"] == 3
+    assert [r["symbol"] for r in d["rows"]] == ["SLIDER", "GROWER", "TINY"]  # newest filing first
+    grower = next(r for r in d["rows"] if r["symbol"] == "GROWER")
+    assert float(grower["revenue_yoy"]) == 20.0 and float(grower["pat_yoy"]) == 20.0
+    # Only two companies qualify, so both are "top" and the bottom list stays empty.
+    assert [r["symbol"] for r in d["revenue_top"]] == ["GROWER", "SLIDER"]
+    assert d["revenue_bottom"] == []
+    assert [r["symbol"] for r in d["turned_loss"]] == ["SLIDER"]
+    assert all(r["symbol"] != "TINY" for r in d["revenue_top"] + d["revenue_bottom"])
+    (progress,) = d["sectors"]
+    assert progress["reported"] == 3 and progress["total"] == 3

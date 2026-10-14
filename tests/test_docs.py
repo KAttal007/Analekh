@@ -110,3 +110,18 @@ def test_transcript_roles():
     roles = {t.speaker: t.role for t in turns}
     assert roles == {"Moderator": "moderator", "Priya Shah": "analyst", "Ravi Kumar": "management"}
     assert turns[-1].text.endswith("more detail here")
+
+
+def test_audio_transcript_text_carries_timestamps():
+    from analekh.docs.audio import AudioTranscript, Segment
+
+    t = AudioTranscript("call.mp3", "large-v3", "cuda", "en", 3725.0, 300.0)
+    t.segments = [
+        Segment(0.0, 4.2, "Good evening and welcome to the earnings call.", -0.2, 0.01),
+        Segment(3723.5, 3725.0, "Thank you.", -0.4, 0.02),
+    ]
+    assert t.text().splitlines() == [
+        "[00:00:00] Good evening and welcome to the earnings call.",
+        "[01:02:03] Thank you.",
+    ]
+    assert '"duration": 3725.0' in t.to_json()

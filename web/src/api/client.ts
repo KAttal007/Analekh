@@ -9,6 +9,18 @@ export type CompanyDetail = Schemas["CompanyDetail"];
 export type WatchlistEntry = Schemas["WatchlistEntryOut"];
 export type Filing = Schemas["FilingOut"];
 export type Fact = Schemas["FactOut"];
+export type Glance = Schemas["GlanceOut"];
+export type Desk = Schemas["DeskOut"];
+export type DeskRow = Schemas["DeskRowOut"];
+export type DeskQuery = {
+  quarter_end?: string;
+  sector?: string;
+  watchlist?: boolean;
+  days?: number;
+  limit?: number;
+  offset?: number;
+};
+export type GlanceLine = Schemas["GlanceLineOut"];
 export type ChangeSet = Schemas["ChangeSetOut"];
 export type ChangeItem = Schemas["ChangeItemOut"];
 export type Template = Schemas["TemplateOut"];
@@ -56,6 +68,14 @@ export const api = {
   filings: (symbol: string) => call<Filing[]>(`/companies/${symbol}/filings`),
   facts: (symbol: string, elements: string) =>
     call<Fact[]>(`/companies/${symbol}/facts?elements=${encodeURIComponent(elements)}`),
+  desk: (q: DeskQuery) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(q))
+      if (v !== undefined && v !== "") params.set(k, String(v));
+    return call<Desk>(`/desk?${params}`);
+  },
+  glance: (symbol: string, consolidated: boolean) =>
+    call<Glance>(`/companies/${symbol}/glance?consolidated=${consolidated}`),
   // By logical name (e.g. "revenue"), resolved for the company's results format on the server.
   logicalFacts: (symbol: string, logical: string, consolidated?: boolean) =>
     call<Fact[]>(

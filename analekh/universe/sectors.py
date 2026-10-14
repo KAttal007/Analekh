@@ -101,7 +101,7 @@ def taxonomy_for_sector(sector: str | None, industry: str | None = None) -> str:
     """Initial guess; the first parsed filing's schema reference confirms it."""
     text = f"{sector or ''} {industry or ''}".lower()
     if "insurance" in text:
-        return "insurance"
+        return "life_insurance" if "life" in text else "insurance"
     if "nbfc" in text or "non banking" in text or "non-banking" in text:
         return "nbfc"
     if "bank" in text:

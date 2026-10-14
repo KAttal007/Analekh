@@ -1145,3 +1145,612 @@ tbody tr:hover td {
   color: inherit;
   font-weight: 650;
 }
+
+/* ---------- Company page: content beside a full-height "latest quarter" column ---------- */
+
+/* Narrow screens: one column. The main column dissolves so its children and the rail share one
+   flex column; order puts the quarter right after the figure tiles. */
+.company-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+.company-main {
+  display: contents;
+}
+.company-main > * {
+  order: 1;
+}
+.rail {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+.company-main > .area-chart,
+.company-main > .area-filings {
+  order: 3;
+}
+.area-stats {
+  /* Four tiles in one row even beside the quarter column; icons give way when it's tight. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  container-type: inline-size;
+}
+@container (max-width: 760px) {
+  .area-stats .stat-icon {
+    display: none;
+  }
+}
+@media (min-width: 1280px) {
+  /* The column sits at the right of the window, so this page drops the usual width cap. */
+  .content:has(.company-page) {
+    max-width: 1840px;
+  }
+  .company-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    align-items: start;
+  }
+  .company-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+    min-width: 0;
+  }
+  /* Starts level with the page header, so at the top of the page it already fills the window:
+     from just under the top bar to one gutter above the bottom edge. It then stays put while
+     the page scrolls, and scrolls on its own if its content is taller than the window. */
+  .rail {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s5));
+    height: calc(100dvh - var(--topbar-h) - 2 * var(--s5));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .rail-grow {
+    flex: 1 0 auto; /* the highlights card fills the rest of the column */
+  }
+}
+.rail-card h2 {
+  font-size: 14px;
+}
+.rail-sub {
+  margin: 0;
+  padding: var(--s3) var(--s4) var(--s1);
+  font-size: 12px;
+  color: var(--muted);
+}
+table.glance {
+  table-layout: fixed; /* fixed number columns; labels and notes wrap in what is left */
+  font-size: 12.5px;
+}
+/* Label column takes what's left (notes sit behind an info icon); the number columns fit
+   "−₹30.0 lakh", "-58307 bps" and "-1345.6%" with tighter side padding. */
+table.glance thead th:nth-child(2) {
+  width: 92px;
+}
+table.glance thead th:nth-child(3),
+table.glance thead th:nth-child(4) {
+  width: 84px;
+}
+table.glance td.num,
+table.glance th.num {
+  padding-left: 6px;
+  padding-right: 8px;
+}
+table.glance tbody th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+table.glance th,
+table.glance td {
+  padding: 6px var(--s3);
+}
+table.glance thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+table.glance tbody th {
+  font-weight: 500;
+  color: var(--text);
+}
+table.glance tbody tr:last-child > * {
+  border-bottom: none;
+}
+.glance-ratio th,
+.glance-ratio td:first-of-type {
+  color: var(--text-2);
+}
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.rail-foot {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+.rail-empty {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rail-empty p + p {
+  margin-top: var(--s2);
+}
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 640px) {
+  /* Navigation: icons only (each keeps its label as a tooltip and for screen readers), so the
+     whole bar fits without scrolling sideways. */
+  .nav-label,
+  .brand-text,
+  .sidebar-tools {
+    display: none;
+  }
+  .sidebar {
+    gap: var(--s2);
+    justify-content: space-between;
+  }
+  .nav a {
+    padding: 0 9px;
+  }
+  .content {
+    padding-top: var(--s4);
+  }
+  .page {
+    gap: var(--s4);
+  }
+  /* Figure tiles two to a row. */
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s2);
+  }
+  .stat {
+    padding: var(--s3);
+  }
+  .stat-icon {
+    display: none;
+  }
+  .stat-value {
+    font-size: 18px;
+  }
+  .company-page,
+  .company-main {
+    gap: var(--s4);
+  }
+  .hide-sm {
+    display: none;
+  }
+}
+
+/* ---------- Results desk (Home) ---------- */
+
+.desk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.desk-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.desk-coverage {
+  margin-top: var(--s1);
+  font-size: 13px;
+  color: var(--muted);
+}
+.desk-coverage strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.desk-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.desk-filters select {
+  width: auto;
+  max-width: 220px;
+}
+.desk-watch {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.desk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+}
+.desk-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+/* Side by side only when the results table still has room for all its columns beside the
+   380 px side column; below that the movers and sectors follow the table. */
+@media (min-width: 1500px) {
+  .content:has(.desk) {
+    max-width: 1840px; /* the side column sits at the right, as on the company page */
+  }
+  .desk-grid {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    align-items: start;
+  }
+}
+.desk-table table {
+  font-size: 13px;
+}
+.desk-row {
+  cursor: pointer;
+}
+.desk-row:hover > td {
+  background: var(--surface-2);
+}
+.desk-company {
+  display: inline-block;
+  max-width: 300px; /* long names wrap instead of widening the table */
+  color: var(--text);
+  font-weight: 500;
+}
+/* Columns give way to the table's own width, not the window's: beside the side column a wide
+   window can leave the table less room than a tablet does. */
+.desk-main {
+  container: desk / inline-size;
+}
+@container desk (max-width: 1010px) {
+  .desk-table .d-ebitda,
+  .desk-table .d-basis {
+    display: none;
+  }
+}
+@container desk (max-width: 800px) {
+  .desk-company,
+  .desk-ticker {
+    max-width: 220px;
+  }
+}
+.desk-company:hover {
+  color: var(--accent);
+}
+.desk-ticker {
+  display: block;
+  max-width: 300px;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.desk-filed {
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.desk-tag {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.desk-sub {
+  font-size: 11px;
+}
+.desk-basis {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+/* Movers and By sector keep a fixed height and scroll inside, so the page doesn't run on past
+   the table. Beside the table (1500 px and up) they share its height instead. */
+.desk-side > .card {
+  display: flex;
+  flex-direction: column;
+  height: 420px;
+}
+.desk-side .card-header,
+.desk-side .rail-foot {
+  flex: none;
+}
+.desk-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.movers.desk-scroll {
+  padding-bottom: var(--s4);
+}
+@media (min-width: 1500px) {
+  .desk-grid {
+    align-items: stretch;
+  }
+  .desk-main {
+    align-self: start;
+  }
+  .desk-side {
+    contain: size; /* the table alone sets the row's height */
+    min-height: 640px; /* still room for both when only a few companies have reported */
+  }
+  .desk-side > .card {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
+}
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.desk-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.movers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding-bottom: 0;
+}
+.mover-group h3 {
+  margin-bottom: var(--s2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mover-group ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mover-group li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 64px;
+  gap: var(--s2);
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.mover-group li:last-child {
+  border-bottom: none;
+}
+.mover-group li a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.mover-figure {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sector-list {
+  margin: 0;
+  padding: var(--s1) 0;
+  list-style: none;
+}
+.sector-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name count" "bar bar" "medians medians";
+  gap: 4px var(--s2);
+  width: 100%;
+  height: auto;
+  padding: var(--s2) var(--s4);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+}
+.sector-row:hover {
+  background: var(--surface-2);
+}
+.sector-name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.sector-row > .muted {
+  grid-area: count;
+  font-size: 12px;
+}
+.sector-bar {
+  grid-area: bar;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.sector-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.sector-medians {
+  grid-area: medians;
+  display: flex;
+  gap: var(--s3);
+  font-size: 12px;
+}
+.section-title {
+  margin-top: var(--s4);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+@media (max-width: 1100px) {
+  .hide-md {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .desk-filters,
+  .desk-filters select {
+    width: 100%;
+    max-width: none;
+  }
+  .desk-main .card-header {
+    flex-wrap: wrap;
+  }
+  /* Results as cards: company on top, revenue and profit with their growth, then the filing
+     time. The same cells as the table, laid out on a two-column grid. */
+  .desk-table {
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .desk-table table,
+  .desk-table tbody {
+    display: block;
+  }
+  .desk-table thead {
+    display: none;
+  }
+  .desk-table tr.desk-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px var(--s3);
+    padding: var(--s3) var(--s4);
+    border-bottom: 1px solid var(--border);
+  }
+  .desk-table tr.desk-row > td {
+    display: block;
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .desk-table .d-co {
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+  }
+  .desk-table .d-rev,
+  .desk-table .d-pat {
+    grid-column: 1;
+    text-align: left;
+  }
+  .desk-table .d-revy,
+  .desk-table .d-paty {
+    grid-column: 2;
+  }
+  .desk-table .d-rev,
+  .desk-table .d-revy {
+    grid-row: 2;
+  }
+  .desk-table .d-pat,
+  .desk-table .d-paty {
+    grid-row: 3;
+  }
+  .desk-table .d-filed {
+    grid-row: 4;
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .desk-table .d-rev::before,
+  .desk-table .d-pat::before,
+  .desk-table .d-filed::before {
+    content: attr(data-label);
+    margin-right: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .desk-table tr.desk-row > td.d-ebitda,
+  .desk-table tr.desk-row > td.d-basis {
+    display: none; /* as specific as the card-cell rule above, so it wins */
+  }
+}
+
+/* Info icon with a note on hover / focus (tap on touch screens). */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  margin-left: 4px;
+  vertical-align: -2px;
+}
+.info-tip-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+.info-tip-btn:hover,
+.info-tip-btn:focus-visible {
+  color: var(--accent);
+}
+.info-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: -8px;
+  z-index: 30;
+  width: max-content;
+  max-width: 230px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--fast) var(--ease);
+}
+.info-tip-end {
+  margin-left: 0;
+  vertical-align: baseline;
+}
+.info-tip-end .info-tip-bubble {
+  right: -8px;
+  left: auto;
+  text-align: left;
+}
+.missing-tip-btn {
+  width: auto;
+  height: auto;
+  min-width: 16px;
+  border-radius: 0;
+  border-bottom: 1px dotted currentColor;
+  font: inherit;
+  cursor: help;
+}
+.info-tip:hover .info-tip-bubble,
+.info-tip:focus-within .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+}

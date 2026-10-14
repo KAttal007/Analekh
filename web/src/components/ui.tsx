@@ -162,3 +162,34 @@ export function ErrorNote({ error }: { error: unknown }) {
     </div>
   );
 }
+
+/** An ⓘ beside a label: its note shows on hover, on tap (the button takes focus) and to screen
+ *  readers, instead of taking a line of the table. */
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="info-tip">
+      <button type="button" className="info-tip-btn" aria-label={text}>
+        <Icon name="info" size={13} />
+      </button>
+      <span role="tooltip" className="info-tip-bubble">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** A dash for a missing figure that says why, the same way as InfoTip (hover, tap, screen
+ *  readers). The note opens leftwards: these sit in right-aligned number columns. */
+export function MissingTip({ text }: { text?: string | null }) {
+  if (!text) return <span className="muted">–</span>;
+  return (
+    <span className="info-tip info-tip-end">
+      <button type="button" className="info-tip-btn missing-tip-btn" aria-label={text}>
+        –
+      </button>
+      <span role="tooltip" className="info-tip-bubble">
+        {text}
+      </span>
+    </span>
+  );
+}

@@ -134,6 +134,14 @@ def refresh(symbol: str) -> None:
     typer.echo(refresh_company(symbol))
 
 
+@app.command("results-watch")
+def results_watch() -> None:
+    """New results for every company from ONE request to NSE's latest list (runs daily)."""
+    from analekh.jobs.tasks import watch_results
+
+    typer.echo(watch_results())
+
+
 @app.command("results-backfill")
 def results_backfill(
     symbols: str | None = typer.Option(
@@ -161,6 +169,50 @@ def results_backfill(
         interval_seconds=interval,
     )
     typer.echo(result)
+
+
+AUDIO_SUFFIXES = {".mp3", ".m4a", ".mp4", ".wav", ".webm", ".aac", ".ogg", ".flac"}
+
+
+@app.command("transcribe-audio")
+def transcribe_audio(
+    symbol: str,
+    files: list[Path] = typer.Argument(None, help="Recordings; default: IMPORT_DIR/<SYMBOL>/."),
+    model: str = typer.Option("large-v3", help="Whisper model (large-v3, medium, small...)."),
+    out_dir: Path = typer.Option(Path("out/audio"), help="Where the text and JSON go."),
+) -> None:
+    """Earnings-call recordings to timestamped text (needs ``uv sync --group audio``)."""
+    from analekh.config import get_settings
+    from analekh.docs.audio import transcribe
+
+    symbol = symbol.upper()
+    if not files:
+        folder = Path(get_settings().import_dir) / symbol
+        files = sorted(f for f in folder.glob("*") if f.suffix.lower() in AUDIO_SUFFIXES)
+        if not files:
+            raise typer.BadParameter(f"no recordings in {folder}")
+    company = None
+    try:
+        from sqlalchemy import select
+
+        from analekh.db.models import Company
+
+        with _session() as s:
+            company = s.scalar(select(Company.name).where(Company.nse_symbol == symbol))
+    except Exception:  # noqa: BLE001 - the name only sharpens the vocabulary hint
+        pass
+    target = out_dir / symbol
+    target.mkdir(parents=True, exist_ok=True)
+    for path in files:
+        result = transcribe(path, company=company, model=model)
+        (target / f"{path.stem}.json").write_text(result.to_json(), encoding="utf-8")
+        (target / f"{path.stem}.txt").write_text(result.text(), encoding="utf-8")
+        unsure = sum(1 for x in result.segments if x.avg_logprob < -1.0)
+        typer.echo(
+            f"{path.name}: {result.duration / 60:.0f} min of audio in {result.seconds_taken:.0f} s "
+            f"on {result.device}, {len(result.segments)} segments ({unsure} low-confidence) "
+            f"-> {target / path.stem}.txt"
+        )
 
 
 @app.command()

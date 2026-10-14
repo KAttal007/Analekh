@@ -87,6 +87,13 @@ optional = [
     "sentence-transformers>=6.1,<7",
     "streamlit>=1.65,<2",
 ]
+# Earnings-call audio to text (docs/audio.py): Whisper via CTranslate2. The NVIDIA wheels carry
+# the CUDA libraries it needs on Windows and Linux; without a GPU it runs on the CPU, slower.
+audio = [
+    "faster-whisper>=1.1,<2",
+    "nvidia-cublas-cu12>=12.4; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12>=9.1,<10; sys_platform != 'darwin'",
+]
 
 [tool.uv]
 default-groups = ["dev"]

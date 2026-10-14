@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     feed_poll_seconds: int = 300
     event_feed_poll_seconds: int = 1800
     universe_refresh_cron: str = "0 6 * * 1"  # weekly, Monday 06:00 IST
+    # Daily, after the evening's results: one request to NSE's latest-results list (owner's choice).
+    results_watch_cron: str = "0 23 * * *"
     backfill_priority: str = "NIFTY500"
     download_rate_per_second: float = 1.0
     user_agent: str = "Analekh/0.1"

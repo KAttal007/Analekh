@@ -256,6 +256,8 @@ def bulk_fetch_results(
                         s, store, client, company, quarters=quarters, one_basis=one_basis
                     )
                     entry.update(listed=outcome.listed, new=outcome.new)
+                    if outcome.missing:
+                        entry["missing"] = len(outcome.missing)
                     entry["blocked"] = sum(
                         bool(r.report and r.report.blocks_auto_apply) for r in outcome.results
                     )
@@ -281,3 +283,23 @@ def bulk_fetch_results(
             out.flush()
     summary["seconds"] = round(time.monotonic() - started)
     return summary
+
+
+@app.task
+def watch_results() -> dict:
+    """Daily: new results filings for every company, from one request to NSE's latest list."""
+    from analekh.ingest.integrated import fetch_latest
+
+    with session_scope() as s:
+        out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
+    return {
+        "listed": out.listed,
+        "new": out.new,
+        "missing": len(out.missing),
+        "unknown_symbols": sorted(set(out.unknown_symbols)),
+        "warning": (
+            "every filing on the page was new: there may be more than one page of results today"
+            if out.page_full
+            else None
+        ),
+    }

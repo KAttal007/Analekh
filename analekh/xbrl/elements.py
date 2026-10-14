@@ -2,8 +2,9 @@
 
 Element names follow the BSE Ind-AS results taxonomy (prefix ``in-bse-fin``); integrated filings
 (``in-capmkt``, since March 2025) use the same names. Banks and insurers file in their regulators'
-formats (RBI, IRDAI) with different element sets, each in its own table here. NBFCs file the
-Ind-AS layout (Schedule III Division III) and use the Ind-AS names (seen on Bajaj Finance).
+formats (RBI, IRDAI general and life) with different element sets, each in its own table here.
+NBFCs file the Ind-AS layout (Schedule III Division III) and use the Ind-AS names (seen on Bajaj
+Finance).
 
 PHASE 0: confirm every name below against real instance files (open question 22.1). Names marked
 ``# verify`` were taken from the taxonomy's conventions, not yet from a sampled file. Unmarked
@@ -65,7 +66,6 @@ NBFC: dict[str, tuple[str, ...]] = {}  # Ind-AS names apply
 # income = operating income; less operating expenses (claims, commission, expenses) = operating
 # profit, which moves to the shareholders' account; plus shareholders' investment and other
 # income, less non-operating expenses = PBT. Seen on ICICI Lombard (June 2026), which ties out.
-# Life insurers file a different revenue account: not yet seen (verify when one is ingested).
 INSURANCE: dict[str, tuple[str, ...]] = {
     "revenue": ("PremiumEarned",),
     "gross_premium": ("GrossPremiumsWritten",),
@@ -95,7 +95,50 @@ INSURANCE: dict[str, tuple[str, ...]] = {
     "total_liabilities": (),
 }
 
-BY_TAXONOMY = {"indas": INDAS, "banking": BANKING, "nbfc": NBFC, "insurance": INSURANCE}
+# Life insurers: IRDAI's life format (NSE files it as INTEGRATED_FILING_LI_). Policyholders'
+# account: net premium + investment income + other income + transfer from the shareholders'
+# account = total income; less benefits, actuarial liability, commission and expenses = surplus.
+# PBT comes from the shareholders' account (its income - its expenses). Seen on Canara HSBC Life,
+# five quarters to September 2026, all of which tie out exactly. Net premium is the top line, as
+# in the IRDAI format; APE and VNB, which analysts track, are not in the XBRL. The ratios
+# (solvency, persistency, expenses of management) are tagged as fractions: 1.8041 = 180.41%.
+LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
+    "revenue": ("NetPremiumIncome",),
+    "gross_premium": ("GrossPremiumIncome",),
+    "investment_income": ("IncomeFromInvestmentsNet",),
+    "other_income": ("PolicyholdersAccountOtherIncome",),
+    "transfer_from_shareholders": ("TransferOfFundsFromShareholdersAccount",),
+    "total_income": ("Income",),
+    "total_expenses": ("Expenses",),
+    "surplus": ("SurplusShownInTheRevenueAccount",),
+    "shareholders_income": ("ShareholdersAccountIncome",),
+    "shareholders_expenses": ("ShareholdersAccountExpenses",),
+    "exceptional_items": (),
+    "pbt": ("ProfitLossBeforeTax",),
+    "tax": ("ProvisionsForTaxes",),
+    "pat_continuing": ("ProfitLossAfterTaxBeforeExtraordinaryItems",),
+    "pat": ("ProfitLossAfterTaxAndExtraordinaryItems",),
+    "eps_basic": (
+        "BasicAndDilutedEPSAfterExtraordinaryItemsNetOfTaxExpenseForThePeriodNotToBeAnnualized",
+    ),
+    "solvency_ratio": ("SolvencyRatio",),
+    "persistency_13m": ("PersistencyRatio13ThMonth",),
+    "persistency_61m": ("PersistencyRatio61ThMonth",),
+    "expense_ratio": ("ExpensesOfManagementRatio",),  # (commission + opex) / gross premium
+    # Balance sheet in the sources / application of funds layout: not mapped, so no V4.
+    "total_assets": (),
+    "equity_and_liabilities": (),
+    "total_equity": (),
+    "total_liabilities": (),
+}
+
+BY_TAXONOMY = {
+    "indas": INDAS,
+    "banking": BANKING,
+    "nbfc": NBFC,
+    "insurance": INSURANCE,
+    "life_insurance": LIFE_INSURANCE,
+}
 
 # Non-numeric facts that describe the filing itself. All seen in the 2026-10-13 spike.
 META_ELEMENTS = {
@@ -131,6 +174,9 @@ def detect_taxonomy(elements: set[str]) -> str | None:
         return None
     if {"InterestEarned", "InterestExpended"} <= elements:
         return "banking"
+    # Life names: general insurers write premium (GrossPremiumsWritten), life insurers receive it.
+    if elements & {"GrossPremiumIncome", "NetPremiumIncome", "PersistencyRatio13ThMonth"}:
+        return "life_insurance"
     if elements & {"PremiumEarned", "GrossPremiumsWritten", "NetPremiumWritten"}:
         return "insurance"
     return None

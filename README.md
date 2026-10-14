@@ -95,7 +95,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Ind-AS element names in `xbrl/elements.py` | ✅ | Seen in real files (one company, 2020-03-31 taxonomy); fallbacks `TotalIncome`, `TotalExpenses` unconfirmed |
 | Filing metadata element names (symbol, period, nature, audited) | ✅ | All nine seen |
 | SME equity list path and columns | ✅ | 580 companies; two-digit-year dates now parsed |
-| Bank, NBFC and insurance element tables | 🟡 | Banks (HDFC Bank, SBI) and general insurers (ICICI Lombard) mapped and tying out; NBFCs use the Ind-AS names. Life insurers not yet seen; insurers' balance sheet (V4) not mapped |
+| Bank, NBFC and insurance element tables | 🟡 | Banks (HDFC Bank, SBI) and general insurers (ICICI Lombard) mapped and tying out; NBFCs use the Ind-AS names. life insurers (Canara HSBC Life: net premium as the top line, solvency, persistency, expense ratio) mapped and tying out through both accounts; insurers' balance sheet (V4) not mapped |
 | Feed `pubDate` format | 🟡 | `DD-Mon-YYYY HH:MM:SS`, no offset (IST); parsed since 2026-10-14, so V8 runs. Not yet seen through the live watcher |
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
@@ -176,6 +176,23 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-14** Home is now the Results desk (`GET /desk`): who reported the quarter, newest
+  first, with revenue, profit and EBITDA margin against a year ago; movers (₹50 cr revenue
+  floor, profit base at least 2% of revenue, sign changes listed apart); progress and medians by
+  sector. Filters (quarter, sector, period, watchlist) live in the URL; rows become cards on
+  phones and columns give way to the table's own width. EBITDA is left out for lenders and
+  holding companies, here and on the company page. New daily `analekh results-watch`: one
+  request to NSE's latest-results list, then the new filings.
+- **2026-10-14** Company page: a full-height "Latest quarter" column on wide screens
+  (`GET /companies/{symbol}/glance`: the quarter's P&L in the company's format, with QoQ and
+  YoY change, derived EBITDA, net interest income and margins) and a Call highlights card that
+  stays empty until call notes exist. Phones: icon-only navigation, two figure tiles per row,
+  the quarter right after the tiles, low-value table columns hidden; checked at 390, 820,
+  1,366 and 2,000 px with no sideways scrolling.
+- **2026-10-14** Earnings-call audio to text: `analekh transcribe-audio <SYMBOL>` runs Whisper
+  large-v3 on the GPU (faster-whisper; optional `audio` group, no PyTorch) over recordings in
+  `import/<SYMBOL>/`, writing timestamped text to `out/audio/`. Recordings are online within
+  24 hours of a call, days before the written transcript.
 - **2026-10-14** Standalone and consolidated side by side: the bulk fetch now takes both bases
   for every quarter (`--one-basis` to opt out), and the company page has a Consolidated /
   Standalone switch (kept in the URL as `?basis=`) that drives the figures, chart and filings

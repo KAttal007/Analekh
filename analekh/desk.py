@@ -1,0 +1,346 @@
+"""Results desk (Home): who has reported a quarter, how revenue, profit and EBITDA margin moved on
+the same quarter a year earlier, the biggest movers, and progress by sector.
+
+One basis per company: consolidated when it filed consolidated results for the quarter, else
+standalone (the rule used everywhere). "Revenue" is the company's own top line: interest earned
+for banks, premium earned for insurers. EBITDA margin is Ind-AS only, derived as in glance.py.
+"""
+
+import statistics
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+
+from sqlalchemy import func, select, tuple_
+from sqlalchemy.orm import Session
+
+from analekh.db.models import Company, Fact, Filing, Watchlist
+from analekh.glance import (
+    FINANCIAL_SECTORS,
+    change,
+    derive,
+    missing_quarter_note,
+    quarter_label,
+)
+from analekh.xbrl.elements import candidates
+
+# Movers leave out small companies and tiny profit bases, where growth rates are noise.
+MIN_REVENUE = Decimal(500_000_000)  # Rs 50 crore of quarterly revenue
+MIN_PROFIT_BASE = Decimal("0.02")  # year-ago profit at least 2% of year-ago revenue
+MOVERS = 5
+LOGICALS = (
+    "revenue",
+    "pat",
+    "pat_continuing",
+    "pbt",
+    "exceptional_items",
+    "finance_costs",
+    "depreciation",
+    "other_income",
+)
+TAXONOMIES = ("indas", "banking", "insurance", "life_insurance")
+
+
+@dataclass
+class DeskRow:
+    symbol: str
+    name: str
+    sector: str | None
+    taxonomy: str
+    consolidated: bool
+    filed_at: datetime | None
+    revenue: Decimal | None
+    revenue_yoy: Decimal | None  # %
+    pat: Decimal | None
+    pat_yoy: Decimal | None  # %
+    ebitda_margin: Decimal | None  # %, Ind-AS only
+    ebitda_margin_yoy: Decimal | None  # basis points
+    blocked: bool
+    yoy_note: str | None = None  # why the YoY columns are blank, when the year-ago quarter is
+    # Year-ago values, for the movers' base checks; not sent to the page.
+    revenue_prev: Decimal | None = field(default=None, repr=False)
+    pat_prev: Decimal | None = field(default=None, repr=False)
+
+
+@dataclass
+class SectorProgress:
+    sector: str
+    reported: int
+    total: int
+    median_revenue_yoy: Decimal | None
+    median_pat_yoy: Decimal | None
+
+
+@dataclass
+class Desk:
+    quarter_end: date | None
+    quarter_label: str | None
+    quarters: list[tuple[date, int]]  # recent quarter ends and how many companies reported
+    companies_in_scope: int  # companies with a sector: the desk's universe
+    reported: int  # of those, how many have results for this quarter (after filters)
+    filings_total: int
+    latest_filed_at: datetime | None
+    rows: list[DeskRow]  # the requested page, newest filing first
+    rows_total: int
+    revenue_top: list[DeskRow] = field(default_factory=list)
+    revenue_bottom: list[DeskRow] = field(default_factory=list)
+    profit_top: list[DeskRow] = field(default_factory=list)
+    profit_bottom: list[DeskRow] = field(default_factory=list)
+    turned_profitable: list[DeskRow] = field(default_factory=list)
+    turned_loss: list[DeskRow] = field(default_factory=list)
+    sectors: list[SectorProgress] = field(default_factory=list)
+
+
+def _quarter_start(end: date) -> date:
+    month = end.month - 2
+    return date(end.year if month > 0 else end.year - 1, month if month > 0 else month + 12, 1)
+
+
+def recent_quarters(session: Session, limit: int = 6) -> list[tuple[date, int]]:
+    rows = session.execute(
+        select(Filing.period_end, func.count(func.distinct(Filing.company_id)))
+        .where(Filing.kind == "results_xbrl", Filing.period_type == "Q")
+        .group_by(Filing.period_end)
+        .order_by(Filing.period_end.desc())
+        .limit(limit)
+    ).all()
+    return [(end, n) for end, n in rows if end is not None]
+
+
+def desk(
+    session: Session,
+    *,
+    quarter_end: date | None = None,
+    sector: str | None = None,
+    watchlist_user: str | None = None,
+    days: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    now: datetime | None = None,
+) -> Desk:
+    quarters = recent_quarters(session)
+    end = quarter_end or (quarters[0][0] if quarters else None)
+    in_scope = select(Company.id).where(Company.is_active, Company.sector.is_not(None))
+    out = Desk(
+        quarter_end=end,
+        quarter_label=quarter_label(end) if end else None,
+        quarters=quarters,
+        companies_in_scope=session.scalar(select(func.count()).select_from(in_scope.subquery()))
+        or 0,
+        reported=0,
+        filings_total=session.scalar(select(func.count()).select_from(Filing)) or 0,
+        latest_filed_at=session.scalar(select(func.max(Filing.filed_at))),
+        rows=[],
+        rows_total=0,
+    )
+    if end is None:
+        return out
+
+    company_q = select(Company).where(Company.is_active)
+    if sector:
+        company_q = company_q.where(Company.sector == sector)
+    if watchlist_user:
+        company_q = company_q.where(
+            Company.id.in_(select(Watchlist.company_id).where(Watchlist.user_id == watchlist_user))
+        )
+    filings = session.execute(
+        select(Filing.company_id, Filing.consolidated, Filing.filed_at, Filing.meta).where(
+            Filing.kind == "results_xbrl",
+            Filing.period_type == "Q",
+            Filing.period_end == end,
+            Filing.company_id.in_(company_q.with_only_columns(Company.id)),
+        )
+    ).all()
+    by_company: dict[int, list] = {}
+    for f in filings:
+        by_company.setdefault(f.company_id, []).append(f)
+    companies = {
+        c.id: c for c in session.scalars(select(Company).where(Company.id.in_(by_company)))
+    }
+
+    year_ago = date(end.year - 1, end.month, end.day)
+    periods = [(_quarter_start(end), end), (_quarter_start(year_ago), year_ago)]
+    elements = sorted({e for t in TAXONOMIES for name in LOGICALS for e in candidates(name, t)})
+    facts = session.execute(
+        select(
+            Fact.company_id,
+            Fact.consolidated,
+            Fact.element,
+            Fact.period_start,
+            Fact.period_end,
+            Fact.value,
+        ).where(
+            Fact.company_id.in_(by_company),
+            Fact.is_latest,
+            Fact.dimensions == {},
+            Fact.is_instant.is_(False),
+            Fact.element.in_(elements),
+            tuple_(Fact.period_start, Fact.period_end).in_(periods),
+        )
+    ).all()
+    values: dict[tuple[int, bool], dict[str, dict[date, Decimal]]] = {}
+    for f in facts:
+        if f.value is not None:
+            values.setdefault((f.company_id, bool(f.consolidated)), {}).setdefault(f.element, {})[
+                f.period_end
+            ] = f.value
+
+    rows: list[DeskRow] = []
+    for company_id, company_filings in by_company.items():
+        c = companies[company_id]
+        basis = any(f.consolidated for f in company_filings)
+        mine = [f for f in company_filings if bool(f.consolidated) == basis]
+        taxonomy = c.results_taxonomy or "indas"
+        by_element = values.get((company_id, basis), {})
+        q = {  # glance.py's shape: {logical: {period_end: (period_start, value)}}
+            name: {
+                at: (start, v)
+                for start, at in periods
+                if (
+                    v := next(
+                        (
+                            by_element[e][at]
+                            for e in candidates(name, taxonomy)
+                            if at in by_element.get(e, {})
+                        ),
+                        None,
+                    )
+                )
+                is not None
+            }
+            for name in LOGICALS
+        }
+
+        rev, rev_prev = _value(q, "revenue", end), _value(q, "revenue", year_ago)
+        pat, pat_prev = _value(q, "pat", end), _value(q, "pat", year_ago)
+        margin = margin_prev = None
+        if taxonomy == "indas" and c.sector not in FINANCIAL_SECTORS:
+            margin, margin_prev = (
+                derive(q, end)["=ebitda_margin"],
+                derive(q, year_ago)["=ebitda_margin"],
+            )
+        filed = [f.filed_at for f in mine if f.filed_at]
+        rows.append(
+            DeskRow(
+                symbol=c.nse_symbol,
+                name=c.name,
+                sector=c.sector,
+                taxonomy=taxonomy,
+                consolidated=basis,
+                filed_at=min(filed) if filed else None,
+                revenue=rev,
+                revenue_yoy=change(rev, rev_prev, "inr"),
+                pat=pat,
+                pat_yoy=change(pat, pat_prev, "inr"),
+                ebitda_margin=margin.quantize(Decimal("0.1")) if margin is not None else None,
+                ebitda_margin_yoy=change(margin, margin_prev, "pct"),
+                blocked=any((f.meta or {}).get("blocks_auto_apply") for f in mine),
+                revenue_prev=rev_prev,
+                pat_prev=pat_prev,
+            )
+        )
+        if rev_prev is None and pat_prev is None:
+            rows[-1].yoy_note = missing_quarter_note(session, company_id, basis, year_ago)
+
+    _movers(out, rows)
+    _sectors(session, out, rows)
+    out.reported = len(rows)
+
+    if days:
+        since = (now or datetime.now(UTC)) - timedelta(days=days)
+        rows = [r for r in rows if r.filed_at and r.filed_at >= since]
+    rows.sort(key=lambda r: r.filed_at or datetime.min.replace(tzinfo=UTC), reverse=True)
+    out.rows_total = len(rows)
+    out.rows = rows[offset : offset + limit]
+    return out
+
+
+def _value(q: dict, name: str, at: date) -> Decimal | None:
+    hit = q.get(name, {}).get(at)
+    if hit is None and name == "pat":  # some filings tag only the continuing-operations line
+        hit = q.get("pat_continuing", {}).get(at)
+    return hit[1] if hit else None
+
+
+def _solid_base(r: DeskRow) -> bool:
+    """Profit growth means something: a year-ago profit, and not a tiny one next to revenue."""
+    return (
+        r.pat_prev is not None
+        and r.revenue_prev is not None
+        and r.pat_prev > 0
+        and r.pat_prev >= r.revenue_prev * MIN_PROFIT_BASE
+    )
+
+
+def _split(ranked: list[DeskRow]) -> tuple[list[DeskRow], list[DeskRow]]:
+    """Top and bottom movers from a list sorted by growth, ascending. Early in a season there are
+    fewer than 2 x MOVERS companies: the bottom list then takes only those not already on top."""
+    top = ranked[::-1][:MOVERS]
+    rest = [r for r in ranked if r not in top]
+    return top, rest[:MOVERS]
+
+
+def _movers(out: Desk, rows: list[DeskRow]) -> None:
+    big = [r for r in rows if r.revenue is not None and r.revenue >= MIN_REVENUE]
+
+    by_revenue = sorted(
+        ((r.revenue_yoy, r) for r in big if r.revenue_yoy is not None), key=lambda t: t[0]
+    )
+    out.revenue_top, out.revenue_bottom = _split([r for _, r in by_revenue])
+
+    by_profit = []  # both quarters profitable, on a year-ago base that isn't tiny
+    turned_profitable = []
+    turned_loss = []
+    for r in big:
+        if r.pat is None or r.pat_prev is None:
+            continue
+        if r.pat_prev <= 0 < r.pat:
+            turned_profitable.append((r.pat, r))
+        elif r.pat <= 0 < r.pat_prev:
+            turned_loss.append((r.pat, r))
+        elif r.pat > 0 and r.pat_yoy is not None and _solid_base(r):
+            by_profit.append((r.pat_yoy, r))
+    by_profit.sort(key=lambda t: t[0])
+    out.profit_top, out.profit_bottom = _split([r for _, r in by_profit])
+    out.turned_profitable = [r for _, r in sorted(turned_profitable, key=lambda t: -t[0])][:MOVERS]
+    out.turned_loss = [r for _, r in sorted(turned_loss, key=lambda t: t[0])][:MOVERS]
+
+
+def _sectors(session: Session, out: Desk, rows: list[DeskRow]) -> None:
+    totals = dict(
+        session.execute(
+            select(Company.sector, func.count())
+            .where(Company.is_active, Company.sector.is_not(None))
+            .group_by(Company.sector)
+        ).all()
+    )
+    grouped: dict[str, list[DeskRow]] = {}
+    for r in rows:
+        if r.sector:
+            grouped.setdefault(r.sector, []).append(r)
+
+    def sized(rs: list[DeskRow]) -> list[DeskRow]:
+        # Medians use the movers' floor: a one-company sector of tiny filers would otherwise
+        # show its outlier as the sector's "median".
+        return [r for r in rs if r.revenue is not None and r.revenue >= MIN_REVENUE]
+
+    def median(values: list[Decimal]) -> Decimal | None:
+        return Decimal(statistics.median(values)).quantize(Decimal("0.1")) if values else None
+
+    out.sectors = sorted(
+        (
+            SectorProgress(
+                sector=name,
+                reported=len(rs),
+                total=totals.get(name, len(rs)),
+                median_revenue_yoy=median(
+                    [r.revenue_yoy for r in sized(rs) if r.revenue_yoy is not None]
+                ),
+                median_pat_yoy=median(
+                    [r.pat_yoy for r in sized(rs) if r.pat_yoy is not None and _solid_base(r)]
+                ),
+            )
+            for name, rs in grouped.items()
+        ),
+        key=lambda s: (-s.reported, s.sector),
+    )
