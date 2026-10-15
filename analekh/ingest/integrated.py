@@ -208,7 +208,13 @@ def _download_and_ingest(
         raise
     with session.begin_nested():
         result = ingest_results_xbrl(
-            session, store, company, data, source_url=f.xbrl_url, filed_at=f.broadcast_at
+            session,
+            store,
+            company,
+            data,
+            source_url=f.xbrl_url,
+            filed_at=f.broadcast_at,
+            revision=f.revision,
         )
         if not result.skipped:
             result.filing.meta = {**result.filing.meta, "links": f.links}

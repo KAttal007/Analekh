@@ -1740,6 +1740,34 @@ table.glance tbody tr:last-child > * {
   left: auto;
   text-align: left;
 }
+.tag-tip-btn {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  cursor: help;
+}
+.tag-tip {
+  display: inline-flex;
+  vertical-align: baseline;
+}
+.tag-tip-bubble {
+  position: fixed;
+  z-index: 60;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 16px));
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-line; /* one changed line per row */
+  pointer-events: none;
+}
 .missing-tip-btn {
   width: auto;
   height: auto;

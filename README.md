@@ -9,7 +9,8 @@
   <img alt="PostgreSQL 16 + pgvector" src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
-  <img alt="Phase 0 in progress" src="https://img.shields.io/badge/status-Phase%200%20in%20progress-orange">
+  <img alt="v0.0.3" src="https://img.shields.io/badge/version-v0.0.3-informational">
+  <img alt="Phase 1 in progress" src="https://img.shields.io/badge/status-Phase%201%20in%20progress-orange">
 </p>
 
 Pick any NSE-listed company. Analekh finds its results filings, extracts and validates the
@@ -17,9 +18,12 @@ numbers, builds a model from your own template (or updates the model you already
 to Excel only after you approve, and drafts the results flash, earnings note, initiation, slides
 and comps with every number traced to its source.
 
-> **Design document:** *Analekh Technical Design Document v0.0.2*
-> ([docs/design/technical-design.md](docs/design/technical-design.md)). Section numbers in code
-> comments (e.g. "design doc 12.3") refer to it.
+> **Design document:** *Analekh Technical Design Document v0.0.3*
+> ([docs/design/technical-design.md](docs/design/technical-design.md); formatted copy
+> `docs/design/Analekh - Technical Design v0.0.3.docx`, diagrams
+> `docs/design/Analekh - Architecture v0.0.3.pdf`). Section numbers in code comments (e.g.
+> "design doc 12.3") refer to it; departures since are logged in
+> [docs/design/deviations.md](docs/design/deviations.md).
 >
 > **Versions** follow the build phases: v0.0.x during Phase 0, v0.1.x once Phase 0 is complete,
 > v0.2.x once Phase 1 is complete, and so on. The first release for proper testing is
@@ -41,7 +45,7 @@ and comps with every number traced to its source.
 
 ```mermaid
 flowchart LR
-    NSE["NSE published RSS feeds<br/>and equity lists"] --> Ingest["Ingest<br/>fetch, link, store"]
+    NSE["NSE integrated filings,<br/>published feeds and lists"] --> Ingest["Ingest<br/>fetch, link, store"]
     Ingest --> XBRL["XBRL parse<br/>+ validate V1-V10"]
     Ingest --> Docs["PDF read<br/>+ KPI extraction"]
     XBRL --> Facts[("Facts<br/>PostgreSQL")]
@@ -52,9 +56,12 @@ flowchart LR
     Sync --> Approve
     Approve --> Excel["New model version<br/>in Excel"]
     Facts --> GenAI["Grounded drafts<br/>flash, note, initiation"]
+    Facts --> Desk["Results desk and<br/>company pages"]
 ```
 
 - **XBRL wins** over AI-extracted values, and contexts are matched by dates, never by id.
+- **The newest filing wins** when a company refiles a quarter; the older numbers are kept as
+  history, and the company page tags the quarter Restated or Revised with what changed.
 - **Nothing touches a model without approval**, and every write saves a new version; the
   original workbook is never overwritten.
 - **Generated text may only contain numbers** from tool results or `calc`; a grounding check
@@ -62,22 +69,47 @@ flowchart LR
 
 ## Status
 
-The code is a **skeleton of all phases**: every engine has a working core and tests. Real NSE
-data has now flowed through the universe loader, search and the Phase 0 spike; the remaining
-gaps are marked `PHASE n` and `# verify` in the code.
+**v0.0.3, 15 October 2026.** The data layer runs on real NSE data. Results XBRL comes from NSE's
+integrated-filing lookup (the results feed stopped carrying filings on 24 August 2026): the first
+full backfill passed half of the 2,458 companies with a sector on 15 October, with both bases for
+every quarter from March 2025. Banks, NBFCs, general and life insurers are read in their own
+formats and tie out. Home is a Results desk, company pages show the latest quarter with QoQ and
+YoY changes, and refiled quarters use the newest filing. The engines for later phases have
+working cores with synthetic tests; gaps are marked `PHASE n` and `# verify` in the code.
+
+### What stops the next phases
+
+The full picture is in design doc 26.1. In short:
+
+| Phase | Waiting on |
+|---|---|
+| 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test` |
+| 1 → v0.2.0 | Backfill finishing; the 728 companies without a sector (148 main board, 580 SME) and the no-filings list; the daily results watcher and feed watcher running on a schedule (Redis, worker and beat never started) |
+| 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; a price source |
+| 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
+| 5 | A price source for comps; hosting in an Indian region with a login |
 
 ### Next up
 
-1. **Hand-check** 10 values per file from the first spike (Asian Hotels (West), Q4 FY21) against
-   the published results PDF, before anything goes into the golden set.
-2. **Rerun the spike** during the September-quarter results season (mid to late October) with
-   bank and NBFC symbols, to fill the `BANKING` and `NBFC` element tables and widen the Ind-AS
-   sample beyond one company.
-3. **Run `analekh universe sectors`** once niftyindices.com answers, and confirm the list file
-   names and columns marked `# verify` in `universe/sectors.py`.
-4. Turn spike files into golden fixtures (`tests/fixtures/golden/`, gitignored) and run
-   `analekh golden-test`.
-5. Run the workbook reader and template onboarding on real templates and models.
+Nothing here waits on outside data or a decision:
+
+1. **Results on a schedule** before the September-quarter peak (late October to mid November):
+   start Redis, the worker and beat so `watch-results` (one request a day) and the feed watcher run.
+2. **Every filer:** extend the backfill to companies without a sector (SME through the lookup's
+   SME index) and work through `out/bulk/no-filings.csv`.
+3. **Golden set and hand-check** across the five results formats, then `analekh golden-test`:
+   completes Phase 0 (v0.1.0).
+4. **Balance sheet and cash flow** from the half-year and year-end integrated filings; V4 for
+   Ind-AS; company page tabs.
+5. **Results history table** on the company page (every stored quarter, either basis, revision
+   tags) with an Excel export.
+6. **Results calendar** from the Board Meetings feed: who reports this week, alerts for the
+   watchlist.
+7. **Peer view** of growth and margins against sector peers (no prices needed).
+8. **Sector editing screen** and sectors for the companies without one.
+
+Decisions waiting on the owner: hosting (provider, domain, login), investor presentations through
+NSE's announcements list (needs rule 1 widened), the price source, and the Anthropic API key.
 
 ### Tracker
 
@@ -95,7 +127,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Ind-AS element names in `xbrl/elements.py` | ✅ | Seen in real files (one company, 2020-03-31 taxonomy); fallbacks `TotalIncome`, `TotalExpenses` unconfirmed |
 | Filing metadata element names (symbol, period, nature, audited) | ✅ | All nine seen |
 | SME equity list path and columns | ✅ | 580 companies; two-digit-year dates now parsed |
-| Bank, NBFC and insurance element tables | 🟡 | Banks (HDFC Bank, SBI) and general insurers (ICICI Lombard) mapped and tying out; NBFCs use the Ind-AS names. life insurers (Canara HSBC Life: net premium as the top line, solvency, persistency, expense ratio) mapped and tying out through both accounts; insurers' balance sheet (V4) not mapped |
+| Bank, NBFC and insurance element tables | ✅ | Banks (HDFC Bank, SBI), general insurers (ICICI Lombard) and life insurers (Canara HSBC Life: net premium as the top line, solvency, persistency, expense ratio) mapped from real filings and tying out; NBFCs use the Ind-AS names. Insurers' balance sheet (V4) not mapped |
 | Feed `pubDate` format | 🟡 | `DD-Mon-YYYY HH:MM:SS`, no offset (IST); parsed since 2026-10-14, so V8 runs. Not yet seen through the live watcher |
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
@@ -108,16 +140,20 @@ Keep these tables current in the same merge request as the change, and add a lin
 |---|:---:|---|
 | Universe loader | ✅ | 3,186 companies (2,606 main board + 580 SME); renames and delistings not yet seen on real data |
 | Company search (API and CLI) | ✅ | Type-ahead: one letter matches the start, two or more match anywhere in ticker or name; paged |
-| Web design system and app shell (sidebar, tokens, dark mode, shared components) | 🟡 | Every screen restyled; checked with synthetic and empty data only |
-| Web type-ahead search box | 🟡 | Loads more on scroll; lint, tests and build pass; not yet tried against the live API in a browser |
+| Web design system and app shell (sidebar, tokens, dark mode, shared components) | ✅ | Used with real data; phone widths checked (390, 1,366, 2,000 px) |
+| Web type-ahead search box | ✅ | Used against the live API |
+| Results desk on Home (`GET /desk`) | ✅ | Reporters ten per page, YoY revenue, profit and EBITDA margin, movers, sector progress; filters in the URL |
+| Company page: basis switch, Latest quarter column (`GET /companies/{symbol}/glance`), lakh amounts | ✅ | QoQ and YoY with margins in bps; notes and tags open on hover or tap; dash with a reason when a comparison quarter was never filed |
+| Revised results: newest filed value wins; Restated / Revised / Superseded tags | ✅ | `analekh recompute-latest` switched 108 values; NSE's revision flag stored on new filings |
 | Watchlist and coverage levels | 🟡 | |
 | Feed watcher, polite fetcher, linking, storage | 🟡 | Polled once on 2026-10-14 (118 items, dated, 97 linked); not yet running on a schedule. The results feed is frozen since 24 August; results now come as integrated filings |
-| Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. Tata Elxsi: 7 quarters (Mar 2025 to Sep 2026) parsed, validated and on the company page |
+| Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. More than 1,400 companies stored; integrated filings start with the March 2025 quarter |
+| Daily results watcher (`analekh results-watch`, beat `watch-results` 23:00 IST) | 🟡 | Ran by hand; not yet on a schedule (Redis, worker and beat not started) |
 | XBRL parser, validation V1-V9 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. Tata Elxsi's 7 filings pass V1-V9 (V4 skips without a balance sheet) |
 | Sectors from an Excel Stocks workbook (`analekh universe sectors --stocks-file`) | ✅ | 2,458 of 2,606 main-board companies (LSEG industry groups, matched by ISIN); 148 main board + 580 SME left. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
 | Sectors from NSE Indices' constituent lists (`analekh universe sectors`) | 🟡 | Built and tested on synthetic lists; not yet run (niftyindices.com unreachable). Lower precedence than the Stocks workbook |
 | Nifty 500 list for backfill priority (`universe/data/nifty500.csv`) | 🔲 | Empty |
-| Backfill | 🟡 | First run |
+| Results backfill (`analekh results-backfill`) | 🟡 | First full run under way at one request every 2 s (NSE pauses after about 590 requests; runs resume at the company they stopped on). Companies without a sector and the no-filings list still to do |
 
 #### Phase 2 · Builder and sync
 
@@ -165,7 +201,8 @@ Keep these tables current in the same merge request as the change, and add a lin
 | GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
-| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | All 70 tests run locally, none skipped |
+| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0003`; 110 Python and 13 web tests run locally, none skipped |
+| Design documents | ✅ | v0.0.3 Markdown, Word copy and architecture PDF; `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |
@@ -175,6 +212,29 @@ Keep these tables current in the same merge request as the change, and add a lin
 ### Dev log
 
 Newest first. One line per notable change: what moved, and what it unblocks.
+
+- **2026-10-15** v0.0.3: design document, deviations log and architecture diagrams brought up to
+  date (integrated filings, NSE's request limit, results formats, revisions, Results desk,
+  status and blockers per phase); Word copy and PDF regenerated from the Markdown and
+  `architecture.html`. Code version set to 0.0.3 (it said 0.1.0).
+- **2026-10-15** Revised results: the value in use for each line is now the one from the most
+  recently filed filing (it was the last downloaded; 88 values were wrong). `analekh
+  recompute-latest` fixed stored data (108 values switched) and labelled 1,242 refilings; new
+  filings keep NSE's Original/Revision flag. Company page: Restated, Revised and Superseded tags
+  with a popup listing old to new for each changed line.
+- **2026-10-15** Backfill: NSE stops answering after about 590 requests whatever the pace, so
+  the pace stays at 2 s; `--start-at` resumes at the company a run stopped on, and companies
+  already known to have no filings are skipped (`--recheck-no-filings` to re-check). The
+  estimate fell from about 51 hours to about 16.
+- **2026-10-15** Results desk: ten companies per page with Prev and Next; Movers and By sector
+  scroll inside fixed-height boxes. A missing YoY now says why (Canara Robeco AMC's first results
+  after listing covered a half-year only; recent listings have no year-ago quarter).
+- **2026-10-14** Life insurers: new `life_insurance` format (migration 0003) with net premium as
+  the top line, solvency, persistency and expenses of management; V1 through the policyholders'
+  account, V2 through the shareholders'. Canara HSBC Life's empty row and page now show numbers.
+- **2026-10-14** Small companies in lakhs (under Rs 10 crore of revenue: Agri-Tech read "Rs 0
+  cr"); notes behind an information icon; margins in basis points with full figures in the
+  Latest quarter column.
 
 - **2026-10-14** Home is now the Results desk (`GET /desk`): who reported the quarter, newest
   first, with revenue, profit and EBITDA margin against a year ago; movers (₹50 cr revenue
@@ -305,6 +365,8 @@ uv sync
 uv run alembic upgrade head
 uv run analekh universe load
 uv run analekh search "tata mo"          # --limit N for more rows
+uv run analekh refresh TATAELXSI         # one company's results from NSE's integrated filings
+uv run analekh results-watch             # the day's new results (ONE request to NSE)
 ```
 
 > **`.env` hosts:** `.env.example` uses the container names (`postgres`, `redis`, `minio`),
@@ -380,10 +442,12 @@ infrastructure run only once it is configured (CI/CD variables, all masked and p
 From design doc 23. These are not optional.
 
 - Only NSE's **published RSS feeds**, the **published equity list CSVs** and the files they
-  link to, plus NSE Indices' **published index constituent lists** (for sectors), at the
-  published TTL. Never NSE's internal JSON endpoints, never crawling.
-  `analekh/ingest/http.py` enforces a host allow-list, and limits `niftyindices.com` to its
-  `/IndexConstituent/` folder.
+  link to, NSE Indices' **published index constituent lists** (for sectors), and NSE's
+  **integrated-filing lookup** (approved by the owner on 2026-10-14): per company, plus ONE
+  request a day without a ticker. No other NSE page or internal endpoint, never crawling, and
+  requests always identify as Analekh. `analekh/ingest/http.py` enforces a host and path
+  allow-list (`/` and `/api/integrated-filing-results` on `www.nseindia.com`,
+  `/IndexConstituent/` on `niftyindices.com`); widening it needs the owner's approval.
 - Raw exchange files, user models and keys are **never committed** (`.gitignore` and the
   pre-commit hooks cover `data/`, `import/`, `out/`, `*.xlsx`, `.env`).
 - Get written confirmation from NSE, or license a feed, before any public or commercial use.

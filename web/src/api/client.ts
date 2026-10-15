@@ -21,6 +21,7 @@ export type DeskQuery = {
   offset?: number;
 };
 export type GlanceLine = Schemas["GlanceLineOut"];
+export type Revision = Schemas["RevisionOut"];
 export type ChangeSet = Schemas["ChangeSetOut"];
 export type ChangeItem = Schemas["ChangeItemOut"];
 export type Template = Schemas["TemplateOut"];

@@ -121,15 +121,30 @@ def analyse(symbol: str, db: DB) -> schemas.JobOut:
 @router.get("/companies/{symbol}/filings", response_model=list[schemas.FilingOut])
 def filings(
     symbol: str, db: DB, kind: str | None = None, start: date | None = None, end: date | None = None
-) -> list[Filing]:
-    q = select(Filing).where(Filing.company_id == company_or_404(db, symbol).id)
+) -> list[schemas.FilingOut]:
+    """Filings, newest period first; a quarter filed more than once says which filing is in
+    use, what it replaced and which headline numbers changed."""
+    from dataclasses import asdict
+
+    from analekh.restatements import revisions
+
+    company = company_or_404(db, symbol)
+    q = select(Filing).where(Filing.company_id == company.id)
     if kind:
         q = q.where(Filing.kind == kind)
     if start:
         q = q.where(Filing.period_end >= start)
     if end:
         q = q.where(Filing.period_end <= end)
-    return list(db.scalars(q.order_by(Filing.period_end.desc().nulls_last(), Filing.id.desc())))
+    rows = list(db.scalars(q.order_by(Filing.period_end.desc().nulls_last(), Filing.id.desc())))
+    revised = revisions(db, company, rows)
+    out = []
+    for f in rows:
+        item = schemas.FilingOut.model_validate(f)
+        if f.id in revised:
+            item.revision = schemas.RevisionOut.model_validate(asdict(revised[f.id]))
+        out.append(item)
+    return out
 
 
 @router.get("/companies/{symbol}/facts", response_model=list[schemas.FactOut])

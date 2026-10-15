@@ -156,6 +156,12 @@ def results_backfill(
     interval: float | None = typer.Option(
         None, help="Seconds between requests to NSE (default: DOWNLOAD_RATE_PER_SECOND)."
     ),
+    start_at: str | None = typer.Option(
+        None, help="Resume at this ticker (inclusive), e.g. the one NSE stalled on."
+    ),
+    recheck_no_filings: bool = typer.Option(
+        False, help="Check again the companies no-filings.csv lists as having nothing on NSE."
+    ),
 ) -> None:
     """Fetch results XBRL from NSE's integrated filings for many companies (resumable)."""
     from analekh.jobs.tasks import bulk_fetch_results
@@ -167,6 +173,8 @@ def results_backfill(
         one_basis=one_basis,
         skip_done=not redo,
         interval_seconds=interval,
+        start_at=start_at,
+        skip_no_filings=not recheck_no_filings,
     )
     typer.echo(result)
 
@@ -213,6 +221,39 @@ def transcribe_audio(
             f"on {result.device}, {len(result.segments)} segments ({unsure} low-confidence) "
             f"-> {target / path.stem}.txt"
         )
+
+
+@app.command("recompute-latest")
+def recompute_latest(
+    symbols: list[str] = typer.Argument(None, help="Tickers; default: every company with results."),
+) -> None:
+    """Use the newest FILED value of every line (revised filings beat originals whatever order
+    they were downloaded in) and label refiled quarters. Database only: downloads nothing."""
+    from sqlalchemy import exists, select
+
+    from analekh.db.models import Company, Filing
+    from analekh.ingest.pipeline import refresh_latest
+    from analekh.restatements import infer_revision_flags
+
+    with _session() as s:
+        q = select(Company.id, Company.nse_symbol).where(
+            exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
+        )
+        if symbols:
+            q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
+        todo = list(s.execute(q.order_by(Company.nse_symbol)))
+    changed = labelled = 0
+    for company_id, symbol in todo:
+        with _session() as s:
+            labelled += infer_revision_flags(s, company_id)
+            n = refresh_latest(s, company_id)
+        changed += n
+        if n:
+            typer.echo(f"{symbol}: {n} values switched")
+    typer.echo(
+        f"{len(todo)} companies: {changed} values switched to the newest filing, "
+        f"{labelled} filings labelled original or revision"
+    )
 
 
 @app.command()

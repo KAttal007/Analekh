@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
 export function PageHeader({
@@ -174,6 +175,65 @@ export function InfoTip({ text }: { text: string }) {
       <span role="tooltip" className="info-tip-bubble">
         {text}
       </span>
+    </span>
+  );
+}
+
+/** A badge that explains itself on hover, tap or focus. The note is placed against the window
+ *  (below the badge, or above it near the bottom), so a table's scroll box or the edge of the
+ *  screen never cuts it off; it closes on scroll rather than drifting away from its badge. */
+export function TagTip({ label, tone, text }: { label: string; tone?: Tone; text: string }) {
+  const button = useRef<HTMLButtonElement>(null);
+  const [at, setAt] = useState<{ left: number; top: number; above: boolean } | null>(null);
+  const show = () => {
+    const r = button.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = Math.min(300, window.innerWidth - 16);
+    const above = window.innerHeight - r.bottom < 180 && r.top > 180;
+    setAt({
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      top: above ? r.top - 6 : r.bottom + 6,
+      above,
+    });
+  };
+  const hide = () => setAt(null);
+  useEffect(() => {
+    if (!at) return;
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => {
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("resize", hide);
+    };
+  }, [at]);
+  return (
+    <span className="tag-tip" onMouseEnter={show} onMouseLeave={hide}>
+      <button
+        ref={button}
+        type="button"
+        className="info-tip-btn tag-tip-btn"
+        aria-label={`${label}: ${text}`}
+        onFocus={show}
+        onBlur={hide}
+      >
+        <Badge tone={tone}>{label}</Badge>
+      </button>
+      {/* In <body>: containers used for container queries would otherwise position it. */}
+      {at &&
+        createPortal(
+          <span
+            role="tooltip"
+            className="tag-tip-bubble"
+            style={{
+              left: at.left,
+              top: at.top,
+              transform: at.above ? "translateY(-100%)" : undefined,
+            }}
+          >
+            {text}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

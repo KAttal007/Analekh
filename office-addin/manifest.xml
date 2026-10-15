@@ -5,7 +5,7 @@
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:type="TaskPaneApp">
   <Id>3b0c6f0e-2a63-4f55-9a1e-6d3c2a1b5e01</Id>
-  <Version>0.1.0</Version>
+  <Version>0.0.3</Version>
   <ProviderName>Analekh</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Analekh"/>

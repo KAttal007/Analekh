@@ -9,7 +9,7 @@ margins) are computed here in Decimal and say how. Nothing is shown that the fil
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +18,9 @@ from analekh.db.models import Company, Fact, Filing
 from analekh.facts import files_consolidated
 from analekh.xbrl.elements import candidates
 from analekh.xbrl.parser import period_type
+
+if TYPE_CHECKING:  # restatements imports this module
+    from analekh.restatements import Revision
 
 Kind = Literal["inr", "eps", "pct"]
 HUNDRED = Decimal(100)
@@ -124,6 +127,7 @@ class Glance:
     # Why QoQ / YoY are blank throughout, when the comparison quarter has no figures at all.
     previous_note: str | None = None
     year_ago_note: str | None = None
+    revision: "Revision | None" = None  # the quarter's figures come from a refiled filing
     lines: list[Line] = field(default_factory=list)
 
 
@@ -157,6 +161,30 @@ def missing_quarter_note(session: Session, company_id: int, consolidated: bool, 
             f"{_day(covering.period_start)} to {_day(end)} only"
         )
     return f"No {basis} results for {label} on record"
+
+
+def _latest_revision(
+    session: Session, company: Company, consolidated: bool, end: date
+) -> "Revision | None":
+    """The revision status of the filing in use for the quarter, when it was filed more than
+    once; None otherwise."""
+    from analekh.restatements import revisions
+
+    same = list(
+        session.scalars(
+            select(Filing).where(
+                Filing.company_id == company.id,
+                Filing.kind == "results_xbrl",
+                Filing.consolidated == consolidated,
+                Filing.period_end == end,
+            )
+        )
+    )
+    if len(same) < 2:
+        return None
+    revised = revisions(session, company, same)
+    in_use = [r for r in revised.values() if r.superseded_by is None and r.status != "original"]
+    return in_use[0] if in_use else None
 
 
 def _quarters(session: Session, company_id: int, consolidated: bool, taxonomy: str) -> dict:
@@ -237,6 +265,7 @@ def glance(session: Session, company: Company, consolidated: bool | None = None)
     result.period_start, result.period_end = start, end
     result.quarter_label = quarter_label(end)
     result.previous_end, result.year_ago_end = prev_end, year_ago
+    result.revision = _latest_revision(session, company, basis, end)
     for at, attr in ((prev_end, "previous_note"), (year_ago, "year_ago_note")):
         if not any(at in q.get(name, {}) for name in ("revenue", "pat", "pat_continuing")):
             setattr(result, attr, missing_quarter_note(session, company.id, basis, at))

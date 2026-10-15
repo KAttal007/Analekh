@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analekh Architecture</title>
 <!--
-  Source of "Analekh - Architecture v0.0.2.pdf" (design doc v0.0.2). Three A4 landscape pages.
+  Source of "Analekh - Architecture v0.0.3.pdf" (design doc v0.0.3). Three A4 landscape pages.
   Render: msedge --headless --no-pdf-header-footer --print-to-pdf="<out>.pdf" architecture.html
   Diagrams are drawn by the script at the bottom from plain coordinate lists.
 -->
@@ -95,14 +95,15 @@
 
 <!-- Page 1: components and data flow -->
 <section class="page">
-  <div class="kicker">System design v0.0.2 · October 2026 · Phase 0</div>
+  <div class="kicker">System design v0.0.3 · 15 October 2026 · Phase 0, Phase 1 under way</div>
   <h1>Analekh Architecture</h1>
   <p class="tagline">The analyst’s record, kept for you.</p>
   <p class="lead">
-    Every NSE-listed company is preloaded and its results are parsed as they are filed. For a company
-    you follow, the system finds and updates your Excel model after you approve each change, or builds
-    a new model from your sector template and drafts an initiation. Core numbers come from XBRL; the AI
-    writes the analysis and pulls every figure from the database. The price source is still undecided.
+    Every NSE-listed company is preloaded and its results are fetched from NSE’s integrated filings and
+    parsed, on both bases, for every filer. For a company you follow, the system finds and updates your
+    Excel model after you approve each change, or builds a new model from your sector template and drafts
+    an initiation. Core numbers come from XBRL; the AI writes the analysis and pulls every figure from the
+    database. The price source is still undecided.
   </p>
   <h2>Components and data flow</h2>
   <div class="panel"><svg id="flow" viewBox="0 0 1240 548" role="img" aria-label="Components and data flow"></svg></div>
@@ -116,11 +117,12 @@
     <span><b class="pend"></b>undecided source</span>
   </div>
   <p class="note">
-    The NSE equity and SME lists preload every company and NSE’s RSS feeds are polled on a schedule, so
-    results for all filers are parsed automatically and “newest filing for this ticker” is a database
-    lookup. Sectors are imported by precedence (user override, then Excel’s Stocks data type, then NSE
-    Indices lists) and recorded per company. Only the relevant PDF pages reach Claude. Nothing is written
-    to Excel until the analyst approves.
+    The NSE equity and SME lists preload every company. Results come from NSE’s integrated-filing lookup:
+    per company for the backfill and refreshes, and once a day without a ticker for the latest filings
+    (the results feed has carried nothing since 24 August 2026). When a quarter is refiled, the most
+    recently filed values are used and the older ones kept as history. Sectors are imported by precedence
+    (user override, then Excel’s Stocks data type, then NSE Indices lists). Only the relevant PDF pages
+    reach Claude. Nothing is written to Excel until the analyst approves.
   </p>
 </section>
 
@@ -138,16 +140,18 @@
       saved.
     </p>
     <div>
-      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.2</h2>
+      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.3</h2>
       <ul class="changes">
-        <li><b>Prices:</b> Kite Connect removed. Undecided: Excel’s Stocks data type in the workbook now,
-          NSE’s end-of-day bhavcopy later; one static reference price at a time.</li>
-        <li><b>Sectors:</b> user override, then the Stocks data type (LSEG industry), then NSE Indices
-          constituent lists; the source is recorded per company.</li>
-        <li><b>Search:</b> ranked type-ahead; the universe loads once and is searched in the browser.</li>
-        <li><b>Build and CI:</b> GitLab Free with OSV-Scanner; pnpm workspace, Node 24.</li>
-        <li><b>Versions</b> follow the build phases: v0.0.x in Phase 0, v0.1.x once it is complete;
-          <span style="white-space:nowrap">v1.0.0-pre-release</span> is the first release for testing.</li>
+        <li><b>Results source:</b> NSE’s integrated-filing lookup (owner-approved), per company and once a
+          day; the results feed stopped on 24 August 2026. History from the March 2025 quarter.</li>
+        <li><b>NSE’s limit:</b> about 590 requests, then a pause of about 10 minutes; runs resume at the
+          company they stopped on.</li>
+        <li><b>Formats:</b> banks, general and life insurers detected from their line items, each with its
+          own checks.</li>
+        <li><b>Revisions:</b> the most recently filed values win; refiled quarters tagged Restated or Revised
+          with what changed.</li>
+        <li><b>Web app:</b> Results desk on Home; Latest quarter column, basis switch and lakh amounts on the
+          company page.</li>
       </ul>
     </div>
   </div>
@@ -166,18 +170,18 @@
   <div class="cards">
     <div class="card"><h3>Numbers come from data</h3><p>Figures in drafts are fetched from the database or
       the model through tool calls, and each one carries its XBRL tag or PDF page reference.</p></div>
-    <div class="card"><h3>Data rights</h3><p>NSE’s published RSS feeds at their stated interval, its
-      published lists, NSE Indices’ constituent CSVs and company IR pages. No NSE internal endpoints.
-      Stocks data type fields are for your own use. Written confirmation or a licence before any public
-      release.</p></div>
+    <div class="card"><h3>Data rights</h3><p>NSE’s published RSS feeds and lists, its integrated-filing
+      lookup (approved by the owner; per company and once a day), NSE Indices’ constituent CSVs and company
+      IR pages. Requests identify as Analekh. Stocks data type fields are for your own use. Written
+      confirmation or a licence before any public release.</p></div>
     <div class="card"><h3>Your templates</h3><p>Upload a model template per sector. The system reads its
       structure, you confirm the mapping once, and a test build must pass before it is used.</p></div>
     <div class="card"><h3>Prices (undecided)</h3><p>One static reference price at a time: the day’s close
       after the market closes, the day’s open during market hours. Stocks data type in Excel now; NSE’s
       bhavcopy, which is end of day only, later.</p></div>
     <div class="card"><h3>Runs from India</h3><p>NSE’s main site is geo-restricted, so the scheduler and
-      fetchers run on an Indian network or VM. When NSE hosts stop answering, fetchers retry later with
-      single requests.</p></div>
+      fetchers run on an Indian network or VM. NSE stops answering after about 590 requests; runs pause
+      10 minutes and resume where they stopped, never working around a block.</p></div>
     <div class="card"><h3>Stack</h3><p class="mono">Python 3.12 · FastAPI · Celery + Redis · Arelle ·
       PyMuPDF · Claude API · Postgres + pgvector · MinIO · xlwings · React + pnpm · Docker Compose ·
       GitLab CI</p></div>
@@ -283,7 +287,7 @@ function heading(svg, x, w, text) {
 
   const [sx, sw] = col.src;
   const sources = [
-    ["Financial Results RSS", "NSE · links XBRL"],
+    ["NSE integrated filings", "lookup · results XBRL"],
     ["Announcements RSS", "NSE · links PDFs"],
     ["Event RSS feeds", "board mtgs, insider, RPT"],
     ["Company IR pages", "fallback + backfill"],
@@ -295,22 +299,22 @@ function heading(svg, x, w, text) {
   box(svg, { x: sx, y: 408, w: sw, h: 54, title: "Price source", sub: ["undecided: Stocks data", "type now, bhavcopy later"], kind: "pending" });
 
   const [ix, iw] = col.ing;
-  box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["every 5 to 15 min"] });
+  box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["feeds 5–15 min · results daily"] });
   box(svg, { x: ix, y: 100, w: iw, h: 42, title: "Feed Watcher", sub: ["all filers, keep history"] });
-  box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Filing Fetcher", sub: ["download once, hash", "polite, host allow-list"] });
+  box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Results + Filing Fetcher", sub: ["per company + daily list", "hash once · allow-list"] });
   box(svg, { x: ix, y: 248, w: iw, h: 42, title: "Universe Loader", sub: ["all NSE cos · weekly"] });
   box(svg, { x: ix, y: 322, w: iw, h: 54, title: "Sector Import", sub: ["user > Stocks > Indices", "per-company source"] });
   box(svg, { x: ix, y: 408, w: iw, h: 54, title: "Price Fetcher", sub: ["static reference price", "waits for a source"], kind: "pending" });
 
   const [px, pw] = col.pro;
   box(svg, { x: px, y: 40, w: pw, h: 42, title: "Raw Filing Store", sub: ["MinIO · XBRL + PDF"] });
-  box(svg, { x: px, y: 100, w: pw, h: 42, title: "XBRL Parser", sub: ["every filer · no AI"] });
+  box(svg, { x: px, y: 100, w: pw, h: 42, title: "XBRL Parser", sub: ["5 formats · no AI"] });
   box(svg, { x: px, y: 160, w: pw, h: 54, title: "Document Pipeline", sub: ["watchlist / on demand", "page classifier → Claude"] });
-  box(svg, { x: px, y: 232, w: pw, h: 42, title: "Validation", sub: ["V1–V10: ties, balances"] });
+  box(svg, { x: px, y: 232, w: pw, h: 54, title: "Validation", sub: ["V1–V10 per format", "newest filed value wins"] });
 
   const [cx, cw] = col.core;
   box(svg, { x: cx, y: 40, w: cw, h: 422, title: "Core Database", sub: ["Postgres + pgvector"], kind: "core" });
-  const tables = ["companies · sector_source", "watchlist", "filings · facts", "kpis", "documents · chunks",
+  const tables = ["companies · sector_source", "watchlist", "filings · facts (latest)", "kpis", "documents · chunks",
     "prices", "templates", "models · versions", "assumptions", "change_sets", "peer_lists"];
   tables.forEach((t, i) => {
     const y = 84 + i * 33;
@@ -327,10 +331,11 @@ function heading(svg, x, w, text) {
   box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["flash, variance bridge", "call digest, red flags", "initiation draft, Q&A"] });
   box(svg, { x: ex, y: 212, w: ew, h: 66, title: "Coverage Builder", sub: ["template → new model", "sourced history", "proposed assumptions"], kind: "amber" });
   box(svg, { x: ex, y: 298, w: ew, h: 54, title: "IB Output Engine", sub: ["comps (need prices)", "company profile slide"] });
+  box(svg, { x: ex, y: 372, w: ew, h: 54, title: "Results views", sub: ["desk · movers · sectors", "quarter glance · tags"] });
 
   const [ux, uw] = col.ui;
   box(svg, { x: ux, y: 40, w: uw, h: 54, title: "Excel", sub: ["links your models", "xlwings → Office.js"] });
-  box(svg, { x: ux, y: 112, w: uw, h: 54, title: "Web App", sub: ["instant search", "review · templates"] });
+  box(svg, { x: ux, y: 112, w: uw, h: 54, title: "Web App", sub: ["results desk · search", "company · review"] });
   box(svg, { x: ux, y: 196, w: uw, h: 42, title: "Word + PPT", sub: ["notes, initiation"] });
   box(svg, { x: ux, y: 268, w: uw, h: 42, title: "Alerts", sub: ["email / Telegram"] });
 
@@ -341,7 +346,7 @@ function heading(svg, x, w, text) {
     "PDF input · tool use · structured JSON · Batch API for backfills");
 
   // Sources -> ingestion
-  arrow(svg, { d: "M188,61 C208,61 208,115 226,115" });
+  arrow(svg, { d: "M188,61 C212,61 204,174 226,174", label: "lookup", at: [207, 150] });
   arrow(svg, { d: "M188,113 C206,113 206,121 226,121", label: "poll", at: [207, 98] });
   arrow(svg, { d: "M188,165 C208,165 208,127 226,127" });
   arrow(svg, { d: "M188,217 C208,217 208,190 226,190", label: "fallback", at: [205, 238] });
@@ -373,6 +378,7 @@ function heading(svg, x, w, text) {
   arrow(svg, { d: "M814,244 H860", label: "history", at: [837, 238] });
   arrow(svg, { d: "M814,326 H860", label: "facts", at: [837, 320] });
   arrow(svg, { d: "M814,342 H860", kind: "pending" });
+  arrow(svg, { d: "M814,399 H860", label: "latest", at: [837, 393] });
   arrow(svg, { d: "M945,106 V124", kind: "control", label: "estimates", at: [951, 119], anchor: "start" });
 
   // Engines -> interfaces (vertical runs at x=1082 and x=1094 share the gap)
@@ -384,6 +390,7 @@ function heading(svg, x, w, text) {
   arrow(svg, { d: "M1030,268 C1070,268 1070,217 1102,217", label: "initiation", at: [1036, 284], anchor: "start" });
   arrow(svg, { d: "M1030,318 C1070,318 1070,226 1102,226" });
   arrow(svg, { d: "M1030,334 C1072,334 1072,289 1102,289", label: "slides, alerts", at: [1036, 352], anchor: "start" });
+  arrow(svg, { d: "M1030,392 C1074,392 1070,160 1102,160", label: "desk, glance", at: [1036, 414], anchor: "start" });
 
   // Claude API calls
   arrow(svg, { d: "M442,206 H436 V516 H440", kind: "claude", label: "pages → JSON", at: [430, 486], anchor: "end" });

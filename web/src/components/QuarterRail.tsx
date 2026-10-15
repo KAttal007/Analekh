@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, type GlanceLine } from "../api/client";
 import { changeTitle, money, scaleFor, signedBps, signedPct, type Scale } from "../lib/format";
+import { RevisionTag } from "./RevisionTag";
 import { Badge, InfoTip, MissingTip, Skeleton } from "./ui";
 
 // Lines where a rise is a cost going up: their changes are coloured the other way round.
@@ -93,6 +94,12 @@ export function QuarterRail({
             <p className="rail-sub">
               Quarter ended {fmtDate(g.period_end)} ·{" "}
               {g.consolidated ? "consolidated" : "standalone"}
+              {g.revision && (
+                <>
+                  {" "}
+                  <RevisionTag rev={g.revision} />
+                </>
+              )}
             </p>
             <table className="glance">
               <thead>

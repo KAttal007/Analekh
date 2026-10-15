@@ -144,7 +144,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Filings */
+    /**
+     * Filings
+     * @description Filings, newest period first; a quarter filed more than once says which filing is in
+     *     use, what it replaced and which headline numbers changed.
+     */
     get: operations["filings_companies__symbol__filings_get"];
     put?: never;
     post?: never;
@@ -1005,6 +1009,7 @@ export interface components {
       meta: {
         [key: string]: unknown;
       };
+      revision?: components["schemas"]["RevisionOut"] | null;
     };
     /** GlanceLineOut */
     GlanceLineOut: {
@@ -1046,6 +1051,7 @@ export interface components {
       previous_note?: string | null;
       /** Year Ago Note */
       year_ago_note?: string | null;
+      revision?: components["schemas"]["RevisionOut"] | null;
       /** Lines */
       lines: components["schemas"]["GlanceLineOut"][];
     };
@@ -1085,6 +1091,19 @@ export interface components {
       confidence: string | null;
       /** Verified */
       verified: boolean;
+    };
+    /** LineChangeOut */
+    LineChangeOut: {
+      /** Label */
+      label: string;
+      /** Kind */
+      kind: string;
+      /** Old */
+      old: string | null;
+      /** New */
+      new: string | null;
+      /** Change */
+      change: string | null;
     };
     /** LinkRequest */
     LinkRequest: {
@@ -1153,6 +1172,25 @@ export interface components {
       period_end: string;
       /** Model Id */
       model_id?: number | null;
+    };
+    /**
+     * RevisionOut
+     * @description A quarter filed more than once on one basis: the newest filed is in use.
+     */
+    RevisionOut: {
+      /** Status */
+      status: string;
+      /** Replaces */
+      replaces?: string | null;
+      /** Superseded By */
+      superseded_by?: string | null;
+      /**
+       * Changes
+       * @default []
+       */
+      changes: components["schemas"]["LineChangeOut"][];
+      /** Replaced Period */
+      replaced_period?: [string, string] | null;
     };
     /** SearchHitOut */
     SearchHitOut: {

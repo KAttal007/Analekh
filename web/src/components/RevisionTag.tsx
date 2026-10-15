@@ -1,0 +1,62 @@
+import type { Revision } from "../api/client";
+import {
+  type Scale,
+  filedAt,
+  longDate,
+  money,
+  scaleFor,
+  signedBps,
+  signedPct,
+} from "../lib/format";
+import { TagTip } from "./ui";
+
+function figure(raw: string | null | undefined, kind: string, scale: Scale): string {
+  if (raw == null) return "–";
+  const v = Number(raw);
+  if (kind === "pct") return `${v.toFixed(1)}%`;
+  if (kind === "eps") return `${v < 0 ? "−" : ""}₹${Math.abs(v).toFixed(2)}`;
+  return money(raw, scale);
+}
+
+/** What the popup says about a quarter filed more than once. */
+export function revisionText(rev: Revision, filed?: string | null): string {
+  if (rev.status === "original") {
+    return (
+      `Superseded: replaced by the revised filing of ${filedAt(rev.superseded_by)}. ` +
+      "Kept as history; its numbers are no longer used."
+    );
+  }
+  const what = rev.status === "refiled" ? "Filed again" : "Revised filing";
+  const head = `${what}${filed ? ` (${filedAt(filed)})` : ""}, replacing the one filed ${filedAt(rev.replaces)}.`;
+  if (rev.replaced_period) {
+    const [start, end] = rev.replaced_period;
+    return `${head}\nThe earlier filing covered ${longDate(start)} to ${longDate(end)} only; this one adds the quarter's own figures.`;
+  }
+  if (!rev.changes?.length) return `${head}\nNo headline numbers changed.`;
+  // One unit for the whole note: lakhs only when every amount in it is under Rs 10 crore.
+  const scale = scaleFor(
+    rev.changes.filter((c) => c.kind === "inr").flatMap((c) => [c.old, c.new]),
+  );
+  const lines = rev.changes.map((c) => {
+    const delta =
+      c.change == null
+        ? ""
+        : ` (${c.kind === "pct" ? signedBps(c.change, false) : signedPct(c.change, false)})`;
+    return `${c.label}: ${figure(c.old, c.kind, scale)} → ${figure(c.new, c.kind, scale)}${delta}`;
+  });
+  return `${head}\nChanged:\n${lines.join("\n")}`;
+}
+
+/** "Revised" / "Superseded" badge with the details in a popup. */
+export function RevisionTag({ rev, filed }: { rev: Revision; filed?: string | null }) {
+  if (rev.status === "original") {
+    return rev.superseded_by ? <TagTip label="Superseded" text={revisionText(rev, filed)} /> : null;
+  }
+  return (
+    <TagTip
+      label={rev.status === "refiled" ? "Refiled" : rev.changes?.length ? "Restated" : "Revised"}
+      tone="warn"
+      text={revisionText(rev, filed)}
+    />
+  );
+}

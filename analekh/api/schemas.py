@@ -72,6 +72,24 @@ class WatchlistEntryOut(BaseModel):
 # --- filings, facts, KPIs -------------------------------------------------------------------------
 
 
+class LineChangeOut(BaseModel):
+    label: str
+    kind: str  # inr, eps, pct
+    old: Decimal | None
+    new: Decimal | None
+    change: Decimal | None  # % for amounts and EPS; basis points for ratios
+
+
+class RevisionOut(BaseModel):
+    """A quarter filed more than once on one basis: the newest filed is in use."""
+
+    status: str  # original, revised, refiled
+    replaces: datetime | None = None
+    superseded_by: datetime | None = None
+    changes: list[LineChangeOut] = []
+    replaced_period: tuple[date, date] | None = None  # the replaced filing covered this instead
+
+
 class FilingOut(ORM):
     id: int
     kind: str
@@ -84,6 +102,7 @@ class FilingOut(ORM):
     filed_at: datetime | None
     status: str
     meta: dict[str, Any]
+    revision: RevisionOut | None = None  # only when the quarter was filed more than once
 
 
 class DeskRowOut(BaseModel):
@@ -156,6 +175,7 @@ class GlanceOut(BaseModel):
     year_ago_end: date | None
     previous_note: str | None = None  # why QoQ is blank on every line
     year_ago_note: str | None = None  # why YoY is blank on every line
+    revision: RevisionOut | None = None  # the quarter's figures come from a revised filing
     lines: list[GlanceLineOut]
 
 

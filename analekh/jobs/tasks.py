@@ -209,6 +209,8 @@ def bulk_fetch_results(
     skip_done: bool = True,
     log_dir: str = "out/bulk",
     interval_seconds: float | None = None,
+    start_at: str | None = None,
+    skip_no_filings: bool = True,
 ) -> dict:
     """Integrated-filing results for many companies (default: every company with a sector).
 
@@ -216,6 +218,11 @@ def bulk_fetch_results(
     companies that already have a results filing, so rerunning resumes. Stops at the first sign
     that NSE is refusing or throttling us (403/429, timeouts) instead of retrying into a block.
     Progress goes to one JSON line per company under ``log_dir``.
+
+    ``start_at`` resumes at that ticker (inclusive, in ticker order): the company NSE stalled on
+    stored nothing (its transaction rolled back), so it is fetched again in full.
+    ``skip_no_filings`` leaves out companies already listed in no-filings.csv as having nothing
+    on NSE, so a restart doesn't spend requests re-checking them (errors there are retried).
     """
     import json
     import time
@@ -234,10 +241,21 @@ def bulk_fetch_results(
             q = q.where(
                 ~exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
             )
-        todo = list(s.scalars(q))[:limit]
+        if start_at:
+            q = q.where(Company.nse_symbol >= start_at.upper())
+        todo = list(s.scalars(q))
 
     log = Path(log_dir) / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
     gaps = Path(log_dir) / "no-filings.csv"  # running list across runs: companies with nothing
+    if skip_no_filings and not symbols and gaps.exists():
+        import csv
+
+        with gaps.open(newline="", encoding="utf-8") as fh:
+            nothing = {
+                r["symbol"] for r in csv.DictReader(fh) if not r["reason"].startswith("error")
+            }
+        todo = [x for x in todo if x not in nothing]
+    todo = todo[:limit]
     log.parent.mkdir(parents=True, exist_ok=True)
     rate = 1 / interval_seconds if interval_seconds else None  # e.g. 5 s: one request per 5 s
     store, client = default_store(), PoliteClient(max_attempts=2, rate_per_second=rate)

@@ -161,6 +161,49 @@ def test_ingest_dedupes_and_handles_restatement(db, store, company):
     assert store.exists(restated.filing.storage_key)
 
 
+def test_newest_filed_value_wins_whatever_the_download_order(db, store, company):
+    from datetime import UTC, datetime
+
+    from analekh.restatements import revisions
+
+    # The revision is downloaded first, the original afterwards (88 such cases were in use with
+    # the original's numbers before this): the revision's numbers must still be the ones in use.
+    revised = ingest_results_xbrl(
+        db,
+        store,
+        company,
+        q2_instance(revenue=1_010_000_000),
+        filed_at=datetime(2026, 11, 20, 12, tzinfo=UTC),
+        revision="Revision",
+    )
+    original = ingest_results_xbrl(
+        db,
+        store,
+        company,
+        q2_instance(),
+        filed_at=datetime(2026, 11, 10, 12, tzinfo=UTC),
+        revision="Original",
+    )
+    rows = db.scalars(
+        select(Fact).where(
+            Fact.company_id == company.id,
+            Fact.element == "RevenueFromOperations",
+            Fact.period_start == date(2026, 7, 1),
+        )
+    ).all()
+    latest = [r for r in rows if r.is_latest]
+    assert len(rows) == 2 and len(latest) == 1
+    assert latest[0].value == Decimal("1010000000") and latest[0].filing_id == revised.filing.id
+
+    status = revisions(db, company, [revised.filing, original.filing])
+    assert status[original.filing.id].status == "original"
+    assert status[original.filing.id].superseded_by == revised.filing.filed_at
+    rev = status[revised.filing.id]
+    assert rev.status == "revised" and rev.replaces == original.filing.filed_at
+    revenue = next(c for c in rev.changes if c.label == "Revenue")
+    assert revenue.new == Decimal("1010000000") and revenue.change is not None
+
+
 def test_backfill_from_import_folder(db, store, company, tmp_path):
     folder = tmp_path / "import" / "DEMOFIN"
     folder.mkdir(parents=True)

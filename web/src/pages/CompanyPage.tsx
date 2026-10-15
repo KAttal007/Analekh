@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { Icon } from "../components/Icon";
 import { QuarterRail } from "../components/QuarterRail";
+import { RevisionTag } from "../components/RevisionTag";
 import {
   Avatar,
   Badge,
@@ -397,6 +398,12 @@ export function CompanyPage() {
                             </a>
                           ) : (
                             (f.period_end ?? "-")
+                          )}
+                          {f.revision && (
+                            <>
+                              {" "}
+                              <RevisionTag rev={f.revision} filed={f.filed_at} />
+                            </>
                           )}
                         </td>
                         <td className="hide-sm">{f.kind}</td>

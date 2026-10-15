@@ -6,9 +6,10 @@ Guidance for Claude Code working in this repository.
 
 Analekh (`analekh/`): any NSE-listed company in; validated XBRL facts, a built or updated Excel
 model (analyst-approved) and grounded research drafts out. Section numbers in comments (e.g.
-"design doc 12.3") refer to *Analekh Technical Design Document v0.0.2*
-(`docs/design/technical-design.md`, converted from the `.docx`; v0.0.1 is kept as the original
-record). Record every departure from it in `docs/design/deviations.md`.
+"design doc 12.3") refer to *Analekh Technical Design Document v0.0.3*
+(`docs/design/technical-design.md`; the `.docx` and the architecture PDF are generated from it and
+`architecture.html` with `scripts/design_docx.py` and `scripts/diagram_panels.py`; earlier versions
+are kept as the record). Record every departure from it in `docs/design/deviations.md`.
 
 Versions follow the build phases (design doc 26): v0.0.x during Phase 0, v0.1.x once Phase 0 is
 complete, v0.2.x once Phase 1 is complete, and so on; v1.0.0-pre-release is the first release for
@@ -29,6 +30,7 @@ uv run alembic upgrade head               # migrations (analekh/db/migrations)
 uv sync --group audio                     # Whisper for call recordings (analekh transcribe-audio)
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py
 uv run analekh --help                     # CLI: universe, search, watch, template, build, sync
+uv run analekh recompute-latest          # newest FILED value of each line in use (after imports)
 uv run python scripts/phase0_spike.py --limit 10  # needs NSE access (Indian network)
 pnpm install                              # front ends (pnpm workspace: web/, office-addin/)
 pnpm dev                                  # web app, proxies /api to :8000

@@ -1,13 +1,20 @@
 # Deviations from the Technical Design
 
-The current design is **v0.0.2** ([technical-design.md](technical-design.md); the formatted
-original is `Analekh - Technical Design v0.0.2.docx`). Record here every place the build departs
-from it, with the section number, what changed, why and when, and fold the list into the next
-version of the document.
+The current design is **v0.0.3** ([technical-design.md](technical-design.md); the formatted
+copy is `Analekh - Technical Design v0.0.3.docx`, the diagrams `Analekh - Architecture v0.0.3.pdf`).
+Record here every place the build departs from it, with the section number, what changed, why
+and when, and fold the list into the next version of the document.
 
 Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed, not decided
 
-## Since v0.0.2
+## Since v0.0.3
+
+None yet. Use the same columns as below: design says, now, why, date.
+
+## Folded into v0.0.3 (15 October 2026)
+
+Everything below was a departure from v0.0.2 and is now part of v0.0.3. Section numbers are
+v0.0.2's.
 
 | Design says | Now | Why | Date |
 |---|---|---|---|
@@ -28,6 +35,16 @@ Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed
 | Results taxonomy from the schema reference, confirmed per company (4.2, 9.1) | Detected from the elements a filing tags: banks (InterestEarned and InterestExpended, no RevenueFromOperations), insurers (premium elements, no RevenueFromOperations); NBFCs stay Ind-AS (they tag InterestEarned inside revenue). A filing's line items correct an earlier guess. | Integrated filings use one schema (`in-capmkt-ent`) for every filer. | 2026-10-14 |
 | V1-V3 identities in Ind-AS terms (10.2) | Per-format terms, added when tagged: banks deduct provisions in V2; general insurers add investment income in V1 and run V2 through the shareholders' account. Insurers' V4 skips (IRDAI balance sheet not mapped). `GET /companies/{symbol}/facts?logical=revenue` resolves names for the company's format. | Bank and insurer filings had every identity skipped. | 2026-10-14 |
 | V8 labels a filing late when filed more than 180 days after period end (10.2) | Tied to SEBI LODR regulation 33(3): late after 45 days for a quarter (or an SME half-year), 60 days when the filing closes the financial year (period ends 31 March, or a full-year duration ends on the period end), plus one day's grace because XBRL may follow the PDF results by up to 24 hours. Still a label, never a block. The filing date is taken in IST. | 180 days only caught stale filings, not late ones. | 2026-10-14 |
+| Taxonomies indas, banking, nbfc, insurance (Appendix A) | `life_insurance` added (migration 0003): IRDAI's life format, detected from premium income or persistency elements. Net premium income is the top line; PBT is checked through the shareholders' account (V2), total income through the policyholders' account (V1). | Life insurers file a different revenue account from general insurers; read as either, every check skipped and every line came out empty (Canara HSBC Life). | 2026-10-14 |
+| Restatements: new facts inserted, old ones lose is_latest (8.3, V9) | The value in use for each line is the one from the most recently FILED filing (filing time, then id), re-decided per company after every ingest (`ingest.pipeline.refresh_latest`), whatever order the files were downloaded in. NSE's Original or Revision flag is stored in `filings.meta.revision`; older rows were labelled by filing order (`analekh recompute-latest`, which switched 108 values). | 88 values in use came from an older filing than one already stored: "latest" meant last downloaded. | 2026-10-15 |
+| Difference shown for a refiled period (6.4) | Company page: Restated (headline numbers changed), Revised (refiled, nothing headline changed, or the quarter added after half-year results) and Superseded tags in the filings table and the Latest quarter column, with a popup listing old to new for each changed line. `GET /companies/{symbol}/filings` and `/glance` carry the revision status. No separate restatement report (the owner saw no use for one). | 1,108 quarters at 564 companies were filed more than once. | 2026-10-15 |
+| Backfill: on demand and Nifty 500 first (4.1, 9.4) | `analekh results-backfill` covers every company with a sector, both bases, at one request every 2 s. `--start-at` resumes at the company a run stopped on; companies in `out/bulk/no-filings.csv` are skipped unless `--recheck-no-filings`. A local watchdog (gitignored) resumes after each NSE stop and backs off if NSE stalls quickly. | NSE stalls after about 590 requests whatever the pace, then answers after about 10 minutes; restarting from the first company spent each batch re-checking companies with nothing to fetch. | 2026-10-15 |
+| (not specified) | A link ending in `null`, `undefined` or `none` is no link (NSE writes `.../corporate/null` for a missing attachment); an XBRL file NSE lists but answers 404 or 410 for is skipped and noted, not fatal for the company. | About one PDF link in three; Adani Enterprises had 4 missing files. | 2026-10-14 |
+| Company figures in crore (10.1 display transforms) | Lakhs when the company's largest quarterly revenue is under Rs 10 crore (1,000 lakh), crore otherwise; one unit per view. | Agri-Tech's Rs 4.6 lakh of revenue read "Rs 0 cr" and its chart was empty. | 2026-10-14 |
+| (not specified) | A missing QoQ or YoY shows a dash with the reason: the comparison quarter was filed only inside a half-year (Canara Robeco AMC's first results after listing), or there are no results on record for it. | Analysts asked why a company with a year-ago filing had no YoY. | 2026-10-15 |
+| (not specified) | Margins and ratios change in basis points; notes (how EBITDA is derived, EPS as filed) sit behind an information icon that opens on hover, tap or focus; very large changes from a tiny base are capped on the desk ("n.m.", ">+999%") with the exact figure in a tooltip. | Space in the Latest quarter column; analysts read margins in bps. | 2026-10-14 |
+| Results desk paging (19.1) | Ten companies per page with Prev and Next (page in the URL); Movers and By sector keep a fixed height and scroll inside, sharing the table's height on wide screens. | The side column ran far below the window. | 2026-10-15 |
+| Code version 0.1.0 (pyproject, package.json) | 0.0.3, matching the design document and the versioning rule (v0.0.x until Phase 0 is complete). | The skeleton started at 0.1.0. | 2026-10-15 |
 
 ## Folded into v0.0.2 (14 October 2026)
 
@@ -70,7 +87,6 @@ price chart (18) and `get_prices` (17.1) have nothing to return until a source e
 | — | `analekh universe sectors` fetches Nifty 500 and Microcap 250 constituents (industry) plus the bank indices. File names and columns are marked `# verify`: niftyindices.com wasn't answering when this was written, so it has not run yet. | | 🟡 |
 | — | `analekh universe sectors --stocks-file` imports a workbook made with Excel's Stocks data type (`XBOM:<BSE code>` IDs, `FIELDVALUE(…,"Industry")`). 2,458 main-board companies have a sector; 728 remain (148 main board, 580 SME). Process: [../sectors-from-excel-stocks.md](../sectors-from-excel-stocks.md); helper: `scripts/stocks_workbook.py`. | Only route found that covers most of the universe for free. Needs Microsoft 365 (Office 2024 lacks the Stocks data type). | 2026-10-13, 🟡 |
 | Results taxonomy set by the universe loader and confirmed from the first filing (4.2, 9.1) | Set from strong signals only: bank index membership, or "NBFC"/"insurance" in an NSE sector name. Excel Stocks sectors never set it (LSEG's "Banking Services" includes NBFCs). Otherwise the first parsed filing decides. | Avoid filing banks' and NBFCs' results under the wrong element table. | 2026-10-13 |
-| Taxonomies indas, banking, nbfc, insurance (Appendix schema) | `life_insurance` added (migration 0003): IRDAI's life format, detected from premium income or persistency elements. Net premium income is the top line; PBT is checked through the shareholders' account (V2), total income through the policyholders' account (V1). | Life insurers file a different revenue account from general insurers; read as either, every check skipped and every line came out empty (Canara HSBC Life). | 2026-10-14 |
 | User override per company (27) | Supported by the precedence rules (`source="user"`), but there's no screen to edit a sector yet. | | 🔲 |
 
 Data rights (23): sectors from the Stocks data type come from LSEG through Microsoft 365. They
@@ -175,3 +191,4 @@ Still open from Phase 0: a hand-check of 10 values per file against the results 
 |---|---|
 | Report generation (17) | Today `genai/reports.py` runs one open tool loop per report (all tools, up to 20 turns). Proposal: fixed workflows for the flash; section-by-section runs for the note, IC note and initiation (outline from a report template, core data pre-fetched by code, a short tool loop per section, grounding check per section so one section can be redone); keep the open loop for Q&A and red-flag digging. |
 | Python 3.15 | Blocked on Windows wheels for pyyaml, playa-pdf (via camelot-py) and numpy-financial. |
+| Investor presentations (3.2, 11) | Link each quarter's deck from NSE's corporate announcements list (subject "Investor Presentation"): one request a day, plus a backfill by date range or per company; store only the link. Needs the owner's approval to widen `ALLOWED_PATHS`; stashed by the owner on 2026-10-14. |

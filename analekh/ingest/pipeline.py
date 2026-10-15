@@ -5,14 +5,15 @@ PDFs are stored for everyone (cheap) but only processed by the document pipeline
 on-demand companies.
 
 Re-running is idempotent: a file whose hash is already stored is skipped. A different file for an
-already-stored period is a restatement: new facts are inserted, old ones lose is_latest (V9);
-nothing is deleted.
+already-stored period is a revision: its facts are inserted and the newest FILED value of each
+line is the one in use (is_latest), whatever order the files were downloaded in; superseded values
+stay as history (V9). Nothing is deleted.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, FeedItem, Filing
@@ -63,6 +64,7 @@ def ingest_results_xbrl(
     source_url: str | None = None,
     feed_item_id: int | None = None,
     filed_at: datetime | None = None,
+    revision: str | None = None,
 ) -> IngestResult:
     digest = sha256(data)
     existing = session.scalar(select(Filing).where(Filing.file_sha256 == digest))
@@ -117,29 +119,14 @@ def ingest_results_xbrl(
             "parser_warnings": parsed.warnings,
             "validation": report.as_dict(),
             "blocks_auto_apply": report.blocks_auto_apply,
+            # NSE's own flag from the integrated-filing list: "Original" or "Revision".
+            **({"revision": revision} if revision else {}),
         },
     )
     session.add(filing)
     session.flush()
 
     for f in parsed.facts:
-        session.execute(
-            update(Fact)
-            .where(
-                and_(
-                    Fact.company_id == company.id,
-                    Fact.element == f.element,
-                    Fact.period_start.is_(None)
-                    if f.period_start is None
-                    else Fact.period_start == f.period_start,
-                    Fact.period_end == f.period_end,
-                    Fact.consolidated == consolidated,
-                    Fact.dims_hash == f.dims_hash,
-                    Fact.is_latest,
-                )
-            )
-            .values(is_latest=False)
-        )
         session.add(
             Fact(
                 filing_id=filing.id,
@@ -155,10 +142,39 @@ def ingest_results_xbrl(
                 context_ref=f.context_ref,
                 dimensions=f.dimensions,
                 dims_hash=f.dims_hash,
+                is_latest=False,  # decided below, by filing time
             )
         )
     session.flush()
+    refresh_latest(session, company.id)
     return IngestResult(filing, skipped=False, report=report)
+
+
+# For each line of each period (element, dates, basis, dimensions), the value in use is the one
+# from the most recently FILED filing; a filing without a date counts as the oldest. Two steps, so
+# no moment has two values in use for the same line.
+_LATEST_SQL = """
+WITH ranked AS (
+    SELECT f.id,
+           row_number() OVER (
+               PARTITION BY f.company_id, f.consolidated, f.element, f.period_start,
+                            f.period_end, f.dims_hash
+               ORDER BY fl.filed_at DESC NULLS LAST, fl.id DESC
+           ) = 1 AS top
+    FROM facts f JOIN filings fl ON fl.id = f.filing_id
+    WHERE f.company_id = :company_id
+)
+UPDATE facts SET is_latest = ranked.top
+FROM ranked
+WHERE facts.id = ranked.id AND facts.is_latest IS DISTINCT FROM ranked.top
+"""
+
+
+def refresh_latest(session: Session, company_id: int) -> int:
+    """Re-decide which value of every line is in use for one company, by filing time (a revised
+    filing beats the original even when it was downloaded first). Returns the rows changed."""
+    result = session.execute(text(_LATEST_SQL), {"company_id": company_id})
+    return int(getattr(result, "rowcount", 0) or 0)
 
 
 def classify_announcement(title: str | None, description: str | None = None) -> str:
