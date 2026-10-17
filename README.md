@@ -69,13 +69,25 @@ flowchart LR
 
 ## Status
 
-**v0.0.3, 15 October 2026.** The data layer runs on real NSE data. Results XBRL comes from NSE's
-integrated-filing lookup (the results feed stopped carrying filings on 24 August 2026): the first
-full backfill passed half of the 2,458 companies with a sector on 15 October, with both bases for
-every quarter from March 2025. Banks, NBFCs, general and life insurers are read in their own
-formats and tie out. Home is a Results desk, company pages show the latest quarter with QoQ and
-YoY changes, and refiled quarters use the newest filing. The engines for later phases have
-working cores with synthetic tests; gaps are marked `PHASE n` and `# verify` in the code.
+**v0.0.3, status on 17 October 2026.** The data layer runs on real NSE data:
+
+| | |
+|---|---|
+| Companies in the universe | 3,186 (2,606 main board + 580 SME) |
+| Companies with results stored | **2,537** (backfills still finishing: S to Z, and the companies that gained a sector on 16 October) |
+| Results filings / values | **50,319 filings, 9.5 million values**, both bases |
+| History | From **March 2023** (NSE's older files are incomplete); 1,407 companies already have 14 or more quarters |
+| Blocked by a check | 14 filings (V2; see Next up) |
+| September 2026 quarter (Q2 FY27) | 113 companies reported so far, collected every 2 hours |
+| Sectors | **NSE's own taxonomy** for 1,430 companies (22 sectors), LSEG groups for 1,587 (mapping to NSE names awaits the owner), none for 169 |
+| Storage | About 10 GB (PostgreSQL 5.1 GB, raw XBRL 4.1 GB) |
+
+Results come from NSE's integrated-filing lookup (the results feed stopped on 24 August 2026)
+and, for 2023-2024, its financial-results list. Banks, NBFCs, general insurers (reinsurers
+included) and life insurers are read in their own formats and tie out. Home is a Results desk;
+company pages show the latest quarter with QoQ and YoY changes; refiled quarters use the newest
+filing and are tagged. The engines for later phases have working cores with synthetic tests;
+gaps are marked `PHASE n` and `# verify` in the code.
 
 ### What stops the next phases
 
@@ -84,32 +96,33 @@ The full picture is in design doc 26.1. In short:
 | Phase | Waiting on |
 |---|---|
 | 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test` |
-| 1 → v0.2.0 | Backfill finishing; the 728 companies without a sector (148 main board, 580 SME) and the no-filings list; the daily results watcher and feed watcher running on a schedule (Redis, worker and beat never started) |
+| 1 → v0.2.0 | Backfills finishing (history S-Z; results for the 559 companies that gained an NSE sector, then their history); the 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the scheduler on a server (the results watcher runs from a Windows scheduled task on the laptop for now; the feed watcher not at all) |
 | 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; a price source |
 | 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
 | 5 | A price source for comps; hosting in an Indian region with a login |
 
 ### Next up
 
-Nothing here waits on outside data or a decision:
-
-1. **Results on a schedule** before the September-quarter peak (late October to mid November):
-   start Redis, the worker and beat so `watch-results` (one request a day) and the feed watcher run.
-2. **Every filer:** extend the backfill to companies without a sector (SME through the lookup's
-   SME index) and work through `out/bulk/no-filings.csv`.
-3. **Golden set and hand-check** across the five results formats, then `analekh golden-test`:
+1. **Finish the backfills:** history for S-Z (running), results for the newly sectored
+   companies (running), then history for the newly sectored companies before "S".
+2. **Hosting on Oracle Cloud** (Always Free Arm VM, Mumbai): account, VM, then one honest NSE
+   request from it to see whether NSE serves cloud addresses; then the stack, the data (dump, not
+   re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler moved off the laptop.
+3. **The 14 blocked filings** (V2: L&T, KIMS, MT Educare, four SME companies): likely one P&L line
+   V2 doesn't include yet (share of associates or joint ventures), as with GIC Re's transfer to
+   reserves.
+4. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
    completes Phase 0 (v0.1.0).
-4. **Balance sheet and cash flow** from the half-year and year-end integrated filings; V4 for
-   Ind-AS; company page tabs.
-5. **Results history table** on the company page (every stored quarter, either basis, revision
-   tags) with an Excel export.
-6. **Results calendar** from the Board Meetings feed: who reports this week, alerts for the
-   watchlist.
-7. **Peer view** of growth and margins against sector peers (no prices needed).
-8. **Sector editing screen** and sectors for the companies without one.
+5. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
+6. **Results history table** on the company page with an Excel export.
+7. **Results calendar** from the Board Meetings feed; **peer view** of growth and margins.
+8. **Sector editing screen** (owner's values outrank NSE's), including NSE basic industries read
+   off the quote page for covered companies.
 
-Decisions waiting on the owner: hosting (provider, domain, login), investor presentations through
-NSE's announcements list (needs rule 1 widened), the price source, and the Anthropic API key.
+Decisions waiting on the owner: the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
+bank presentation and calculations (owner's walkthrough); hosting details (domain, login);
+investor presentations through NSE's announcements list; the 250 BSE-only filers (manual import
+or a tooltip); the price source; the Anthropic API key.
 
 ### Tracker
 
@@ -147,13 +160,15 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Revised results: newest filed value wins; Restated / Revised / Superseded tags | ✅ | `analekh recompute-latest` switched 108 values; NSE's revision flag stored on new filings |
 | Watchlist and coverage levels | 🟡 | |
 | Feed watcher, polite fetcher, linking, storage | 🟡 | Polled once on 2026-10-14 (118 items, dated, 97 linked); not yet running on a schedule. The results feed is frozen since 24 August; results now come as integrated filings |
-| Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. More than 1,400 companies stored; integrated filings start with the March 2025 quarter |
-| Daily results watcher (`analekh results-watch`, beat `watch-results` 23:00 IST) | 🟡 | Ran by hand; not yet on a schedule (Redis, worker and beat not started) |
+| Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. 2,537 companies stored; integrated filings start with the March 2025 quarter; SME companies through `index=sme` |
+| Results history (`analekh results-backfill --history [--sector …]`, NSE's financial-results list; rule 1 amended 2026-10-15) | ✅ | From March 2023: NSE's older `_WEB` files lack the main contexts and are skipped (`pipeline.IncompleteXbrl`; owner's call, no rebuilding by id). Full run S-Z still going; Banking Services stored for the owner's walkthrough |
+| Results watcher (`analekh results-watch`, beat `watch-results` every 2 hours) | ✅ | ONE request to the latest-results list every 2 hours (owner, 2026-10-16). Windows scheduled task "Analekh results watch" until the scheduler is hosted; log `out/results-watch.log` |
+| Broken and missing XBRL files | ✅ | A 404, or a file cut off partway (fetched once more), is skipped and noted; the company's other filings are kept (Laurus Labs) |
 | XBRL parser, validation V1-V9 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. Tata Elxsi's 7 filings pass V1-V9 (V4 skips without a balance sheet) |
-| Sectors from an Excel Stocks workbook (`analekh universe sectors --stocks-file`) | ✅ | 2,458 of 2,606 main-board companies (LSEG industry groups, matched by ISIN); 148 main board + 580 SME left. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
-| Sectors from NSE Indices' constituent lists (`analekh universe sectors`) | 🟡 | Built and tested on synthetic lists; not yet run (niftyindices.com unreachable). Lower precedence than the Stocks workbook |
-| Nifty 500 list for backfill priority (`universe/data/nifty500.csv`) | 🔲 | Empty |
-| Results backfill (`analekh results-backfill`) | 🟡 | First full run under way at one request every 2 s (NSE pauses after about 590 requests; runs resume at the company they stopped on). Companies without a sector and the no-filings list still to do |
+| Sectors: NSE's taxonomy (`analekh universe sectors`) | ✅ | Owner's choice 2026-10-16. 11 NSE Indices lists (found among all 116) cover every indexed company: 1,430 with NSE's exact sector (22 current names; stale pre-2022 labels ignored). Precedence user > NSE > LSEG |
+| Sectors: LSEG groups from an Excel Stocks workbook (`--stocks-file`) | ✅ | Kept in `companies.sector_lseg` (migration 0004); shown for the 1,587 companies in no index until the LSEG-to-NSE mapping is approved. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
+| NSE basic industries (58 industries, 200 basic industries) | ⛔ | Only in NSE's quote data, which refuses automated requests (403, honest or browser headers); needs NSE's permission or a licence, or the owner's own entries |
+| Results backfill (`analekh results-backfill [--start-at] [--sector]`) | ✅ | First full run finished 2026-10-15 (0 errors); 290 companies have nothing on NSE (`out/bulk/no-filings.csv`, ~250 BSE-only filers). NSE's limit varies (590 to 4,195 requests, then a 10-minute pause); the watchdog resumes at the stalled company |
 
 #### Phase 2 · Builder and sync
 
@@ -200,8 +215,9 @@ Keep these tables current in the same merge request as the change, and add a lin
 |---|:---:|---|
 | GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
+| Hosting (Oracle Cloud Always Free, Mumbai) | 🔲 | Walkthrough started 2026-10-16; first test: does NSE serve the VM's address? Arm VM, so images build on the server |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
-| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0003`; 110 Python and 13 web tests run locally, none skipped |
+| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0004`; 114 Python and 13 web tests run locally, none skipped. A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
 | Design documents | ✅ | v0.0.3 Markdown, Word copy and architecture PDF; `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
@@ -212,6 +228,32 @@ Keep these tables current in the same merge request as the change, and add a lin
 ### Dev log
 
 Newest first. One line per notable change: what moved, and what it unblocks.
+
+- **2026-10-17** Results for the 559 companies that gained an NSE sector (539 SME, through NSE's
+  SME index) are being fetched; they were outside the first backfill. The results watcher runs
+  every 2 hours from a Windows scheduled task; 113 companies have reported the September quarter.
+- **2026-10-16** Sectors switched to **NSE's own taxonomy** (owner's choice): all 116 NSE Indices
+  lists were found and read; 11 of them cover every indexed company, giving 1,430 companies NSE's
+  exact sector (539 SME via SME Emerge). Precedence is now user > NSE > LSEG; LSEG groups are kept
+  in `sector_lseg` (migration 0004). Wrong list names no longer fail silently (the site answers
+  with a 200 page). NSE's company-level classification (basic industries) sits behind its quote
+  data, which refuses automated requests.
+- **2026-10-16** Results watcher every 2 hours (was once a day; owner's call, rule 1 updated).
+- **2026-10-16** History overnight: about 15,000 filings from 2023-2024 added; NSE stalled twice
+  (after 4,195 requests each time) and the watchdog resumed. 72% of companies covered by then had
+  14 or more clean quarters.
+- **2026-10-15** Results history from NSE's financial-results list (rule 1 amended by the owner):
+  XBRL back to 2018 is listed, but files before 2023 lack their main contexts, so history starts in
+  March 2023 (owner's decision; such files are rejected, never half-stored). `--sector` runs a
+  sector at a time; `--history` fetches history for every company in scope.
+- **2026-10-15** GIC Re: every filing was blocked because V2 didn't deduct a reinsurer's transfer
+  to reserves; fixed, 0 blocked. Laurus Labs lost all its filings to one broken file; broken files
+  are now fetched once more, then skipped. NSE's "no XBRL" links (`.../xbrl/-`) are no longer
+  requested.
+- **2026-10-15** The first full results backfill finished: 2,168 of 2,458 companies with a sector,
+  23,853 filings, 0 errors. 290 have nothing on NSE: 250 joined NSE in batches in 2026 and file
+  with BSE (BSE's API refuses automated requests), 14 are non-compliant (BZ), 23 were NSE server
+  errors (since fetched).
 
 - **2026-10-15** v0.0.3: design document, deviations log and architecture diagrams brought up to
   date (integrated filings, NSE's request limit, results formats, revisions, Results desk,
@@ -366,7 +408,9 @@ uv run alembic upgrade head
 uv run analekh universe load
 uv run analekh search "tata mo"          # --limit N for more rows
 uv run analekh refresh TATAELXSI         # one company's results from NSE's integrated filings
-uv run analekh results-watch             # the day's new results (ONE request to NSE)
+uv run analekh results-watch             # new results (ONE request to NSE; scheduled every 2 hours)
+uv run analekh results-backfill --history --sector "Oil Gas & Consumable Fuels"   # 2023-2024 history
+uv run analekh universe sectors          # NSE sectors from NSE Indices' published lists
 ```
 
 > **`.env` hosts:** `.env.example` uses the container names (`postgres`, `redis`, `minio`),
@@ -442,11 +486,12 @@ infrastructure run only once it is configured (CI/CD variables, all masked and p
 From design doc 23. These are not optional.
 
 - Only NSE's **published RSS feeds**, the **published equity list CSVs** and the files they
-  link to, NSE Indices' **published index constituent lists** (for sectors), and NSE's
-  **integrated-filing lookup** (approved by the owner on 2026-10-14): per company, plus ONE
-  request a day without a ticker. No other NSE page or internal endpoint, never crawling, and
-  requests always identify as Analekh. `analekh/ingest/http.py` enforces a host and path
-  allow-list (`/` and `/api/integrated-filing-results` on `www.nseindia.com`,
+  link to, NSE Indices' **published index constituent lists** (for sectors), NSE's
+  **integrated-filing lookup** (approved by the owner on 2026-10-14) and its **financial-results
+  list** (approved 2026-10-15): per company, plus ONE request every 2 hours without a ticker for
+  the latest results. No other NSE page or internal endpoint, never crawling, and requests always
+  identify as Analekh. `analekh/ingest/http.py` enforces a host and path allow-list (`/`,
+  `/api/integrated-filing-results` and `/api/corporates-financial-results` on `www.nseindia.com`,
   `/IndexConstituent/` on `niftyindices.com`); widening it needs the owner's approval.
 - Raw exchange files, user models and keys are **never committed** (`.gitignore` and the
   pre-commit hooks cover `data/`, `import/`, `out/`, `*.xlsx`, `.env`).

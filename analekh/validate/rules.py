@@ -199,6 +199,7 @@ def v2_pbt(ctx: ValidationContext) -> RuleResult:
             ("shareholders_investment_income", 1, "shareholders' investment income"),
             ("shareholders_other_income", 1, "shareholders' other income"),
             ("non_operating_expenses", -1, "non-operating expenses"),
+            ("transfer_to_reserves", -1, "transfer to reserves"),  # reinsurers
         ],
     )
     return _identity(

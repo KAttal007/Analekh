@@ -5,10 +5,13 @@ EQUITY_L.csv has no sector column. Sectors come from these sources, highest prec
 
 1. ``user``: the analyst's own value (``data/sector_map.csv`` today, the company page later).
    A sector with no recorded source is treated as the user's.
-2. ``excel_stocks``: an analyst's workbook converted with Excel's Stocks data type (LSEG
-   industry groups), imported by ISIN. Licensed to the analyst for their own research.
-3. ``nse_indices``: NSE Indices' published constituent lists (Nifty 500 + Microcap 250, about
-   750 companies), whose Industry column becomes the sector.
+2. ``nse_indices``: NSE's own taxonomy (the 22 current NSE Indices sectors), from the Industry
+   column of NSE Indices' published constituent lists. Eleven lists (Total Market, SME Emerge,
+   IPO, ...) cover every company in any index: about 1,430 (2026-10-16). The owner chose NSE's
+   taxonomy over LSEG's on 2026-10-16.
+3. ``excel_stocks``: an analyst's workbook converted with Excel's Stocks data type (LSEG
+   industry groups), imported by ISIN; shown only where NSE has no sector, and always kept in
+   ``companies.sector_lseg``. Licensed to the analyst for their own research.
 
 A source never replaces a higher one; the same source refreshes its own values. The results
 taxonomy is only set from strong signals (bank index membership, or an NSE sector naming banks,
@@ -16,7 +19,8 @@ NBFCs or insurance); otherwise it stays empty so the first parsed filing's schem
 decides (ingest/pipeline.py). Excel Stocks sectors never set it: LSEG's "Banking Services" also
 holds NBFCs.
 
-Open question 28.4: companies outside the ~750 have no published sector yet.
+Companies in no index have no published NSE sector; NSE's per-company classification (its
+quote data) refused an honest request on 2026-10-16.
 """
 
 import csv
@@ -36,13 +40,54 @@ log = structlog.get_logger()
 SECTOR_MAP = Path(__file__).parent / "data" / "sector_map.csv"
 
 INDEX_BASE = "https://niftyindices.com/IndexConstituent/"
-# verify: file names on niftyindices.com (unreachable when this was written, 2026-10-13).
-BROAD_LISTS = ("ind_nifty500list.csv", "ind_niftymicrocap250_list.csv")
-BANK_LISTS = ("ind_niftybanklist.csv", "ind_niftypsubanklist.csv", "ind_niftyprivatebanklist.csv")
+# The smallest set of NSE Indices lists covering every indexed company (worked out from all 116
+# lists on 2026-10-16): Total Market (Nifty 500 + Microcap 250), SME Emerge, IPO, WAVES and seven
+# small lists that each add a few companies. File names checked on niftyindices.com.
+SECTOR_LISTS = (
+    "ind_niftytotalmarket_list.csv",
+    "ind_niftysmelist.csv",
+    "ind_niftyipo_list.csv",
+    "ind_niftywaves_list.csv",
+    "ind_niftysugarethanol_list.csv",
+    "ind_niftysmallcap500_list.csv",
+    "ind_niftymedialist.csv",
+    "ind_nifty500multifactormqvlv50_list.csv",
+    "ind_niftyhousingfinance_list.csv",
+    "ind_niftymidsmallindiaconsumption_list.csv",
+)
+# NSE Indices' current sectors (classification structure revised 2022). A few stale lists still
+# carry the old names in capitals ("PHARMA", "CONSUMER GOODS"): those are ignored.
+NSE_SECTORS = frozenset(
+    {
+        "Automobile and Auto Components",
+        "Capital Goods",
+        "Chemicals",
+        "Construction",
+        "Construction Materials",
+        "Consumer Durables",
+        "Consumer Services",
+        "Diversified",
+        "Fast Moving Consumer Goods",
+        "Financial Services",
+        "Forest Materials",
+        "Healthcare",
+        "Information Technology",
+        "Media Entertainment & Publication",
+        "Metals & Mining",
+        "Oil Gas & Consumable Fuels",
+        "Power",
+        "Realty",
+        "Services",
+        "Telecommunication",
+        "Textiles",
+        "Utilities",
+    }
+)
+BANK_LISTS = ("ind_niftybanklist.csv", "ind_niftypsubanklist.csv", "ind_nifty_privatebanklist.csv")
 
 Mapping = dict[str, tuple[str, str | None]]
 
-RANK = {"user": 3, "excel_stocks": 2, "nse_indices": 1}
+RANK = {"user": 3, "nse_indices": 2, "excel_stocks": 1}
 
 
 def load_sector_map(path: Path = SECTOR_MAP) -> Mapping:
@@ -62,14 +107,14 @@ def load_sector_map(path: Path = SECTOR_MAP) -> Mapping:
 def parse_constituents(data: bytes) -> Mapping:
     """Symbol -> (sector, None) from a constituent list.
 
-    verify: columns are Company Name, Industry, Symbol, Series, ISIN Code; matched by name,
-    ignoring case and spacing, so column order does not matter.
+    Columns are Company Name, Industry, Symbol, Series, ISIN Code (seen 2026-10-16); matched by
+    name, ignoring case and spacing, so column order does not matter.
     """
     out: Mapping = {}
     for raw in csv.DictReader(io.StringIO(data.decode("utf-8-sig", errors="replace"))):
         row = {" ".join((k or "").split()).lower(): (v or "").strip() for k, v in raw.items()}
         symbol, industry = row.get("symbol", "").upper(), row.get("industry", "")
-        if symbol and industry:
+        if symbol and industry in NSE_SECTORS:  # old pre-2022 labels are left out
             out[symbol] = (industry, None)
     return out
 
@@ -83,11 +128,14 @@ def fetch_index_sectors(client: PoliteClient | None = None) -> tuple[Mapping, se
     mapping: Mapping = {}
     banks: set[str] = set()
     fetched = 0
-    for name in BROAD_LISTS + BANK_LISTS:
+    for name in SECTOR_LISTS + BANK_LISTS:
         try:
             rows = parse_constituents(client.get(INDEX_BASE + name).content)
         except Exception as exc:  # noqa: BLE001 - one missing list should not stop the rest
             log.warning("index_list_unavailable", list=name, error=str(exc))
+            continue
+        if not rows:  # a wrong name gets the site's HTML page with status 200, not a 404
+            log.warning("index_list_unavailable", list=name, error="no rows (not a CSV?)")
             continue
         fetched += 1
         for symbol, value in rows.items():
@@ -153,7 +201,7 @@ def refresh_sectors(session: Session, client: PoliteClient | None = None) -> dic
     from_lists = apply_sectors(session, mapping, banks, source="nse_indices")
     return {
         "lists_fetched": fetched,
-        "lists_total": len(BROAD_LISTS + BANK_LISTS),
+        "lists_total": len(SECTOR_LISTS + BANK_LISTS),
         "companies_listed": len(mapping),
         "banks": len(banks),
         "updated_curated": curated,
@@ -181,6 +229,9 @@ def import_stocks_workbook(session: Session, path: Path) -> dict[str, int]:
         if isin.startswith("IN") and sector and not sector.startswith("#"):
             by_isin[isin] = sector
     companies = session.scalars(select(Company).where(Company.isin.in_(by_isin))).all()
+    for c in companies:  # kept whatever is shown: NSE's sector wins where it has one
+        if c.isin:
+            c.sector_lseg = by_isin[c.isin]
     mapping: Mapping = {c.nse_symbol: (by_isin[c.isin], None) for c in companies if c.isin}
     updated = apply_sectors(session, mapping, source="excel_stocks", set_taxonomy=False)
     return {

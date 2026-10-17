@@ -333,7 +333,12 @@ def test_glance_for_a_life_insurer_shows_premium_and_ratios(client, db, store):
 
 def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store):
     # Canara Robeco AMC: its first results after listing (Sept 2025) cover April-September only.
-    amc = Company(nse_symbol="HALFAMC", name="Half Year AMC Limited", isin="INE000H01011")
+    amc = Company(
+        nse_symbol="HALFAMC",
+        name="Half Year AMC Limited",
+        isin="INE000H01011",
+        sector="Half-Year AMC Test Sector",  # its own sector: real reporters fill page one
+    )
     db.add(amc)
     db.flush()
     crore = 10_000_000
@@ -356,7 +361,8 @@ def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store)
     )
     assert g["previous_note"] == "No standalone results for Q1 FY27 on record"
 
-    d = client.get("/desk", params={"quarter_end": "2026-09-30"}).json()
+    params = {"quarter_end": "2026-09-30", "sector": "Half-Year AMC Test Sector"}
+    d = client.get("/desk", params=params).json()
     row = next(r for r in d["rows"] if r["symbol"] == "HALFAMC")
     assert row["revenue_yoy"] is None and row["yoy_note"] == g["year_ago_note"]
 

@@ -136,7 +136,7 @@ def refresh(symbol: str) -> None:
 
 @app.command("results-watch")
 def results_watch() -> None:
-    """New results for every company from ONE request to NSE's latest list (runs daily)."""
+    """New results for every company from ONE request to NSE's latest list (every 2 hours)."""
     from analekh.jobs.tasks import watch_results
 
     typer.echo(watch_results())
@@ -162,6 +162,12 @@ def results_backfill(
     recheck_no_filings: bool = typer.Option(
         False, help="Check again the companies no-filings.csv lists as having nothing on NSE."
     ),
+    history: bool = typer.Option(
+        False, help="Results from before integrated filings (XBRL from 2018), for every company."
+    ),
+    sector: list[str] = typer.Option(
+        None, help='Only this sector; repeat for several (--sector "Oil & Gas" --sector ...).'
+    ),
 ) -> None:
     """Fetch results XBRL from NSE's integrated filings for many companies (resumable)."""
     from analekh.jobs.tasks import bulk_fetch_results
@@ -175,6 +181,8 @@ def results_backfill(
         interval_seconds=interval,
         start_at=start_at,
         skip_no_filings=not recheck_no_filings,
+        history=history,
+        sectors=sector or None,
     )
     typer.echo(result)
 

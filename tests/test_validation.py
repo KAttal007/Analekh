@@ -268,6 +268,17 @@ def test_insurer_identities_run_through_the_shareholders_account():
     assert results["V4"].status == "skip"  # IRDAI balance sheet not mapped yet
 
 
+def test_reinsurer_transfer_to_reserves_is_deducted_before_pbt():
+    # GIC Re, June 2026 quarter (standalone): without the transfer, V2 was off by Rs 160.57 crore.
+    gic = {
+        **ICICI_LOMBARD,
+        "ProfitOrLossBeforeTax": ICICI_LOMBARD["ProfitOrLossBeforeTax"] - 1_605_700_000,
+        "TransferToReserves": 1_605_700_000,
+    }
+    v2 = by_rule(validate(ValidationContext(parse_instance(_quarter(gic)), "insurance")))["V2"]
+    assert v2.status == "pass" and "transfer to reserves" in v2.message
+
+
 def test_life_insurer_identities_run_through_both_accounts():
     ctx = ValidationContext(parse_instance(_quarter(CANARA_HSBC_LIFE)), "life_insurance")
     results = by_rule(validate(ctx))

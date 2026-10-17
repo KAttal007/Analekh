@@ -33,6 +33,16 @@ ANNOUNCEMENT_KINDS = (
 )
 
 
+class IncompleteXbrl(ValueError):
+    """The file's values point to periods it never defines: NSE's older "_WEB" publications
+    (up to December 2022) leave out the quarter, year-to-date and balance-sheet contexts, so
+    most figures, including the basis, can't be placed. Such files are not stored (owner's
+    decision 2026-10-15: history from 2023, no rebuilding of contexts by id)."""
+
+
+MAIN_CONTEXTS = ("OneD", "FourD", "OneI")
+
+
 @dataclass
 class IngestResult:
     filing: Filing
@@ -71,9 +81,14 @@ def ingest_results_xbrl(
     if existing is not None:
         return IngestResult(existing, skipped=True)
 
+    parsed = parse_instance(data)
+    undefined = [
+        w for w in parsed.warnings if any(w.endswith(f"unknown context {c}") for c in MAIN_CONTEXTS)
+    ]
+    if undefined and not parsed.meta:
+        raise IncompleteXbrl(f"{len(undefined)} values point to undefined periods ({undefined[0]})")
     key = storage_key("results_xbrl", digest, "xml", filed_at)
     store.put(key, data, "application/xml")
-    parsed = parse_instance(data)
 
     # The filing's own line items are the strongest signal of a bank or an insurer: they correct
     # a guess from the sector or from an earlier, less telling filing.

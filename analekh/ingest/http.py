@@ -3,8 +3,10 @@
 Design rule (section 3.2): only published RSS feeds, the equity list CSVs and the files the feeds
 link to, plus NSE Indices' published index constituent CSVs (added 2026-10-13 for sectors) and
 the integrated-filing lookup on www.nseindia.com (added 2026-10-14: the results feed stopped
-carrying filings). No other NSE website page or JSON endpoint, never crawled pages: the host and
-path allow-lists enforce it.
+carrying filings) and its corporate financial-results list (added 2026-10-15 for results history
+before integrated filings: XBRL back to 2018). Both approved by the owner, queried per company.
+No other NSE website page or JSON endpoint, never crawled pages: the host and path allow-lists
+enforce it.
 """
 
 import re
@@ -30,12 +32,16 @@ ALLOWED_HOSTS = {
     "www.nseindia.com",
 }
 # Hosts limited to certain paths: niftyindices.com only for its published constituent lists;
-# www.nseindia.com only for the integrated-filing lookup, plus its home page ("/" matches only
-# itself), which sets the cookies the lookup needs.
+# www.nseindia.com only for the integrated-filing lookup and the financial-results list (results
+# history), plus its home page ("/" matches only itself), which sets the cookies they may need.
 ALLOWED_PATHS = {
     "niftyindices.com": ("/IndexConstituent/",),
     "www.niftyindices.com": ("/IndexConstituent/",),
-    "www.nseindia.com": ("/", "/api/integrated-filing-results"),
+    "www.nseindia.com": (
+        "/",
+        "/api/integrated-filing-results",
+        "/api/corporates-financial-results",
+    ),
 }
 
 

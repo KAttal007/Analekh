@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from analekh.db.models import Company, Fact, FeedItem, Filing
 from analekh.ingest.backfill import run_backfill
@@ -356,6 +356,31 @@ def test_fetch_results_skips_a_missing_file_and_keeps_the_rest(db, store, compan
     assert outcome.missing == [gone] and outcome.new == 1 and outcome.gap is None
 
 
+def test_fetch_results_skips_a_broken_file_after_one_retry(db, store, company):
+    from analekh.ingest.integrated import fetch_results
+
+    good = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_GOOD.xml"
+    broken = "https://nsearchives.nseindia.com/corporate/xbrl/INTEGRATED_FILING_BROKEN.xml"
+    asked = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/integrated-filing-results":
+            rows = [
+                {"symbol": company.nse_symbol, "qe_Date": "30-JUN-2026", "xbrl": broken},
+                {"symbol": company.nse_symbol, "qe_Date": "30-SEP-2026", "xbrl": good},
+            ]
+            return httpx.Response(200, json={"data": rows, "totalCount": 2})
+        asked.append(str(request.url))
+        if str(request.url) == broken:  # Laurus Labs: the XML stops partway through
+            return httpx.Response(200, content=q2_instance()[:900])
+        return httpx.Response(200, content=q2_instance())
+
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
+    outcome = fetch_results(db, store, client, company)
+    assert outcome.missing == [broken] and outcome.new == 1 and outcome.gap is None
+    assert asked.count(broken) == 2  # fetched once more before giving up
+
+
 def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, store, company):
     from analekh.ingest.integrated import fetch_latest
 
@@ -394,3 +419,51 @@ def test_integrated_filing_null_attachment_is_no_link():
     }
     f = IntegratedFiling.from_row(row)
     assert f.pdf_url is None and set(f.links) == {"xbrl"}
+
+
+def test_results_history_list_rows_and_path():
+    from analekh.ingest.http import path_allowed
+    from analekh.ingest.integrated import _history_row
+
+    # TCS, as NSE's financial-results list writes it (2026-10-15 sample).
+    row = {
+        "symbol": "TCS",
+        "toDate": "31-Dec-2020",
+        "consolidated": "Non-Consolidated",
+        "broadCastDate": "08-Jan-2021 20:42:49",
+        "xbrl": "https://nsearchives.nseindia.com/corporate/xbrl/INDAS_117180_1341293_09012025093547.xml",
+    }
+    f = _history_row(row)
+    assert f.period_end == date(2020, 12, 31) and f.consolidated is False and f.xbrl_url
+    assert f.broadcast_at is not None and f.broadcast_at.hour == 15  # 20:42 IST in UTC
+    assert _history_row({**row, "consolidated": "Consolidated"}).consolidated is True
+    no_file = _history_row(
+        {**row, "xbrl": "-", "broadCastDate": None, "filingDate": "08-Jan-2021 20:42"}
+    )
+    assert no_file.xbrl_url is None and no_file.broadcast_at is not None
+    dash = _history_row({**row, "xbrl": "https://nsearchives.nseindia.com/corporate/xbrl/-"})
+    assert dash.xbrl_url is None  # NSE's "no XBRL" link: never requested
+    web = (
+        "https://nsearchives.nseindia.com/corporate/xbrl/INDAS_65941_381477_08012021084249_WEB.xml"
+    )
+    assert _history_row({**row, "xbrl": web}).xbrl_url is None  # incomplete older file: skipped
+    assert path_allowed("www.nseindia.com", "/api/corporates-financial-results")
+    assert not path_allowed("www.nseindia.com", "/api/corporate-announcements")
+
+
+def test_incomplete_older_file_is_rejected_not_half_stored(db, store, company):
+    import pytest
+
+    from analekh.ingest.pipeline import IncompleteXbrl
+
+    # NSE's older "_WEB" publications leave out the main contexts that most values point to.
+    data = q2_instance().decode()
+    start = data.index('<xbrli:context id="OneD">')
+    end = data.index("</xbrli:context>", start) + len("</xbrli:context>")
+    broken = (data[:start] + data[end:]).encode()
+    with pytest.raises(IncompleteXbrl):
+        ingest_results_xbrl(db, store, company, broken)
+    assert (
+        db.scalar(select(func.count()).select_from(Filing).where(Filing.company_id == company.id))
+        == 0
+    )

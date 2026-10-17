@@ -79,6 +79,8 @@ INSURANCE: dict[str, tuple[str, ...]] = {
     "shareholders_investment_income": ("ShareholdersAccountIncomeFromInvestments",),
     "shareholders_other_income": ("ShareholdersAccountOtherIncome",),
     "non_operating_expenses": ("NonOperatingExpense",),
+    # Reinsurers move part of the profit to reserves before PBT (GIC Re, every quarter).
+    "transfer_to_reserves": ("TransferToReserves",),
     "exceptional_items": (),
     "pbt": ("ProfitOrLossBeforeTax",),
     "tax": ("ProvisionForTax",),

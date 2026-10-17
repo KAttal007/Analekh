@@ -138,7 +138,8 @@ def test_watchlist_controls_coverage_level(db):
     assert not coverage.is_watched(db, demo.id)
 
 
-# Layout of NSE Indices' constituent lists (verify against a real file). Companies are SYNTHETIC.
+# Layout of NSE Indices' constituent lists (as on niftyindices.com, 2026-10-16). Companies are
+# SYNTHETIC.
 NIFTY_HEADER = b"Company Name,Industry,Symbol,Series,ISIN Code\n"
 
 
@@ -147,6 +148,9 @@ def test_parse_constituents_ignores_header_case_and_bom():
         "﻿company name , INDUSTRY,symbol,Series,ISIN Code\nAcme Ltd,Capital Goods,acme,EQ,X\n"
     ).encode()
     assert parse_constituents(data) == {"ACME": ("Capital Goods", None)}
+    # Stale lists still carry pre-2022 labels: only NSE's current sector names are taken.
+    old = NIFTY_HEADER + b"Old Label Ltd,PHARMA,OLDLBL,EQ,X\nNew Ltd,Healthcare,NEWCO,EQ,Y\n"
+    assert parse_constituents(old) == {"NEWCO": ("Healthcare", None)}
 
 
 def test_refresh_sectors_from_index_lists(db, monkeypatch: pytest.MonkeyPatch):
@@ -162,7 +166,7 @@ ZEDLIFE,Zed Life Insurance Limited,EQ,01-Jan-2017,10,1,INE000Z01088,10
     monkeypatch.setattr(sectors, "load_sector_map", lambda: {})
 
     lists = {
-        "ind_nifty500list.csv": NIFTY_HEADER
+        "ind_niftytotalmarket_list.csv": NIFTY_HEADER
         + b"""Demo Finance Limited,Financial Services,DEMOFIN,EQ,INE000D01011
 Acme Industries Limited,Capital Goods,ACMEIND,EQ,INE000A01022
 Old Company Limited,Capital Goods,OLDCO,EQ,INE000O01033
@@ -180,7 +184,7 @@ Zed Life Insurance Limited,Financial Services,ZEDLIFE,EQ,INE000Z01088
     client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
     result = refresh_sectors(db, client)
 
-    assert result["lists_fetched"] == 2 and result["lists_total"] == 5  # missing lists skipped
+    assert result["lists_fetched"] == 2 and result["lists_total"] == 13  # missing lists skipped
     assert result["companies_listed"] == 5 and result["banks"] == 1
     by_symbol = {c.nse_symbol: c for c in db.scalars(select(Company))}
     assert by_symbol["ACMEIND"].sector == "Capital Goods"
@@ -218,13 +222,20 @@ def test_stocks_workbook_import_and_source_precedence(db, tmp_path):
     assert by_symbol["DEMOFIN"].results_taxonomy is None  # LSEG "Banking Services" includes NBFCs
     assert by_symbol["OLDCO"].sector == "Analyst's call"
 
-    # A lower source (NSE lists) never replaces Excel Stocks; the same source refreshes itself.
-    assert apply_sectors(db, {"ACMEIND": ("Capital Goods", None)}, source="nse_indices") == 0
-    assert by_symbol["ACMEIND"].sector == "Machinery, Equipment & Components"
-    assert (
-        apply_sectors(db, {"ACMEIND": ("Industrial Machinery", None)}, source="excel_stocks") == 1
+    assert by_symbol["DEMOFIN"].sector_lseg == "Banking Services"  # always kept
+
+    # NSE's taxonomy wins over LSEG's (owner, 2026-10-16); LSEG never replaces NSE; the LSEG value
+    # stays in sector_lseg.
+    assert apply_sectors(db, {"ACMEIND": ("Capital Goods", None)}, source="nse_indices") == 1
+    assert (by_symbol["ACMEIND"].sector, by_symbol["ACMEIND"].sector_source) == (
+        "Capital Goods",
+        "nse_indices",
     )
-    assert by_symbol["ACMEIND"].sector == "Industrial Machinery"
+    assert by_symbol["ACMEIND"].sector_lseg == "Machinery, Equipment & Components"
+    assert (
+        apply_sectors(db, {"ACMEIND": ("Industrial Machinery", None)}, source="excel_stocks") == 0
+    )
+    assert by_symbol["ACMEIND"].sector == "Capital Goods"
 
 
 def test_stocks_workbook_needs_sector_and_isin(db, tmp_path):

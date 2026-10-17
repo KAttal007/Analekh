@@ -211,6 +211,8 @@ def bulk_fetch_results(
     interval_seconds: float | None = None,
     start_at: str | None = None,
     skip_no_filings: bool = True,
+    history: bool = False,
+    sectors: list[str] | None = None,
 ) -> dict:
     """Integrated-filing results for many companies (default: every company with a sector).
 
@@ -223,13 +225,17 @@ def bulk_fetch_results(
     stored nothing (its transaction rolled back), so it is fetched again in full.
     ``skip_no_filings`` leaves out companies already listed in no-filings.csv as having nothing
     on NSE, so a restart doesn't spend requests re-checking them (errors there are retried).
+    ``history`` fetches results from before integrated filings instead (NSE's financial-results
+    list, XBRL from 2018): every company in scope, whether or not it has filings already, and
+    the no-filings list is left alone. ``sectors`` limits the run to those sectors (exact names,
+    as on the company page), so a long run can go sector by sector.
     """
     import json
     import time
     from datetime import datetime
 
     from analekh.db.models import Company
-    from analekh.ingest.integrated import record_gap, refused
+    from analekh.ingest.integrated import fetch_history, record_gap, refused
 
     with session_scope() as s:
         q = select(Company.nse_symbol).where(Company.is_active).order_by(Company.nse_symbol)
@@ -237,7 +243,9 @@ def bulk_fetch_results(
             q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
         else:
             q = q.where(Company.sector.is_not(None))
-        if skip_done:
+        if sectors:
+            q = q.where(Company.sector.in_(sectors))
+        if skip_done and not history:
             q = q.where(
                 ~exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
             )
@@ -245,9 +253,10 @@ def bulk_fetch_results(
             q = q.where(Company.nse_symbol >= start_at.upper())
         todo = list(s.scalars(q))
 
-    log = Path(log_dir) / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
+    prefix = "history-" if history else ""
+    log = Path(log_dir) / f"{prefix}{datetime.now():%Y%m%d-%H%M%S}.jsonl"
     gaps = Path(log_dir) / "no-filings.csv"  # running list across runs: companies with nothing
-    if skip_no_filings and not symbols and gaps.exists():
+    if skip_no_filings and not symbols and not history and gaps.exists():
         import csv
 
         with gaps.open(newline="", encoding="utf-8") as fh:
@@ -270,9 +279,12 @@ def bulk_fetch_results(
                 with session_scope() as s:
                     company = get_company(s, symbol)
                     assert company is not None
-                    outcome = fetch_results(
-                        s, store, client, company, quarters=quarters, one_basis=one_basis
-                    )
+                    if history:
+                        outcome = fetch_history(s, store, client, company, one_basis=one_basis)
+                    else:
+                        outcome = fetch_results(
+                            s, store, client, company, quarters=quarters, one_basis=one_basis
+                        )
                     entry.update(listed=outcome.listed, new=outcome.new)
                     if outcome.missing:
                         entry["missing"] = len(outcome.missing)
@@ -281,13 +293,14 @@ def bulk_fetch_results(
                     )
                     if outcome.gap:
                         entry["gap"] = outcome.gap
-                    record_gap(gaps, company, outcome.gap, outcome)
+                    if not history:  # the no-filings list is about integrated filings
+                        record_gap(gaps, company, outcome.gap, outcome)
                 summary["done"] += 1
                 summary["filings"] += outcome.new
             except Exception as exc:  # noqa: BLE001 - one bad company must not stop the run
                 entry["error"] = f"{type(exc).__name__}: {exc}"[:300]
                 summary["errors"] += 1
-                if not refused(exc):  # a refusal says nothing about the company
+                if not refused(exc) and not history:  # a refusal says nothing about the company
                     with session_scope() as s:
                         company = get_company(s, symbol)
                         if company is not None:

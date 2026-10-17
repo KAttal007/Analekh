@@ -15,13 +15,14 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
+from lxml import etree
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Filing
 from analekh.ingest.feeds import IST
 from analekh.ingest.http import PoliteClient
-from analekh.ingest.pipeline import IngestResult, ingest_results_xbrl
+from analekh.ingest.pipeline import IncompleteXbrl, IngestResult, ingest_results_xbrl
 from analekh.ingest.storage import ObjectStore
 
 LOOKUP_URL = "https://www.nseindia.com/api/integrated-filing-results"
@@ -30,6 +31,11 @@ PAGE_URL = (
     "?integratedType=integratedfilingfinancials"
 )
 FINANCIALS = "Integrated Filing- Financials"
+# Results filed before integrated filings: NSE's corporate financial-results list, one request per
+# company (no paging), with XBRL from 2018 (rule 1, owner-approved 2026-10-15). It ends where
+# integrated filings begin (December 2024 / March 2025).
+HISTORY_URL = "https://www.nseindia.com/api/corporates-financial-results"
+HISTORY_PAGE_URL = "https://www.nseindia.com/companies-listing/corporate-filings-financial-results"
 PAGE_SIZE = 50
 MAX_PAGES = 10
 
@@ -71,7 +77,10 @@ def _url(raw: str | None) -> str | None:
     """A file link, or None. NSE fills a missing attachment with its base path plus "null"
     (".../corporate/null", on about 1 in 3 filings): that is no link."""
     url = (raw or "").strip()
-    if not url or url.rstrip("/").rsplit("/", 1)[-1].lower() in ("null", "undefined", "none"):
+    if not url.startswith("http"):  # the financial-results list writes "-" for no file
+        return None
+    # ".../corporate/xbrl/-" is the financial-results list's "no XBRL" (most rows before 2018)
+    if url.rstrip("/").rsplit("/", 1)[-1].lower() in ("null", "undefined", "none", "-"):
         return None
     return url
 
@@ -116,6 +125,40 @@ def lookup(client: PoliteClient, symbol: str, *, sme: bool = False) -> list[Inte
     return [IntegratedFiling.from_row(r) for r in rows]
 
 
+def _history_row(row: dict) -> IntegratedFiling:
+    nature = (row.get("consolidated") or "").strip().lower()  # "Consolidated" / "Non-Consolidated"
+    filed = (row.get("broadCastDate") or row.get("filingDate") or "").strip()
+    url = _url(row.get("xbrl"))
+    return IntegratedFiling(
+        symbol=(row.get("symbol") or "").strip().upper(),
+        period_end=_date(row.get("toDate")),
+        consolidated=None if not nature else not nature.startswith("non"),
+        # Up to December 2022 the list links "_WEB.xml" files that leave out the main periods
+        # (see pipeline.IncompleteXbrl); from March 2023 complete files. The older ones can't be
+        # read, so they are never fetched.
+        xbrl_url=None if (url or "").endswith("_WEB.xml") else url,
+        broadcast_at=_ist(filed) or _ist(f"{filed}:00"),  # filingDate has no seconds
+        revision=None,  # the list carries no Original / Revision flag
+    )
+
+
+def lookup_history(
+    client: PoliteClient, symbol: str, *, sme: bool = False
+) -> list[IntegratedFiling]:
+    """Every quarterly results filing NSE's financial-results list holds for one company (back
+    to 2005; XBRL from 2018), in one request."""
+    query = urlencode(  # verify the SME index name against a live request
+        {"index": "sme" if sme else "equities", "period": "Quarterly", "symbol": symbol.upper()}
+    )
+    result = client.get(
+        f"{HISTORY_URL}?{query}",
+        headers={"Accept": "application/json", "Referer": HISTORY_PAGE_URL},
+    )
+    body = json.loads(result.content)
+    rows = (body.get("data") or []) if isinstance(body, dict) else (body or [])
+    return [_history_row(r) for r in rows]
+
+
 def select_filings(
     filings: list[IntegratedFiling],
     known: set[str],
@@ -148,7 +191,8 @@ class FetchOutcome:
     listed: int  # integrated financials filings NSE lists for the company
     with_xbrl: int  # of those, how many link an XBRL file
     results: list[IngestResult]
-    missing: list[str] = field(default_factory=list)  # XBRL links NSE lists but answers 404 for
+    # XBRL links NSE lists but answers 404 for, or serves as a broken file (twice)
+    missing: list[str] = field(default_factory=list)
 
     @property
     def new(self) -> int:
@@ -162,7 +206,7 @@ class FetchOutcome:
         if self.with_xbrl == 0:
             return f"{self.listed} filings listed, none with an XBRL file"
         if self.missing and not self.results:
-            return f"{len(self.missing)} XBRL files listed but missing on NSE (404)"
+            return f"{len(self.missing)} XBRL files listed but missing or unreadable on NSE"
         return None
 
 
@@ -175,10 +219,36 @@ def fetch_results(
     quarters: int | None = None,
     one_basis: bool = False,
 ) -> FetchOutcome:
-    """Download and ingest the company's filings not yet stored."""
+    """Download and ingest the company's integrated filings not yet stored."""
+    listed = lookup(client, company.nse_symbol, sme=company.is_sme)
+    return _fetch(session, store, client, company, listed, quarters, one_basis)
+
+
+def fetch_history(
+    session: Session,
+    store: ObjectStore,
+    client: PoliteClient,
+    company: Company,
+    *,
+    one_basis: bool = False,
+) -> FetchOutcome:
+    """Download and ingest the company's results from before integrated filings (every quarter
+    with XBRL, from 2018) not yet stored."""
+    listed = lookup_history(client, company.nse_symbol, sme=company.is_sme)
+    return _fetch(session, store, client, company, listed, None, one_basis)
+
+
+def _fetch(
+    session: Session,
+    store: ObjectStore,
+    client: PoliteClient,
+    company: Company,
+    listed: list[IntegratedFiling],
+    quarters: int | None,
+    one_basis: bool,
+) -> FetchOutcome:
     urls = session.scalars(select(Filing.source_url).where(Filing.company_id == company.id))
     known = {u for u in urls if u}
-    listed = lookup(client, company.nse_symbol, sme=company.is_sme)
     results: list[IngestResult] = []
     missing: list[str] = []
     for f in select_filings(listed, known, quarters=quarters, one_basis=one_basis):
@@ -198,27 +268,37 @@ def _download_and_ingest(
     f: IntegratedFiling,
 ) -> IngestResult | None:
     """One listed filing into the store; None when NSE lists a file it no longer serves (seen on
-    Adani Enterprises), so the company's other filings are kept rather than all lost."""
+    Adani Enterprises) or serves a broken one (XML cut off partway, seen on Laurus Labs), so the
+    company's other filings are kept rather than all lost. A broken file is fetched once more in
+    case the download itself was cut short."""
     assert f.xbrl_url is not None
-    try:
-        data = client.get(f.xbrl_url).content
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code in (404, 410):
-            return None
-        raise
-    with session.begin_nested():
-        result = ingest_results_xbrl(
-            session,
-            store,
-            company,
-            data,
-            source_url=f.xbrl_url,
-            filed_at=f.broadcast_at,
-            revision=f.revision,
-        )
-        if not result.skipped:
-            result.filing.meta = {**result.filing.meta, "links": f.links}
-    return result
+    for attempt in (1, 2):
+        try:
+            data = client.get(f.xbrl_url).content
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (404, 410):
+                return None
+            raise
+        try:
+            with session.begin_nested():
+                result = ingest_results_xbrl(
+                    session,
+                    store,
+                    company,
+                    data,
+                    source_url=f.xbrl_url,
+                    filed_at=f.broadcast_at,
+                    revision=f.revision,
+                )
+                if not result.skipped:
+                    result.filing.meta = {**result.filing.meta, "links": f.links}
+            return result
+        except IncompleteXbrl:
+            return None  # the same file every time: no point fetching it again
+        except etree.XMLSyntaxError:
+            if attempt == 2:
+                return None
+    return None
 
 
 # The daily results watcher reads NSE's latest-results list once (the owner's choice: one request

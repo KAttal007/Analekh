@@ -9,7 +9,13 @@ Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed
 
 ## Since v0.0.3
 
-None yet. Use the same columns as below: design says, now, why, date.
+| Design says | Now | Why | Date |
+|---|---|---|---|
+| NSE access on www.nseindia.com: the home page and the integrated-filing lookup only (3.2, 23; rule 1) | Also `/api/corporates-financial-results` (NSE's corporate financial-results list), queried per company with the usual honest headers. It lists results back to 2005, with XBRL from 2018 (TCS: 26 quarters, Sep 2018 to Dec 2024; ICICI Bank: 28), ending where integrated filings start. | Approved by the owner on 2026-10-15: 28 quarters and 7 years of annuals are needed to build a model; integrated filings only go back to March 2025. | 2026-10-15 |
+| Daily results watcher: ONE request a day without a ticker (9.3; rule 1) | ONE request every 2 hours (`RESULTS_WATCH_CRON=0 */2 * * *`). Locally a Windows scheduled task runs `analekh results-watch` every 2 hours until the scheduler (Redis, worker, beat) is deployed. | Owner's choice on 2026-10-16, for the September-quarter results season. | 2026-10-16 |
+| History back to 2018 (the financial-results list links XBRL from 2018) | History from **March 2023** only. NSE's older files (the `_WEB.xml` publications up to December 2022, and some early-2023 bank files) leave out the quarter, year-to-date and balance-sheet contexts that most values point to, so the basis and the main figures can't be placed. Such files are rejected and noted (`pipeline.IncompleteXbrl`), never half-stored; `_WEB` links in the list are not fetched. Rebuilding the missing contexts from the files' declared dates was offered and declined: it would bend rule 5 (contexts by dates, never by id). With integrated filings: about 15 quarters and 4 years of annuals (FY23-FY26). | Owner's decision, 2026-10-15 ("2023 is fine"). TCS and ICICI Bank had 69 + 4 half-read filings, removed. | 2026-10-15 |
+| (not specified) | A broken XBRL file (XML cut off partway) is fetched once more, then skipped and noted like a 404, instead of losing the company's other filings. | Laurus Labs lost all 14 filings to one broken file. | 2026-10-15 |
+| V2 for general insurers (10.2) | Also deducts the transfer to reserves (`TransferToReserves`) before PBT. | GIC Re, a reinsurer: every filing blocked, off by exactly that line. | 2026-10-15 |
 
 ## Folded into v0.0.3 (15 October 2026)
 

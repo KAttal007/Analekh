@@ -82,9 +82,12 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    they link to, plus NSE Indices' published constituent CSVs (`niftyindices.com`, limited to
    `/IndexConstituent/` by `ALLOWED_PATHS`; added 2026-10-13 for sectors), plus the
    integrated-filing lookup on `www.nseindia.com`, limited by `ALLOWED_PATHS` to `/` (home page
-   only, for cookies) and `/api/integrated-filing-results` (approved by the owner 2026-10-14: the
-   results feed stopped carrying filings). It is queried per company, plus ONE request a day
-   without a ticker for the latest results (`analekh results-watch`, owner's limit, 2026-10-14).
+   only, for cookies), `/api/integrated-filing-results` (approved by the owner 2026-10-14: the
+   results feed stopped carrying filings) and `/api/corporates-financial-results` (approved by the
+   owner 2026-10-15: results history before integrated filings, XBRL back to 2018). Both are
+   queried per company, plus ONE request every 2 hours without a ticker for the latest results
+   (`analekh results-watch`; owner's limit, once a day from 2026-10-14, every 2 hours from
+   2026-10-16).
    No other NSE website page or internal API: never widen
    `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
    never crawl pages. Requests identify as Analekh: never disguise them as a browser.
@@ -107,8 +110,8 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
   general- and life-insurer tables come from real integrated filings; the insurers' balance
   sheet is not mapped yet. After changing tables or rules, run `analekh revalidate`.
 - `universe/loader.py`: SME list path unconfirmed. `universe/sectors.py`: index list file names
-  and columns marked `# verify` (niftyindices.com unreachable when written); `data/sector_map.csv`
-  holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
+  and columns checked against niftyindices.com on 2026-10-16 (the importer has not been run);
+  `data/sector_map.csv` holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
 - Test fixtures (`tests/xbrl_factory.py`, built-in templates) are SYNTHETIC. Put real files
   under `tests/fixtures/golden/` (gitignored unless licensing is clear) with a `manifest.yaml`
   and run `uv run analekh golden-test`.

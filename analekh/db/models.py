@@ -71,6 +71,8 @@ class Company(Base):
     industry: Mapped[str | None] = mapped_column(Text)
     # Where the sector came from (universe/sectors.py): user > excel_stocks > nse_indices.
     sector_source: Mapped[str | None] = mapped_column(Text)
+    # LSEG industry group from an Excel Stocks workbook, kept when NSE's sector is shown.
+    sector_lseg: Mapped[str | None] = mapped_column(Text)
     results_taxonomy: Mapped[str | None] = mapped_column(Text)
     is_sme: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
