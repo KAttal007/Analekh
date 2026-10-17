@@ -43,6 +43,7 @@
 
   --ease: cubic-bezier(0.2, 0, 0, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.36, 0.64, 1); /* settles with a small overshoot */
   --fast: 120ms;
   --normal: 200ms;
   --slow: 320ms;
@@ -219,17 +220,6 @@ kbd {
     transform: none;
   }
 }
-/* Screen entry starts partly visible, so content reads at once instead of fading in from blank. */
-@keyframes page-in {
-  from {
-    opacity: 0.4;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -248,20 +238,61 @@ kbd {
     background-position: -200% 0;
   }
 }
-/* Each section of a screen fades up in turn when the screen opens (see Layout.tsx). Kept short:
-   content is readable from the first frame and settles within about 0.25 s. */
-.page-enter > .page > *,
-.page-enter > :not(.page) {
-  animation: page-in 180ms var(--ease-out) both;
+/* Screens and figures appear at once; the only screen-to-screen transition is the welcome
+   screen's unlock into the app, below. These names let its pieces move on their own. */
+@keyframes vt-sidebar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
 }
-.page-enter > .page > :nth-child(2) {
-  animation-delay: 20ms;
+.sidebar {
+  view-transition-name: sidebar;
 }
-.page-enter > .page > :nth-child(3) {
-  animation-delay: 40ms;
+.content {
+  view-transition-name: content;
 }
-.page-enter > .page > :nth-child(n + 4) {
-  animation-delay: 60ms;
+.brand-mark {
+  view-transition-name: brand-mark;
+}
+/* Unlocking from the welcome screen (Welcome.tsx sets data-vt for this one transition): the
+   welcome page lifts away from wherever the gesture left it, shrinking and blurring; the mark flies
+   to its corner of the sidebar; the sidebar slides in and the desk settles with a little spring. */
+@keyframes unlock-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6%) scale(0.9);
+    filter: blur(14px);
+  }
+}
+@keyframes unlock-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(1.03);
+  }
+}
+::view-transition-group(brand-mark) {
+  animation-duration: 760ms;
+  animation-timing-function: var(--spring);
+}
+:root[data-vt="welcome"]::view-transition-old(root) {
+  animation: unlock-out 560ms var(--ease-out) both;
+}
+:root[data-vt="welcome"]::view-transition-new(root) {
+  animation: none;
+}
+:root[data-vt="welcome"]::view-transition-new(sidebar) {
+  animation: vt-sidebar-in 620ms var(--spring) 160ms both;
+}
+:root[data-vt="welcome"]::view-transition-new(content) {
+  animation: unlock-in 720ms var(--spring) 220ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -337,6 +368,9 @@ kbd {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.3;
+  /* Too long for one line beside the mark: two even lines rather than clipped at the edge. */
+  white-space: normal;
+  text-wrap: balance;
 }
 .nav {
   display: flex;
@@ -354,6 +388,7 @@ kbd {
 }
 .nav a {
   position: relative;
+  z-index: 1; /* above the sliding highlight */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -365,7 +400,13 @@ kbd {
   white-space: nowrap;
   transition:
     background-color var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    color var(--normal) var(--ease),
+    transform var(--normal) var(--ease-out);
+}
+/* Pressing a tab dips it; letting go springs it back. */
+.nav a:active {
+  transform: scale(0.95);
+  transition-duration: var(--fast), var(--normal), 90ms;
 }
 .nav a svg {
   flex: none;
@@ -374,11 +415,57 @@ kbd {
   background: var(--surface-2);
   color: var(--text);
 }
-.nav a.active {
-  background: var(--accent-soft);
+.nav a.active,
+.nav a.active:hover {
+  background: transparent; /* the highlight below paints it, and slides to the next tab */
   color: var(--accent);
 }
-.nav a.active::before {
+/* One highlight behind the active tab (Layout.tsx places it): glides between tabs. */
+.nav-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--r2);
+  background: var(--accent-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fast) var(--ease);
+}
+.nav-highlight[data-motion="glide"] {
+  transition:
+    transform var(--slow) var(--ease-out),
+    width var(--slow) var(--ease-out),
+    height var(--slow) var(--ease-out),
+    opacity var(--fast) var(--ease);
+}
+/* A faint light under the pointer (Layout.tsx sets --gx / --gy), only while it is over the
+   sidebar. */
+.sidebar-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(
+    220px circle at var(--gx, -300px) var(--gy, -300px),
+    color-mix(in srgb, var(--accent) var(--glow, 22%), transparent),
+    transparent 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms var(--ease);
+}
+.sidebar:hover .sidebar-glow {
+  opacity: 1;
+}
+:root[data-theme="dark"] .sidebar-glow {
+  --glow: 30%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sidebar-glow {
+    --glow: 30%;
+  }
+}
+.nav-highlight::before {
   content: "";
   position: absolute;
   left: -12px;
@@ -445,6 +532,7 @@ kbd {
 }
 
 .theme-switch {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--border);
@@ -464,8 +552,18 @@ kbd {
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
+.theme-switch button {
+  position: relative;
+  z-index: 1;
+  transition: color var(--normal) var(--ease);
+}
+.theme-switch.has-thumb button[aria-pressed="true"] {
+  background: transparent;
+  box-shadow: none;
+}
 /* Two or three mutually exclusive views, e.g. consolidated / standalone figures. */
 .segmented {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--border);
@@ -484,6 +582,38 @@ kbd {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-1);
+}
+/* With a sliding thumb (SegmentThumb in ui.tsx) the thumb paints the selection instead. */
+.segmented button {
+  position: relative;
+  z-index: 1;
+  transition: color var(--normal) var(--ease);
+}
+.segmented.has-thumb button[aria-selected="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+.segment-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--slow) var(--ease-out),
+    width var(--slow) var(--ease-out);
+}
+.theme-switch .segment-thumb {
+  transition:
+    transform 520ms var(--spring),
+    width 520ms var(--spring);
+}
+.segment-thumb.no-glide,
+.theme-switch .segment-thumb.no-glide {
+  transition: none;
 }
 .basis-bar {
   display: flex;
@@ -514,7 +644,7 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
-    position: static;
+    position: relative; /* still the highlight's frame when it stops being sticky */
     height: auto;
     flex-direction: row;
     align-items: center;
@@ -533,7 +663,7 @@ kbd {
   .nav-group {
     flex-direction: row;
   }
-  .nav a.active::before {
+  .nav-highlight::before {
     display: none;
   }
   .nav-bottom {
@@ -682,6 +812,12 @@ kbd {
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+.stat-delta {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 .stat-note {
   margin-top: 2px;
@@ -1172,6 +1308,11 @@ tbody tr:hover td {
 .company-main > .area-filings {
   order: 3;
 }
+.filings-scroll {
+  max-height: 460px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .area-stats {
   /* Four tiles in one row even beside the quarter column; icons give way when it's tight. */
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -1413,6 +1554,14 @@ table.glance tbody tr:last-child > * {
   .desk-table .d-basis {
     display: none;
   }
+}
+.desk-table .d-mcap {
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.desk-sort {
+  margin-left: auto;
+  margin-right: var(--s2);
 }
 @container desk (max-width: 800px) {
   .desk-company,
@@ -1670,13 +1819,20 @@ table.glance tbody tr:last-child > * {
   }
   .desk-table .d-filed {
     grid-row: 4;
-    grid-column: 1 / -1;
+    grid-column: 1;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .desk-table .d-mcap {
+    grid-row: 4;
+    grid-column: 2;
     font-size: 12px;
     color: var(--muted);
   }
   .desk-table .d-rev::before,
   .desk-table .d-pat::before,
-  .desk-table .d-filed::before {
+  .desk-table .d-filed::before,
+  .desk-table .d-mcap::before {
     content: attr(data-label);
     margin-right: 6px;
     font-size: 12px;
@@ -1781,4 +1937,277 @@ table.glance tbody tr:last-child > * {
 .info-tip:focus-within .info-tip-bubble {
   opacity: 1;
   visibility: visible;
+}
+
+/* ---------- Welcome (first screen of a visit) ---------- */
+
+/* Analekh's lock screen, one screen tall. --p (0..1) is how far a scroll or swipe has lifted it;
+   --mx / --my (-0.5..0.5) is where the pointer is, which the light leans towards. */
+.welcome {
+  --p: 0;
+  --mx: 0;
+  --my: 0;
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px 88px;
+  box-sizing: border-box;
+  overflow: hidden;
+  touch-action: none; /* the page follows the finger instead of scrolling */
+  cursor: pointer;
+  background: var(--bg);
+  user-select: none;
+}
+
+/* Living light: three soft fields of colour drifting slowly, nudged by the pointer and lifted
+   with the page. */
+.welcome-flow {
+  position: absolute;
+  inset: -20%;
+  filter: blur(60px);
+  opacity: calc(1 - var(--p) * 0.6);
+  transform: translate(calc(var(--mx) * 40px), calc(var(--my) * 40px - var(--p) * 80px));
+  transition: transform 1.2s var(--ease-out);
+  pointer-events: none;
+}
+.welcome-flow span {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: normal;
+}
+.flow-a {
+  width: 46vmax;
+  height: 46vmax;
+  left: 18%;
+  top: 8%;
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+  animation: flow-a 26s ease-in-out infinite alternate;
+}
+.flow-b {
+  width: 38vmax;
+  height: 38vmax;
+  right: 12%;
+  top: 30%;
+  background: color-mix(in srgb, var(--accent-2) 30%, transparent);
+  animation: flow-b 31s ease-in-out infinite alternate;
+}
+.flow-c {
+  width: 30vmax;
+  height: 30vmax;
+  left: 38%;
+  bottom: 6%;
+  background: color-mix(in srgb, #2bb3c0 22%, transparent);
+  animation: flow-c 22s ease-in-out infinite alternate;
+}
+@keyframes flow-a {
+  to {
+    transform: translate(12vmax, 8vmax) scale(1.15);
+  }
+}
+@keyframes flow-b {
+  to {
+    transform: translate(-14vmax, -6vmax) scale(0.9);
+  }
+}
+@keyframes flow-c {
+  to {
+    transform: translate(-8vmax, -12vmax) scale(1.2);
+  }
+}
+
+/* The content follows the gesture: up, smaller, softer. Let go early and it springs back. */
+.welcome-inner {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transform: translateY(calc(var(--p) * -72px)) scale(calc(1 - var(--p) * 0.08));
+  opacity: calc(1 - var(--p) * 0.55);
+  filter: blur(calc(var(--p) * 6px));
+}
+.welcome.springing .welcome-inner,
+.welcome.springing .welcome-flow,
+.welcome.springing .welcome-hint {
+  transition:
+    transform 700ms var(--spring),
+    opacity 400ms var(--ease),
+    filter 400ms var(--ease);
+}
+.welcome-inner > * {
+  animation: fade-up 700ms var(--ease-out) both;
+}
+
+/* The mark is the lock screen's clock: large here, it flies to the sidebar on the way in. */
+.welcome-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  font-size: 34px;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 40%, transparent);
+  animation-name: pop-in;
+  animation-duration: 900ms;
+  animation-timing-function: var(--spring);
+}
+.welcome-greeting {
+  margin: 36px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  animation-delay: 140ms;
+}
+.welcome-title {
+  margin: 12px 0 0;
+  font-size: clamp(34px, 6.4vw, 60px);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+  animation-delay: 200ms;
+}
+.welcome-lead {
+  max-width: 540px;
+  margin: 18px 0 0;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+  animation-delay: 280ms;
+}
+
+/* Frosted cards: the light shows through. */
+.welcome-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3);
+  width: 100%;
+  max-width: 620px;
+  margin-top: 36px;
+  animation-delay: 360ms;
+}
+.welcome-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px var(--s2);
+  border: 1px solid color-mix(in srgb, var(--surface) 55%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 8px 30px rgb(16 24 40 / 8%);
+}
+.welcome-stat-value {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.welcome-stat-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.welcome-fresh {
+  min-height: 16px;
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre;
+  animation-delay: 400ms;
+}
+.welcome-enter {
+  height: 46px;
+  margin-top: 28px;
+  padding: 0 22px;
+  font-size: 15px;
+  gap: 10px;
+  border-radius: 999px;
+  animation-delay: 460ms;
+}
+.welcome-arrow {
+  display: inline-block;
+  transition: transform var(--normal) var(--spring);
+}
+.welcome-enter:hover .welcome-arrow,
+.welcome-enter:focus-visible .welcome-arrow {
+  transform: translateX(4px);
+}
+
+/* "Scroll to enter": a chevron that breathes, fading as the page lifts. */
+.welcome-hint {
+  position: absolute;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: calc(1 - var(--p) * 1.6);
+  transform: translateY(calc(var(--p) * -24px));
+  animation: fade-up 700ms var(--ease-out) 700ms both;
+}
+.welcome-chevron {
+  width: 10px;
+  height: 10px;
+  border-left: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(45deg);
+  animation: breathe 1.8s var(--ease) infinite;
+}
+@keyframes breathe {
+  50% {
+    transform: translateY(-5px) rotate(45deg);
+    opacity: 0.5;
+  }
+}
+.welcome-foot {
+  position: absolute;
+  bottom: 12px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+@media (max-width: 640px) {
+  .welcome {
+    padding-bottom: 96px;
+  }
+  .welcome-mark {
+    width: 60px;
+    height: 60px;
+    font-size: 28px;
+  }
+  .welcome-greeting {
+    margin-top: 24px;
+  }
+  .welcome-lead {
+    font-size: 15px;
+  }
+  .welcome-stats {
+    gap: var(--s2);
+    margin-top: 24px;
+  }
+  .welcome-stat {
+    padding: 10px 6px;
+  }
+  .welcome-stat-value {
+    font-size: 19px;
+  }
+  .welcome-stat-label {
+    font-size: 11px;
+  }
+}
+@media (max-height: 640px) {
+  .welcome-lead,
+  .welcome-fresh {
+    display: none;
+  }
 }

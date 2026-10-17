@@ -12,11 +12,14 @@ export type Fact = Schemas["FactOut"];
 export type Glance = Schemas["GlanceOut"];
 export type Desk = Schemas["DeskOut"];
 export type DeskRow = Schemas["DeskRowOut"];
+export type Price = Schemas["PriceOut"];
+export type DeskSort = "filed" | "market_cap";
 export type DeskQuery = {
   quarter_end?: string;
   sector?: string;
   watchlist?: boolean;
   days?: number;
+  sort?: DeskSort;
   limit?: number;
   offset?: number;
 };
@@ -75,6 +78,8 @@ export const api = {
       if (v !== undefined && v !== "") params.set(k, String(v));
     return call<Desk>(`/desk?${params}`);
   },
+  // Latest close from NSE's bhavcopy (end of day); null before the first load.
+  price: (symbol: string) => call<Price | null>(`/companies/${symbol}/price`),
   glance: (symbol: string, consolidated: boolean) =>
     call<Glance>(`/companies/${symbol}/glance?consolidated=${consolidated}`),
   // By logical name (e.g. "revenue"), resolved for the company's results format on the server.

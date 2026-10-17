@@ -12,10 +12,11 @@ import {
   ErrorNote,
   Loading,
   PageHeader,
+  SegmentThumb,
   StatusBadge,
 } from "../components/ui";
 import { companyQuery } from "../lib/preload";
-import { money, scaleFor } from "../lib/format";
+import { crore, money, price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
 import { useTheme } from "../lib/theme";
 
 // "revenue" is resolved per results format on the server; these name what each format calls it.
@@ -107,6 +108,7 @@ export function CompanyPage() {
     queryFn: () => api.logicalFacts(symbol, "revenue", basis === "consolidated"),
     enabled: filings.isSuccess,
   });
+  const quote = useQuery({ queryKey: ["price", symbol], queryFn: () => api.price(symbol) });
   const watch = useMutation({
     mutationFn: async () => {
       if (company.data?.watched) await api.unwatch(symbol);
@@ -212,6 +214,7 @@ export function CompanyPage() {
             <span className="muted">Figures</span>
             {filed.consolidated && filed.standalone ? (
               <div className="segmented" role="tablist" aria-label="Basis of figures">
+                <SegmentThumb />
                 {BASES.map((b) => (
                   <button
                     key={b.basis}
@@ -262,24 +265,48 @@ export function CompanyPage() {
               </div>
             </div>
           </div>
-          <div className="card card-hover stat">
-            <span className="stat-icon">
-              <Icon name="file" />
-            </span>
-            <div>
-              <div className="stat-label">Filings</div>
-              <div className="stat-value">{rows.length}</div>
-              <div className="stat-note">Results filings received</div>
-            </div>
-          </div>
+          {/* End-of-day prices from NSE's bhavcopy, loaded after each close: never live. */}
           <div className="card card-hover stat">
             <span className="stat-icon">
               <Icon name="hash" />
             </span>
             <div>
-              <div className="stat-label">Face value</div>
-              <div className="stat-value">{c.face_value ? `₹${Number(c.face_value)}` : "–"}</div>
-              <div className="stat-note">Per share</div>
+              <div className="stat-label">Share price</div>
+              <div className="stat-value">
+                {quote.data ? price(quote.data.close) : "–"}
+                {quote.data?.change_pct != null && (
+                  <span className={`stat-delta ${tone(quote.data.change_pct)}`}>
+                    {signedPct(quote.data.change_pct)}
+                  </span>
+                )}
+              </div>
+              <div className="stat-note">
+                {quote.data
+                  ? `${shortDate(quote.data.trade_date)} close`
+                  : quote.isSuccess
+                    ? "No closing price loaded yet"
+                    : ""}
+                {c.face_value ? ` · FV ₹${Number(c.face_value)}` : ""}
+              </div>
+            </div>
+          </div>
+          <div className="card card-hover stat">
+            <span className="stat-icon">
+              <Icon name="layers" />
+            </span>
+            <div>
+              <div className="stat-label">Market cap</div>
+              <div className="stat-value">{crore(quote.data?.market_cap)}</div>
+              <div
+                className="stat-note"
+                title="Closing price × shares in issue (paid-up equity capital ÷ face value, from the latest results filing)"
+              >
+                {quote.data?.market_cap != null
+                  ? `At the ${shortDate(quote.data.trade_date)} close`
+                  : quote.data
+                    ? "No share count in its results filings yet"
+                    : ""}
+              </div>
             </div>
           </div>
         </div>
@@ -369,7 +396,9 @@ export function CompanyPage() {
             </span>
           </div>
           {rows.length ? (
-            <div className="table-wrap">
+            // About ten filings in view, older ones scroll inside the box (history runs to 28
+            // quarters); the column headings stay put.
+            <div className="table-wrap filings-scroll">
               <table>
                 <thead>
                   <tr>

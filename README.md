@@ -141,11 +141,11 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Filing metadata element names (symbol, period, nature, audited) | ✅ | All nine seen |
 | SME equity list path and columns | ✅ | 580 companies; two-digit-year dates now parsed |
 | Bank, NBFC and insurance element tables | ✅ | Banks (HDFC Bank, SBI), general insurers (ICICI Lombard) and life insurers (Canara HSBC Life: net premium as the top line, solvency, persistency, expense ratio) mapped from real filings and tying out; NBFCs use the Ind-AS names. Insurers' balance sheet (V4) not mapped |
-| Feed `pubDate` format | 🟡 | `DD-Mon-YYYY HH:MM:SS`, no offset (IST); parsed since 2026-10-14, so V8 runs. Not yet seen through the live watcher |
+| Feed `pubDate` format | ✅ | `DD-Mon-YYYY HH:MM:SS`, no offset (IST); all 118 real feed items stored dated. V8 runs on every filing (integrated filings use NSE's broadcast time). The scheduled feed watcher is tracked under Phase 1 |
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
 | V2 exceptional-items sign convention | ✅ | Tagged with their sign (a charge is negative) and added: Tata Elxsi Q3 FY26 labour-code charge |
-| Daily prices | 🔲 | Kite Connect removed (paid). Candidate: NSE/BSE daily bhavcopy; needs rule 1 amended |
+| Daily prices | ✅ | NSE's bhavcopy after each close (`analekh prices`; rule 1 amended 2026-10-17): close, previous close, open, high, low, volume, market cap (close x shares in issue from the results filing). Shown on the company page (share price, day's change, market cap) and as a sortable market-cap column on the Results desk; `GET /companies/{symbol}/price`. No history, no live prices |
 
 #### Phase 1 · Data layer
 
@@ -217,7 +217,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
 | Hosting (Oracle Cloud Always Free, Mumbai) | 🔲 | Walkthrough started 2026-10-16; first test: does NSE serve the VM's address? Arm VM, so images build on the server |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
-| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0004`; 114 Python and 13 web tests run locally, none skipped. A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
+| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0005`; 118 Python and 15 web tests run locally, none skipped. A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
 | Design documents | ✅ | v0.0.3 Markdown, Word copy and architecture PDF; `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |

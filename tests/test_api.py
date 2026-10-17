@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from analekh.api.deps import get_store
 from analekh.api.main import app
-from analekh.db.models import Company, Filing, Model
+from analekh.db.models import Company, Filing, Model, Price
 from analekh.db.session import get_session
 from analekh.facts import DbValueSource
 from analekh.ingest.pipeline import ingest_results_xbrl
@@ -445,3 +445,48 @@ def test_results_desk_rows_movers_and_sector_progress(client, db, store):
     assert all(r["symbol"] != "TINY" for r in d["revenue_top"] + d["revenue_bottom"])
     (progress,) = d["sectors"]
     assert progress["reported"] == 3 and progress["total"] == 3
+
+
+def test_latest_close_on_the_company_page_and_largest_first_on_the_desk(client, db, store):
+    crore = 10_000_000
+    sector = "Price Test Sector"  # its own sector: real reporters fill the desk's pages
+    big = Company(nse_symbol="BIGCAP", name="Big Cap Ltd", isin="INE000B01011", sector=sector)
+    small = Company(nse_symbol="SMALLCAP", name="Small Cap Ltd", isin="INE000C01011", sector=sector)
+    db.add_all([big, small])
+    db.flush()
+    for c, revenue in ((big, 900), (small, 100)):  # different files: one hash, one filing
+        data = build_instance(
+            q_start=date(2026, 7, 1),
+            q_end=date(2026, 9, 30),
+            ytd_start=date(2026, 4, 1),
+            values_q=pnl(revenue * crore, 0, 60 * crore, 15 * crore),
+        )
+        ingest_results_xbrl(db, store, c, data)
+    # Dates no real bhavcopy is loaded for (tests share the local database).
+    db.add_all(
+        [
+            Price(company_id=big.id, trade_date=date(2020, 1, 2), close=900, market_cap=1),
+            Price(
+                company_id=big.id,
+                trade_date=date(2020, 1, 3),
+                close=1010,
+                prev_close=1000,
+                volume=5000,
+                market_cap=90_000 * crore,
+            ),
+            Price(company_id=small.id, trade_date=date(2020, 1, 3), close=50, market_cap=crore),
+        ]
+    )
+    db.flush()
+
+    p = client.get("/companies/BIGCAP/price").json()
+    assert p["trade_date"] == "2020-01-03"  # the newest stored day
+    assert float(p["close"]) == 1010 and float(p["change_pct"]) == 1.0
+    assert float(p["market_cap"]) == 90_000 * crore
+    assert client.get("/companies/SMALLCAP/price").json()["change_pct"] is None  # no prev close
+
+    params = {"quarter_end": "2026-09-30", "sector": sector, "sort": "market_cap"}
+    rows = client.get("/desk", params=params).json()["rows"]
+    assert [r["symbol"] for r in rows] == ["BIGCAP", "SMALLCAP"]
+    assert rows[0]["price_date"] == "2020-01-03"
+    assert client.get("/desk", params=params | {"sort": "size"}).status_code == 422

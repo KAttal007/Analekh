@@ -7,11 +7,14 @@ import { router } from "./router";
 import "@fontsource-variable/inter";
 import "./styles.css";
 
+// Figures change every two hours at most (the results watcher; prices once a day): data stays
+// fresh for five minutes, so going back to a tab or the window shows it at once, without a refetch.
 // Retry once for network blips and server errors, but not for answers that won't change on a
 // retry: client errors (4xx) and 503 (a service such as object storage is down).
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60_000,
       retry: (failures, error) =>
         failures < 1 && !(error instanceof ApiError && (error.status < 500 || error.status === 503)),
     },

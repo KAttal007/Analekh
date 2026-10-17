@@ -3,6 +3,7 @@
 import hashlib
 import json
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from sqlalchemy import func, select
@@ -194,6 +195,7 @@ def results_desk(
     days: int | None = None,
     limit: int = 50,
     offset: int = 0,
+    sort: Literal["filed", "market_cap"] = "filed",
 ) -> schemas.DeskOut:
     """Results desk (Home): who reported the quarter (newest first, latest quarter by default),
     year-on-year movers and progress by sector."""
@@ -210,6 +212,7 @@ def results_desk(
         days=days,
         limit=min(max(limit, 1), 200),
         offset=max(offset, 0),
+        sort=sort,
     )
     data = asdict(d)
     data["quarters"] = [
@@ -229,6 +232,17 @@ def company_glance(symbol: str, db: DB, consolidated: bool | None = None) -> sch
     return schemas.GlanceOut.model_validate(
         asdict(glance(db, company_or_404(db, symbol), consolidated))
     )
+
+
+@router.get("/companies/{symbol}/price", response_model=schemas.PriceOut | None)
+def company_price(symbol: str, db: DB) -> schemas.PriceOut | None:
+    """Latest close and market cap from NSE's bhavcopy (end of day); null before the first load."""
+    from dataclasses import asdict
+
+    from analekh.prices import latest_price
+
+    price = latest_price(db, company_or_404(db, symbol).id)
+    return schemas.PriceOut.model_validate(asdict(price)) if price else None
 
 
 @router.get("/companies/{symbol}/kpis", response_model=list[schemas.KpiOut])

@@ -1,14 +1,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, type Desk, type DeskQuery, type DeskRow } from "../api/client";
-import { Badge, EmptyState, ErrorNote, MissingTip, Skeleton } from "../components/ui";
+import { api, type Desk, type DeskQuery, type DeskRow, type DeskSort } from "../api/client";
+import { Badge, EmptyState, ErrorNote, MissingTip, SegmentThumb, Skeleton } from "../components/ui";
 import {
   changeTitle,
   crore,
   filedAt,
   money,
   scaleFor,
+  shortDate,
   signedBps,
   signedPct,
   tone,
@@ -21,6 +22,10 @@ const PERIODS = [
   { days: 7, label: "7 days" },
   { days: 0, label: "Season" },
 ] as const;
+const SORTS: { sort: DeskSort; label: string }[] = [
+  { sort: "filed", label: "Newest filing first" },
+  { sort: "market_cap", label: "Largest market cap first" },
+];
 
 // What "revenue" is for each results format, shown beside the figure where it isn't revenue.
 const TOP_LINE_TAG: Record<string, { tag: string; title: string }> = {
@@ -53,6 +58,9 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
           <tr>
             <th>Company</th>
             <th>Filed</th>
+            <th className="num d-mcap" title="At the latest close loaded from NSE's bhavcopy">
+              Market cap
+            </th>
             <th className="num">Revenue</th>
             <th className="num">YoY</th>
             <th className="num">Net profit</th>
@@ -91,6 +99,23 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               </td>
               <td className="desk-filed d-filed" data-label="Filed">
                 {filedAt(r.filed_at)}
+              </td>
+              <td
+                className="num d-mcap"
+                data-label="Mkt cap"
+                title={r.price_date ? `At the ${shortDate(r.price_date)} close` : undefined}
+              >
+                {r.market_cap == null ? (
+                  <MissingTip
+                    text={
+                      r.price_date
+                        ? "No share count in its results filings yet"
+                        : "No closing price loaded yet"
+                    }
+                  />
+                ) : (
+                  crore(r.market_cap)
+                )}
               </td>
               <td className="num d-rev" data-label="Revenue">
                 {money(r.revenue, scaleFor([r.revenue]))}
@@ -193,6 +218,7 @@ function Movers({ d }: { d: Desk }) {
       <div className="card-header">
         <h2>Movers, year on year</h2>
         <div className="segmented" role="tablist" aria-label="Movers by">
+          <SegmentThumb />
           {(["rev", "pat"] as const).map((m) => (
             <button
               key={m}
@@ -284,6 +310,7 @@ export function ResultsDesk() {
     sector: params.get("sector") ?? undefined,
     watchlist: params.get("watchlist") === "1" || undefined,
     days: Number(params.get("days")) || undefined,
+    sort: params.get("sort") === "market_cap" ? "market_cap" : undefined,
   };
   const page = Math.max(1, Number(params.get("page")) || 1);
   const set = (key: string, value: string | null) => {
@@ -358,7 +385,20 @@ export function ResultsDesk() {
         <section className="card desk-main">
           <div className="card-header">
             <h2>Latest results</h2>
+            <select
+              className="desk-sort"
+              aria-label="Sort results"
+              value={query.sort ?? "filed"}
+              onChange={(e) => set("sort", e.target.value === "filed" ? null : e.target.value)}
+            >
+              {SORTS.map((s) => (
+                <option key={s.sort} value={s.sort}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
             <div className="segmented" role="tablist" aria-label="Filed within">
+              <SegmentThumb />
               {PERIODS.map((p) => (
                 <button
                   key={p.label}

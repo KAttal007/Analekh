@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { CompanySearch } from "./components/CompanySearch";
 import { Icon, type IconName } from "./components/Icon";
+import { SegmentThumb } from "./components/ui";
 import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
 
 type NavItem = { to: string; label: string; icon: IconName; soon?: boolean };
@@ -62,6 +63,7 @@ function ThemeSwitch() {
   const { choice } = useTheme();
   return (
     <div className="theme-switch" role="group" aria-label="Theme">
+      <SegmentThumb selected='[aria-pressed="true"]' />
       {THEMES.map((t) => (
         <button
           key={t.choice}
@@ -78,9 +80,77 @@ function ThemeSwitch() {
   );
 }
 
+/** One highlight behind the active tab that glides to the next tab instead of jumping. It follows
+ * the sidebar's size without animating (collapsing, a phone's sideways scroll), and only glides
+ * when the tab changes. */
+function useNavHighlight(pathname: string, collapsed: boolean) {
+  const aside = useRef<HTMLElement>(null);
+  const highlight = useRef<HTMLSpanElement>(null);
+  const shownFor = useRef<string | null>(null); // the path the highlight is on
+
+  useLayoutEffect(() => {
+    const side = aside.current;
+    const mark = highlight.current;
+    if (!side || !mark) return;
+    const place = (glide: boolean) => {
+      const link = side.querySelector<HTMLElement>("nav a.active");
+      if (!link) {
+        mark.style.opacity = "0";
+        return;
+      }
+      const s = side.getBoundingClientRect();
+      const l = link.getBoundingClientRect();
+      mark.dataset.motion = glide ? "glide" : "instant";
+      mark.style.opacity = "1";
+      mark.style.width = `${l.width}px`;
+      mark.style.height = `${l.height}px`;
+      mark.style.transform = `translate(${l.left - s.left + side.scrollLeft}px, ${
+        l.top - s.top + side.scrollTop
+      }px)`;
+    };
+    // Glide only to a new tab; collapsing or expanding moves it with the sidebar.
+    place(shownFor.current !== null && shownFor.current !== pathname);
+    shownFor.current = pathname;
+    // The sidebar resizing (collapsing, the window) moves the highlight with it, without
+    // gliding. The first report comes straight after observing and is no resize: skip it, or it
+    // would cut the glide short.
+    let first = true;
+    const resized = new ResizeObserver(() => {
+      if (first) first = false;
+      else place(false);
+    });
+    resized.observe(side);
+    return () => resized.disconnect();
+  }, [pathname, collapsed]);
+
+  // A faint light follows the pointer across the sidebar, as on the welcome screen.
+  useLayoutEffect(() => {
+    const side = aside.current;
+    if (!side) return;
+    let frame = 0;
+    const onMove = (e: PointerEvent) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const s = side.getBoundingClientRect();
+        side.style.setProperty("--gx", `${e.clientX - s.left + side.scrollLeft}px`);
+        side.style.setProperty("--gy", `${e.clientY - s.top + side.scrollTop}px`);
+      });
+    };
+    side.addEventListener("pointermove", onMove);
+    return () => {
+      side.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return { aside, highlight };
+}
+
 export function Layout() {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const { aside, highlight } = useNavHighlight(pathname, collapsed);
   const toggle = () => {
     setCollapsed((c) => {
       try {
@@ -94,7 +164,9 @@ export function Layout() {
 
   return (
     <div className={collapsed ? "app collapsed" : "app"}>
-      <aside className="sidebar">
+      <aside className="sidebar" ref={aside}>
+        <span className="sidebar-glow" aria-hidden />
+        <span className="nav-highlight" ref={highlight} aria-hidden />
         <Link to="/" className="brand" title="Analekh">
           <span className="brand-mark">A</span>
           <span className="brand-text">
@@ -133,8 +205,9 @@ export function Layout() {
         <header className="topbar">
           <CompanySearch />
         </header>
-        {/* Keyed by path so each screen's sections fade in when it opens. */}
-        <main className="content page-enter" key={pathname}>
+        {/* Screens and their figures appear at once: motion is for what you click (the sliding
+            tab highlight, switches), never for the data (owner's choice, 2026-10-17). */}
+        <main className="content">
           <Outlet />
         </main>
       </div>

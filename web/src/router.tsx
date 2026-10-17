@@ -1,10 +1,12 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Layout } from "./Layout";
 import { Loading } from "./components/ui";
 import { loadCompanyPage } from "./lib/preload";
+import { hasWelcomed } from "./lib/welcome";
 import { Placeholder } from "./pages/Placeholder";
 import { SearchPage } from "./pages/SearchPage";
+import { Welcome } from "./pages/Welcome";
 
 // Heavy screens (AG Grid, ECharts) load on demand.
 const Watchlist = lazy(() => import("./pages/Watchlist").then((m) => ({ default: m.Watchlist })));
@@ -20,13 +22,20 @@ const Templates = lazy(() => import("./pages/Templates").then((m) => ({ default:
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
+// Opening Analekh at its home page greets the visitor first, once per browser session. A link to
+// anything else (a company, a change set) goes straight there.
+function Home() {
+  return hasWelcomed() ? <SearchPage /> : <Navigate to="/welcome" replace />;
+}
+
 // Screens from design doc 19.1. Reports, Q&A, Comps and Settings land in Phases 4-5.
 export const router = createBrowserRouter([
+  { path: "/welcome", element: <Welcome /> },
   {
     path: "/",
     element: <Layout />,
     children: [
-      { index: true, element: <SearchPage /> },
+      { index: true, element: <Home /> },
       { path: "watchlist", element: page(<Watchlist />) },
       { path: "companies/:symbol", element: page(<CompanyPage />) },
       { path: "change-sets/:id", element: page(<ChangeSetReview />) },

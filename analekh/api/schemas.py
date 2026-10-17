@@ -120,6 +120,8 @@ class DeskRowOut(BaseModel):
     ebitda_margin_yoy: Decimal | None  # basis points
     blocked: bool  # a validation check blocks this filing
     yoy_note: str | None = None  # why the YoY columns are blank, for the dash's tooltip
+    market_cap: Decimal | None = None  # rupees, at the latest stored close
+    price_date: date | None = None
 
 
 class SectorProgressOut(BaseModel):
@@ -153,6 +155,20 @@ class DeskOut(BaseModel):
     turned_profitable: list[DeskRowOut]
     turned_loss: list[DeskRowOut]
     sectors: list[SectorProgressOut]
+
+
+class PriceOut(BaseModel):
+    """Latest closing price from NSE's bhavcopy: end of day, not live."""
+
+    trade_date: date
+    close: Decimal | None
+    prev_close: Decimal | None
+    change_pct: Decimal | None  # % on the previous close
+    open: Decimal | None
+    high: Decimal | None
+    low: Decimal | None
+    volume: int | None
+    market_cap: Decimal | None  # rupees; None when no results filing gives the share count
 
 
 class GlanceLineOut(BaseModel):

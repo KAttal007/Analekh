@@ -1,5 +1,16 @@
 import { expect, test } from "vitest";
-import { IN_CRORE, IN_LAKH, changeTitle, money, scaleFor, signedBps, signedPct } from "./format";
+import {
+  IN_CRORE,
+  IN_LAKH,
+  changeTitle,
+  crore,
+  money,
+  price,
+  scaleFor,
+  shortDate,
+  signedBps,
+  signedPct,
+} from "./format";
 
 test("companies under ₹10 crore are shown in lakhs, larger ones in crore", () => {
   // Agri-Tech's quarters: ₹3.4 to ₹20.5 lakh of revenue.
@@ -27,4 +38,17 @@ test("changes from a tiny base are capped, with the exact figure for the tooltip
   expect(signedBps("86")).toBe("+86 bps");
   expect(signedPct("15")).toBe("+15.0%");
   expect(changeTitle("15", "pct")).toBeUndefined();
+});
+
+test("share prices keep two decimals; market caps read in crore with Indian grouping", () => {
+  expect(price("1211.2000")).toBe("₹1,211.20"); // Reliance, 16 Oct 2026
+  expect(price("48.5")).toBe("₹48.50");
+  expect(price(null)).toBe("–");
+  expect(crore("16391169600000.00")).toBe("₹16,39,117 cr");
+});
+
+test("a trading day drops the year only when it is this year's", () => {
+  const today = new Date("2026-10-17T12:00:00");
+  expect(shortDate("2026-10-16", today)).toBe("16 Oct");
+  expect(shortDate("2025-12-31", today)).toBe("31 Dec 2025");
 });

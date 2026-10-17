@@ -70,8 +70,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 - `excel_bridge/` CLI on the analyst's machine: scan folders, link, watch, apply (xlwings).
 - `genai/` Claude client (token logging, refusal fallbacks), tools (incl. `ModelReader`), calc,
   grounding check, report loop (flash, note, initiation), Q&A, Word/PowerPoint writers.
-- `ib/` comps, profile slide, pitch refresh. `alerts/`. Daily prices: no source yet (Kite
-  removed 2026-10-13; NSE/BSE bhavcopy is the candidate, which needs rule 1 amended).
+- `ib/` comps, profile slide, pitch refresh. `alerts/`. Daily prices: `ingest/bhavcopy.py`
+  (NSE's bhavcopy after each close; market cap = close x shares from the latest results filing).
 - `api/` FastAPI app with routers (design doc 20). `jobs/` Celery app, beat schedule, tasks.
   `cli.py` typer CLI. `admin/` Streamlit ops dashboard. `golden.py` golden-set runner.
 - `web/` React + TypeScript (types generated from OpenAPI). `office-addin/` Excel task pane.
@@ -87,7 +87,9 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    owner 2026-10-15: results history before integrated filings, XBRL back to 2018). Both are
    queried per company, plus ONE request every 2 hours without a ticker for the latest results
    (`analekh results-watch`; owner's limit, once a day from 2026-10-14, every 2 hours from
-   2026-10-16).
+   2026-10-16). NSE's daily bhavcopy on nsearchives (`/content/cm/BhavCopy_NSE_CM_…csv.zip`): ONE
+   file per trading day after the close, for closing prices (`analekh prices`; approved by the owner
+   2026-10-17; no price history, no live prices).
    No other NSE website page or internal API: never widen
    `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
    never crawl pages. Requests identify as Analekh: never disguise them as a browser.

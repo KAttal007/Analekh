@@ -5,6 +5,7 @@ PDFs are stored for everyone but the document pipeline runs only for watchlist c
 company someone asked to analyse.
 """
 
+from datetime import date, datetime
 from pathlib import Path
 
 from sqlalchemy import exists, select
@@ -314,6 +315,31 @@ def bulk_fetch_results(
             out.flush()
     summary["seconds"] = round(time.monotonic() - started)
     return summary
+
+
+def last_close_day(now: datetime | None = None) -> date:
+    """The latest trading day whose bhavcopy should exist: today after 18:00 IST, else the day
+    before; weekends roll back to Friday (holidays simply have no file)."""
+    from datetime import UTC, timedelta
+
+    from analekh.ingest.feeds import IST
+
+    local = (now or datetime.now(UTC)).astimezone(IST)
+    day = local.date() if local.hour >= 18 else local.date() - timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
+@app.task
+def fetch_prices(day: str | None = None) -> dict:
+    """NSE's bhavcopy for one trading day (default: the latest close): ONE request, then closing
+    prices and market caps for every company it lists (rule 1, owner-approved 2026-10-17)."""
+    from analekh.ingest.bhavcopy import load_day
+
+    target = date.fromisoformat(day) if day else last_close_day()
+    with session_scope() as s:
+        return load_day(s, PoliteClient(), target)
 
 
 @app.task

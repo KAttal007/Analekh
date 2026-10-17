@@ -230,6 +230,7 @@ class Price(Base):
     high: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
     low: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
     close: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    prev_close: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))  # from the same bhavcopy
     volume: Mapped[int | None] = mapped_column(BigInteger)
     market_cap: Mapped[Decimal | None] = mapped_column(Numeric(24, 2))
 

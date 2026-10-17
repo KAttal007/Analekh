@@ -220,6 +220,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/companies/{symbol}/price": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Company Price
+     * @description Latest close and market cap from NSE's bhavcopy (end of day); null before the first load.
+     */
+    get: operations["company_price_companies__symbol__price_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/{symbol}/kpis": {
     parameters: {
       query?: never;
@@ -951,6 +971,10 @@ export interface components {
       blocked: boolean;
       /** Yoy Note */
       yoy_note?: string | null;
+      /** Market Cap */
+      market_cap?: string | null;
+      /** Price Date */
+      price_date?: string | null;
     };
     /** DiscoverRequest */
     DiscoverRequest: {
@@ -1136,6 +1160,33 @@ export interface components {
       file_path: string | null;
       /** Last Seen */
       last_seen: string | null;
+    };
+    /**
+     * PriceOut
+     * @description Latest closing price from NSE's bhavcopy: end of day, not live.
+     */
+    PriceOut: {
+      /**
+       * Trade Date
+       * Format: date
+       */
+      trade_date: string;
+      /** Close */
+      close: string | null;
+      /** Prev Close */
+      prev_close: string | null;
+      /** Change Pct */
+      change_pct: string | null;
+      /** Open */
+      open: string | null;
+      /** High */
+      high: string | null;
+      /** Low */
+      low: string | null;
+      /** Volume */
+      volume: number | null;
+      /** Market Cap */
+      market_cap: string | null;
     };
     /** QaRequest */
     QaRequest: {
@@ -1654,6 +1705,7 @@ export interface operations {
         days?: number | null;
         limit?: number;
         offset?: number;
+        sort?: "filed" | "market_cap";
       };
       header?: never;
       path?: never;
@@ -1701,6 +1753,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["GlanceOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  company_price_companies__symbol__price_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        symbol: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PriceOut"] | null;
         };
       };
       /** @description Validation Error */

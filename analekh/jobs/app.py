@@ -55,6 +55,10 @@ app.conf.update(
             "task": "analekh.jobs.tasks.watch_results",
             "schedule": _cron(settings.results_watch_cron),
         },
+        "fetch-prices": {
+            "task": "analekh.jobs.tasks.fetch_prices",
+            "schedule": _cron(settings.prices_cron),
+        },
         "background-backfill": {
             "task": "analekh.jobs.tasks.background_backfill",
             "schedule": crontab(minute=30, hour=1),

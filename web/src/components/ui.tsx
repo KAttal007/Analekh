@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
@@ -252,4 +252,47 @@ export function MissingTip({ text }: { text?: string | null }) {
       </span>
     </span>
   );
+}
+
+/** Put inside a `.segmented` group (or any row of buttons, with `selected` naming the chosen one):
+ * one thumb behind the selected button that slides to the next choice with a little spring. It
+ * follows the group's size without animating. */
+export function SegmentThumb({ selected = '[aria-selected="true"]' }: { selected?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const thumb = ref.current;
+    const group = thumb?.parentElement;
+    if (!thumb || !group) return;
+    let placed = false;
+    const place = (glide: boolean) => {
+      const on = group.querySelector<HTMLElement>(selected);
+      if (!on) {
+        thumb.style.opacity = "0";
+        return;
+      }
+      thumb.classList.toggle("no-glide", !glide || !placed);
+      thumb.style.opacity = "1";
+      thumb.style.width = `${on.offsetWidth}px`;
+      thumb.style.height = `${on.offsetHeight}px`;
+      thumb.style.transform = `translate(${on.offsetLeft}px, ${on.offsetTop}px)`;
+      thumb.style.borderRadius = getComputedStyle(on).borderRadius;
+      placed = true;
+    };
+    place(false);
+    group.classList.add("has-thumb");
+    const changed = new MutationObserver(() => place(true));
+    changed.observe(group, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-selected", "aria-pressed"],
+    });
+    const resized = new ResizeObserver(() => place(false));
+    resized.observe(group);
+    return () => {
+      changed.disconnect();
+      resized.disconnect();
+      group.classList.remove("has-thumb");
+    };
+  }, [selected]);
+  return <span className="segment-thumb" ref={ref} aria-hidden />;
 }

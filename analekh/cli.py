@@ -142,6 +142,18 @@ def results_watch() -> None:
     typer.echo(watch_results())
 
 
+@app.command("prices")
+def prices(
+    day: str | None = typer.Option(
+        None, "--date", help="Trading day (YYYY-MM-DD); default: latest close."
+    ),
+) -> None:
+    """Closing prices for every company from NSE's bhavcopy (ONE request; skipped if stored)."""
+    from analekh.jobs.tasks import fetch_prices
+
+    typer.echo(fetch_prices(day))
+
+
 @app.command("results-backfill")
 def results_backfill(
     symbols: str | None = typer.Option(

@@ -22,6 +22,7 @@ from analekh.glance import (
     missing_quarter_note,
     quarter_label,
 )
+from analekh.prices import latest_prices
 from analekh.xbrl.elements import candidates
 
 # Movers leave out small companies and tiny profit bases, where growth rates are noise.
@@ -57,6 +58,8 @@ class DeskRow:
     ebitda_margin_yoy: Decimal | None  # basis points
     blocked: bool
     yoy_note: str | None = None  # why the YoY columns are blank, when the year-ago quarter is
+    market_cap: Decimal | None = None  # at the latest stored close (bhavcopy)
+    price_date: date | None = None  # that close's trading day
     # Year-ago values, for the movers' base checks; not sent to the page.
     revenue_prev: Decimal | None = field(default=None, repr=False)
     pat_prev: Decimal | None = field(default=None, repr=False)
@@ -80,7 +83,7 @@ class Desk:
     reported: int  # of those, how many have results for this quarter (after filters)
     filings_total: int
     latest_filed_at: datetime | None
-    rows: list[DeskRow]  # the requested page, newest filing first
+    rows: list[DeskRow]  # the requested page, newest filing first (or largest, by sort)
     rows_total: int
     revenue_top: list[DeskRow] = field(default_factory=list)
     revenue_bottom: list[DeskRow] = field(default_factory=list)
@@ -116,6 +119,7 @@ def desk(
     days: int | None = None,
     limit: int = 50,
     offset: int = 0,
+    sort: str = "filed",
     now: datetime | None = None,
 ) -> Desk:
     quarters = recent_quarters(session)
@@ -185,6 +189,7 @@ def desk(
                 f.period_end
             ] = f.value
 
+    prices = latest_prices(session, list(by_company))
     rows: list[DeskRow] = []
     for company_id, company_filings in by_company.items():
         c = companies[company_id]
@@ -239,6 +244,8 @@ def desk(
                 pat_prev=pat_prev,
             )
         )
+        if price := prices.get(company_id):
+            rows[-1].market_cap, rows[-1].price_date = price.market_cap, price.trade_date
         if rev_prev is None and pat_prev is None:
             rows[-1].yoy_note = missing_quarter_note(session, company_id, basis, year_ago)
 
@@ -250,6 +257,8 @@ def desk(
         since = (now or datetime.now(UTC)) - timedelta(days=days)
         rows = [r for r in rows if r.filed_at and r.filed_at >= since]
     rows.sort(key=lambda r: r.filed_at or datetime.min.replace(tzinfo=UTC), reverse=True)
+    if sort == "market_cap":  # stable: equal (or unknown) market caps keep the newest first
+        rows.sort(key=lambda r: (r.market_cap is None, -(r.market_cap or 0)))
     out.rows_total = len(rows)
     out.rows = rows[offset : offset + limit]
     return out

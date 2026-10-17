@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Every 2 hours during the results season: one request to NSE's latest-results list each time
     # (owner's choice; was once a day until 2026-10-16).
     results_watch_cron: str = "0 */2 * * *"
+    # NSE's daily bhavcopy, after the close on trading days; hourly retries until it is published
+    # (a stored day is skipped, so only the first successful run downloads anything).
+    prices_cron: str = "0 19-23 * * 1-5"
     backfill_priority: str = "NIFTY500"
     download_rate_per_second: float = 1.0
     user_agent: str = "Analekh/0.1"

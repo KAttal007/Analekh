@@ -15,6 +15,15 @@ export function crore(raw: string | number | null | undefined): string {
   return `${cr < 0 ? "−" : ""}₹${text} cr`; // a loss reads −₹0.3 cr, not ₹-0.3 cr
 }
 
+/** ₹1,211.20: a share price, always two decimals. */
+export function price(raw: string | number | null | undefined): string {
+  if (raw == null || raw === "") return "–";
+  return `₹${Number(raw).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 // Small companies are shown in lakhs (1 lakh = 100,000): below ₹10 crore (1,000 lakh) a crore
 // scale rounds them to nothing (Agri-Tech: ₹4.6 lakh of revenue read "₹0 cr").
 export const LAKH = 1e5;
@@ -83,6 +92,17 @@ export function longDate(iso?: string | null): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+  });
+}
+
+/** 16 Oct: a trading day in the current year, with the year otherwise. */
+export function shortDate(iso?: string | null, today = new Date()): string {
+  if (!iso) return "";
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() === today.getFullYear() ? {} : { year: "numeric" }),
   });
 }
 
