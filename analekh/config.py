@@ -29,9 +29,10 @@ class Settings(BaseSettings):
     feed_poll_seconds: int = 300
     event_feed_poll_seconds: int = 1800
     universe_refresh_cron: str = "0 6 * * 1"  # weekly, Monday 06:00 IST
-    # Every 2 hours during the results season: one request to NSE's latest-results list each time
-    # (owner's choice; was once a day until 2026-10-16).
-    results_watch_cron: str = "0 */2 * * *"
+    # One request to NSE's latest-results list per run, at 09:00, 11:00 ... 23:00 IST; outside a
+    # results season analekh.seasons skips every run but 21:00 (design doc 9.6; every 2 hours all
+    # year from 2026-10-16, once a day before that).
+    results_watch_cron: str = "0 9-23/2 * * *"
     # NSE's daily bhavcopy, after the close on trading days; hourly retries until it is published
     # (a stored day is skipped, so only the first successful run downloads anything).
     prices_cron: str = "0 19-23 * * 1-5"

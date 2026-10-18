@@ -175,6 +175,38 @@ def test_v2_adds_exceptional_items_as_tagged():
     assert result.status == "pass", result.message
 
 
+def test_v2_reads_exceptional_items_under_either_name():
+    # L&T, Q4 FY25 (consolidated): a Rs 474.78 crore exceptional gain tagged ExceptionalItems,
+    # not ExceptionalItemsBeforeTax; V2 blocked the filing until both names were read.
+    q = {
+        "RevenueFromOperations": 741_000_000_000,
+        "OtherIncome": 14_273_300_000,
+        "Income": 755_273_300_000,
+        "Expenses": 679_880_900_000,
+        "ExceptionalItems": 4_747_800_000,
+        "ProfitBeforeTax": 80_140_200_000,
+    }
+    result = by_rule(validate(ValidationContext(parse_instance(_quarter(q)))))["V2"]
+    assert result.status == "pass", result.message
+    assert "exceptional items" in result.message
+
+
+def test_v2_adds_extraordinary_items_for_ind_as_filers():
+    # Alletec, Q3 FY26 (standalone): exceptional items nil, extraordinary items -Rs 1.33 crore
+    # between profit before extraordinary items and PBT.
+    q = {
+        "RevenueFromOperations": 290_536_000,
+        "OtherIncome": 28_250_000,
+        "Income": 318_786_000,
+        "Expenses": 237_578_000,
+        "ExceptionalItems": 0,
+        "ExtraordinaryItems": -13_304_000,
+        "ProfitBeforeTax": 67_904_000,
+    }
+    result = by_rule(validate(ValidationContext(parse_instance(_quarter(q)))))["V2"]
+    assert result.status == "pass", result.message
+
+
 def _quarter(values: dict[str, int], instant: dict[str, int] | None = None) -> bytes:
     return build_instance(
         q_start=date(2026, 1, 1),

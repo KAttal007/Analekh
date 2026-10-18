@@ -64,13 +64,16 @@ def get_company(symbol: str, db: DB) -> schemas.CompanyDetail:
 def watch(body: schemas.WatchRequest, db: DB, user: User) -> schemas.CompanyDetail:
     c = company_or_404(db, body.symbol)
     coverage.add(db, c, user, body.settings)
-    db.flush()
+    # Committed before the reply, not when the request's session closes: the page reloads the
+    # company and the watchlist as soon as it gets the answer, and must see the change.
+    db.commit()
     return get_company(c.nse_symbol, db)
 
 
 @router.delete("/watchlist/{symbol}", status_code=204)
 def unwatch(symbol: str, db: DB, user: User) -> None:
     coverage.remove(db, company_or_404(db, symbol), user)
+    db.commit()  # before the reply, as in watch()
 
 
 @router.get("/watchlist", response_model=list[schemas.WatchlistEntryOut])

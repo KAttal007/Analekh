@@ -135,11 +135,14 @@ def refresh(symbol: str) -> None:
 
 
 @app.command("results-watch")
-def results_watch() -> None:
-    """New results for every company from ONE request to NSE's latest list (every 2 hours)."""
+def results_watch(
+    force: bool = typer.Option(False, "--force", help="Ask NSE now, whatever the schedule."),
+) -> None:
+    """New results for every company from ONE request to NSE's latest list: every 2 hours from
+    09:00 to 23:00 IST in a results season, once a day at 21:00 otherwise (design doc 9.6)."""
     from analekh.jobs.tasks import watch_results
 
-    typer.echo(watch_results())
+    typer.echo(watch_results(force))
 
 
 @app.command("prices")

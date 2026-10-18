@@ -196,6 +196,7 @@ def v2_pbt(ctx: ValidationContext) -> RuleResult:
         [
             ("provisions", -1, "provisions"),
             ("exceptional_items", 1, "exceptional items"),
+            ("extraordinary_items", 1, "extraordinary items"),  # Ind-AS, tagged with its sign
             ("shareholders_investment_income", 1, "shareholders' investment income"),
             ("shareholders_other_income", 1, "shareholders' other income"),
             ("non_operating_expenses", -1, "non-operating expenses"),

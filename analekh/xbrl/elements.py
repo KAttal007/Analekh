@@ -19,7 +19,10 @@ INDAS: dict[str, tuple[str, ...]] = {
     "total_expenses": ("Expenses", "TotalExpenses"),  # verify TotalExpenses (Expenses seen)
     "finance_costs": ("FinanceCosts",),
     "depreciation": ("DepreciationDepletionAndAmortisationExpense",),
-    "exceptional_items": ("ExceptionalItemsBeforeTax",),
+    # Both names are used (L&T, KIMS and about 2,400 other Ind-AS filings tag ExceptionalItems).
+    "exceptional_items": ("ExceptionalItemsBeforeTax", "ExceptionalItems"),
+    # A line after exceptional items and before tax in the Ind-AS layout (Alletec, Q3 FY26).
+    "extraordinary_items": ("ExtraordinaryItems",),
     "pbt": ("ProfitBeforeTax",),
     "tax": ("TaxExpense",),
     "pat_continuing": ("ProfitLossForPeriodFromContinuingOperations",),
@@ -46,6 +49,7 @@ BANKING: dict[str, tuple[str, ...]] = {
     "operating_profit": ("OperatingProfitBeforeProvisionAndContingencies",),
     "provisions": ("ProvisionsOtherThanTaxAndContingencies",),
     "exceptional_items": ("ExceptionalItems",),
+    "extraordinary_items": (),  # RBI format: net of tax, below the profit V2 checks
     "pbt": ("ProfitLossFromOrdinaryActivitiesBeforeTax",),
     "tax": ("TaxExpense",),
     "pat_continuing": ("ProfitLossFromOrdinaryActivitiesAfterTax",),
@@ -82,6 +86,7 @@ INSURANCE: dict[str, tuple[str, ...]] = {
     # Reinsurers move part of the profit to reserves before PBT (GIC Re, every quarter).
     "transfer_to_reserves": ("TransferToReserves",),
     "exceptional_items": (),
+    "extraordinary_items": (),
     "pbt": ("ProfitOrLossBeforeTax",),
     "tax": ("ProvisionForTax",),
     "pat_continuing": ("ProfitLossAfterTax",),
@@ -116,6 +121,7 @@ LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
     "shareholders_income": ("ShareholdersAccountIncome",),
     "shareholders_expenses": ("ShareholdersAccountExpenses",),
     "exceptional_items": (),
+    "extraordinary_items": (),
     "pbt": ("ProfitLossBeforeTax",),
     "tax": ("ProvisionsForTaxes",),
     "pat_continuing": ("ProfitLossAfterTaxBeforeExtraordinaryItems",),

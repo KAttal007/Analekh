@@ -3,8 +3,12 @@
 Key layout: ``kind/yyyy/mm/sha256.ext``. Talks the S3 API through boto3, so MinIO locally and any
 managed S3 service when hosted are a configuration change only. A local directory store is used
 by tests and single-machine development.
+
+XML (results XBRL) is stored gzipped, about 12 times smaller; ``get`` returns the original bytes,
+so the key's hash still matches. PDFs and Excel files are already compressed and stored as-is.
 """
 
+import gzip
 import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +24,20 @@ def sha256(data: bytes) -> str:
 def storage_key(kind: str, digest: str, ext: str, when: datetime | None = None) -> str:
     when = when or datetime.now(UTC)
     return f"{kind}/{when:%Y}/{when:%m}/{digest}.{ext.lstrip('.')}"
+
+
+GZIP_MAGIC = b"\x1f\x8b"  # XML, PDF (%PDF) and xlsx (PK) never start with these bytes
+COMPRESSED_TYPES = {"application/xml"}
+
+
+def pack(data: bytes, content_type: str) -> bytes:
+    """Bytes as stored: gzipped for XML. mtime=0 keeps the output the same for the same input."""
+    return gzip.compress(data, mtime=0) if content_type in COMPRESSED_TYPES else data
+
+
+def unpack(data: bytes) -> bytes:
+    """Original bytes from stored ones; files stored before compression come back unchanged."""
+    return gzip.decompress(data) if data[:2] == GZIP_MAGIC else data
 
 
 class ObjectStore(Protocol):
@@ -40,10 +58,10 @@ class LocalStore:
         path = self.root / key
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
-            path.write_bytes(data)
+            path.write_bytes(pack(data, content_type))
 
     def get(self, key: str) -> bytes:
-        return (self.root / key).read_bytes()
+        return unpack((self.root / key).read_bytes())
 
     def exists(self, key: str) -> bool:
         return (self.root / key).exists()
@@ -90,11 +108,25 @@ class S3Store:
 
     def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
         if not self.exists(key):
-            self.client.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
+            self.write(key, data, content_type)
+
+    def write(self, key: str, data: bytes, content_type: str) -> None:
+        """Write even if the key exists (``put`` never does); used to compress stored files."""
+        body = pack(data, content_type)
+        if body is data:
+            self.client.put_object(Bucket=self.bucket, Key=key, Body=body, ContentType=content_type)
+        else:
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=body,
+                ContentType=content_type,
+                ContentEncoding="gzip",
+            )
 
     def get(self, key: str) -> bytes:
         body: bytes = self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
-        return body
+        return unpack(body)
 
     def exists(self, key: str) -> bool:
         from botocore.exceptions import ClientError

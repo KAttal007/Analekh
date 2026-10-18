@@ -228,6 +228,53 @@ def test_s3_store_unreachable_raises_storage_unavailable():
         S3Store(client=Down())
 
 
+def test_store_gzips_xml_and_returns_the_original_bytes(tmp_path):
+    from analekh.ingest.storage import GZIP_MAGIC, LocalStore, sha256
+
+    store = LocalStore(tmp_path)
+    xml, pdf = q1_instance(), b"%PDF-1.7 results"
+    store.put("results_xbrl/a.xml", xml, "application/xml")
+    store.put("announcement/b.pdf", pdf, "application/pdf")
+    on_disk = (tmp_path / "results_xbrl/a.xml").read_bytes()
+    assert on_disk[:2] == GZIP_MAGIC and len(on_disk) < len(xml)
+    assert (tmp_path / "announcement/b.pdf").read_bytes() == pdf  # already compressed: as-is
+    assert sha256(store.get("results_xbrl/a.xml")) == sha256(xml)
+    assert store.get("announcement/b.pdf") == pdf
+    (tmp_path / "results_xbrl/old.xml").write_bytes(xml)  # stored before compression
+    assert store.get("results_xbrl/old.xml") == xml
+
+
+def test_s3_store_write_marks_gzip_and_overwrites():
+    from analekh.ingest.storage import S3Store
+
+    class Fake:
+        def __init__(self):
+            self.objects = {}
+
+        def head_bucket(self, **_):
+            pass
+
+        def put_object(self, Bucket, Key, Body, ContentType, **extra):
+            self.objects[Key] = (Body, extra)
+
+        def get_object(self, Bucket, Key):
+            import io
+
+            return {"Body": io.BytesIO(self.objects[Key][0])}
+
+    fake = Fake()
+    store = S3Store(client=fake)
+    xml = q1_instance()
+    fake.objects["results_xbrl/a.xml"] = (xml, {})  # an uncompressed file already stored
+    store.write("results_xbrl/a.xml", xml, "application/xml")
+    body, extra = fake.objects["results_xbrl/a.xml"]
+    assert extra == {"ContentEncoding": "gzip"}
+    assert len(body) < len(xml)
+    assert store.get("results_xbrl/a.xml") == xml
+    store.write("models/1/v1.xlsx", b"PK\x03\x04", "application/octet-stream")
+    assert fake.objects["models/1/v1.xlsx"] == (b"PK\x03\x04", {})
+
+
 def test_identity_headers_keep_contact_out_of_user_agent():
     # NSE's CDN stalls any request whose User-Agent holds an email or a URL.
     assert identity_headers("Analekh/0.1 (contact: me@example.in)") == {

@@ -111,10 +111,20 @@ export function CompanyPage() {
   const quote = useQuery({ queryKey: ["price", symbol], queryFn: () => api.price(symbol) });
   const watch = useMutation({
     mutationFn: async () => {
-      if (company.data?.watched) await api.unwatch(symbol);
-      else await api.watch(symbol);
+      if (company.data?.watched) {
+        await api.unwatch(symbol);
+        return null;
+      }
+      return api.watch(symbol); // the company as it now stands: watched, deep coverage
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["company", symbol] }),
+    onSuccess: (updated) => {
+      if (updated) qc.setQueryData(["company", symbol], updated); // the button flips at once
+      // Everything that shows the watchlist, which the browser otherwise keeps for 5 minutes:
+      // the company itself, the Watchlist page and the desk's "Watchlist only" view.
+      qc.invalidateQueries({ queryKey: ["company", symbol] });
+      qc.invalidateQueries({ queryKey: ["watchlist"] });
+      qc.invalidateQueries({ queryKey: ["desk"] });
+    },
   });
   const analyse = useMutation({ mutationFn: () => api.analyse(symbol) });
   const start = useMutation({

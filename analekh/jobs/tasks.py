@@ -343,13 +343,20 @@ def fetch_prices(day: str | None = None) -> dict:
 
 
 @app.task
-def watch_results() -> dict:
-    """Daily: new results filings for every company, from one request to NSE's latest list."""
+def watch_results(force: bool = False) -> dict:
+    """New results filings for every company, from one request to NSE's latest list. Runs only
+    when the season schedule says so (analekh.seasons): every 2 hours from 09:00 to 23:00 IST in
+    a results season, at 21:00 otherwise. `force` asks NSE regardless."""
     from analekh.ingest.integrated import fetch_latest
+    from analekh.seasons import watch_due
 
+    due, reason = watch_due()
+    if not (due or force):
+        return {"skipped": reason}
     with session_scope() as s:
         out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
     return {
+        "why": reason if due else "forced",
         "listed": out.listed,
         "new": out.new,
         "missing": len(out.missing),

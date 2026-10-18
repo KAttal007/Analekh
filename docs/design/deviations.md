@@ -11,7 +11,9 @@ Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed
 
 | Design says | Now | Why | Date |
 |---|---|---|---|
-| (nothing yet) | | | |
+| Raw Filing Store: immutable object storage keyed by hash (6, 9.3) | Results XBRL is stored gzipped (`ingest/storage.py`: `pack` on write, `unpack` on read, S3 `Content-Encoding: gzip`); reads return the original bytes, so keys and `file_sha256` still match. PDFs and Excel files are stored as-is. Files stored before the change were rewritten once by `scripts/compress_raw_files.py`, which checks each against its key's hash before and after. | The 53,600 files took 4.5 GB; a sample compressed 12 times. Only re-parsing (`revalidate`) reads them, and unpacking adds about 0.1 ms per file. | 2026-10-18 |
+| Results watcher by season, proposed (9.6) | Built: `analekh/seasons.py` decides each run. In a season (day 5 after a quarter end to two days past SEBI's deadline) every run from 09:00 to 23:00 IST asks NSE; outside one only the 21:00 run does. Cron `0 9-23/2 * * *`; the Windows task runs 09:00 to 23:00 every 2 hours. `analekh results-watch --force` asks regardless. | Owner asked for it on 2026-10-18; about 60% fewer requests, and on the evidence in 3.1 nothing missed. | 2026-10-18 |
+| Ind-AS exceptional items are `ExceptionalItemsBeforeTax` (10.1, 10.2, Appendix A) | Either `ExceptionalItemsBeforeTax` or `ExceptionalItems` (about 2,400 Ind-AS filings use the second). V2 also adds extraordinary items (`ExtraordinaryItems`, between exceptional items and PBT) for Ind-AS filers only; banks' extraordinary items are net of tax and stay out. | All 14 V2-blocked filings (L&T, KIMS, MT Educare, Chandan, Alletec, Fidel, Felix) were off by exactly that line. After revalidating the 517 affected companies, no filing is blocked; the company page now also shows those companies' exceptional items and derives EBITDA with them. | 2026-10-18 |
 
 ## Folded into v0.0.4 (18 October 2026)
 

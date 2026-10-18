@@ -77,7 +77,7 @@ flowchart LR
 | Companies with results stored | **2,748** (both backfills finished) |
 | Results filings / values | **54,242 filings, 10.1 million values**, both bases |
 | History | From **March 2023** (NSE's older files are incomplete); 1,567 companies have 14 or more quarters |
-| Blocked by a check | 14 filings (V2; see Next up) |
+| Blocked by a check | **None** (the last 14 were a naming gap for exceptional items, fixed 18 October) |
 | September 2026 quarter (Q2 FY27) | 109 companies reported by 17 October (watcher paused since) |
 | Daily prices | NSE's bhavcopy after each close; 16 October loaded (3,044 companies, 2,596 with market cap); only the latest day is kept |
 | Sectors | **NSE's own taxonomy** for 1,430 companies (22 sectors), LSEG groups for 1,587 (mapping to NSE names awaits the owner), none for 169 |
@@ -104,22 +104,16 @@ The full picture is in design doc 26.1. In short:
 
 ### Next up
 
-1. **Results watcher by season:** poll every 2 hours from 09:00 to 23:00 during SEBI's four
-   results windows and once a day otherwise (design doc 9.6), then re-enable the watcher and the
-   price job (both paused).
-2. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
+1. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
    home machine with Cloudflare Tunnel; one honest NSE request from it first; then the stack, the
    data (dump, not re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler
    moved off the laptop.
-3. **The 14 blocked filings** (V2: L&T, KIMS, MT Educare, four SME companies): likely one P&L line
-   V2 doesn't include yet (share of associates or joint ventures), as with GIC Re's transfer to
-   reserves.
-4. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
+2. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
    completes Phase 0 (v0.1.0).
-5. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
-6. **Results history table** on the company page with an Excel export.
-7. **Results calendar** from the Board Meetings feed; **peer view** of growth and margins.
-8. **Sector editing screen** (owner's values outrank NSE's), including NSE basic industries read
+3. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
+4. **Results history table** on the company page with an Excel export.
+5. **Results calendar** from the Board Meetings feed; **peer view** of growth and margins.
+6. **Sector editing screen** (owner's values outrank NSE's), including NSE basic industries read
    off the quote page for covered companies.
 
 Decisions waiting on the owner: the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
@@ -165,7 +159,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Feed watcher, polite fetcher, linking, storage | 🟡 | Polled once on 2026-10-14 (118 items, dated, 97 linked); not yet running on a schedule. The results feed is frozen since 24 August; results now come as integrated filings |
 | Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. 2,537 companies stored; integrated filings start with the March 2025 quarter; SME companies through `index=sme` |
 | Results history (`analekh results-backfill --history [--sector …]`, NSE's financial-results list; rule 1 amended 2026-10-15) | ✅ | From March 2023: NSE's older `_WEB` files lack the main contexts and are skipped (`pipeline.IncompleteXbrl`; owner's call, no rebuilding by id). Full run S-Z still going; Banking Services stored for the owner's walkthrough |
-| Results watcher (`analekh results-watch`, beat `watch-results` every 2 hours) | ✅ | ONE request to the latest-results list every 2 hours (owner, 2026-10-16). Windows scheduled task "Analekh results watch" until the scheduler is hosted; log `out/results-watch.log` |
+| Results watcher (`analekh results-watch`, beat `watch-results`) | ✅ | ONE request to the latest-results list per run, by season: every 2 hours from 09:00 to 23:00 IST in SEBI's results windows, once a day at 21:00 otherwise (`analekh/seasons.py`; `--force` to ask now). Windows scheduled task "Analekh results watch" until the scheduler is hosted; log `out/results-watch.log` |
 | Broken and missing XBRL files | ✅ | A 404, or a file cut off partway (fetched once more), is skipped and noted; the company's other filings are kept (Laurus Labs) |
 | XBRL parser, validation V1-V9 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. Tata Elxsi's 7 filings pass V1-V9 (V4 skips without a balance sheet) |
 | Sectors: NSE's taxonomy (`analekh universe sectors`) | ✅ | Owner's choice 2026-10-16. 11 NSE Indices lists (found among all 116) cover every indexed company: 1,430 with NSE's exact sector (22 current names; stale pre-2022 labels ignored). Precedence user > NSE > LSEG |
@@ -232,6 +226,10 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-18** Results watcher by season: every 2 hours from 09:00 to 23:00 IST in SEBI's
+  results windows, once a day at 21:00 otherwise, about 60% fewer requests. No filing is blocked
+  any more: the last 14 tagged exceptional items as `ExceptionalItems` (one also had an
+  extraordinary line), which V2 now reads; 517 companies revalidated, nothing newly blocked.
 - **2026-10-18** v0.0.4: design document and architecture brought up to date, with a diagram for
   every workflow, built or planned (results, prices, sectors, reading results, model update,
   start coverage, templates, documents and drafts, events and alerts), the job schedule and the

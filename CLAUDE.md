@@ -85,9 +85,10 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    only, for cookies), `/api/integrated-filing-results` (approved by the owner 2026-10-14: the
    results feed stopped carrying filings) and `/api/corporates-financial-results` (approved by the
    owner 2026-10-15: results history before integrated filings, XBRL back to 2018). Both are
-   queried per company, plus ONE request every 2 hours without a ticker for the latest results
-   (`analekh results-watch`; owner's limit, once a day from 2026-10-14, every 2 hours from
-   2026-10-16). NSE's daily bhavcopy on nsearchives (`/content/cm/BhavCopy_NSE_CM_…csv.zip`): ONE
+   queried per company, plus ONE request without a ticker for the latest results per watcher run
+   (`analekh results-watch`): every 2 hours from 09:00 to 23:00 IST during SEBI's results seasons,
+   once a day at 21:00 otherwise (`analekh/seasons.py`, design doc 9.6; owner's limit: once a day
+   from 2026-10-14, every 2 hours from 2026-10-16, by season from 2026-10-18). NSE's daily bhavcopy on nsearchives (`/content/cm/BhavCopy_NSE_CM_…csv.zip`): ONE
    file per trading day after the close, for closing prices (`analekh prices`; approved by the owner
    2026-10-17; no live prices). Only the latest day's prices are kept: each file replaces the
    previous day's (owner's rule, 2026-10-18).
