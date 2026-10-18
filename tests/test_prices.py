@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from analekh.db.models import Company, Price
 from analekh.ingest.bhavcopy import fetch, load_day, parse
@@ -74,14 +74,21 @@ def test_store_matches_by_isin_and_works_out_market_cap(db, store):
         return httpx.Response(404)  # holiday, or not published yet
 
     client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
-    # A date no real bhavcopy is loaded for (tests share the local database).
+    # Tests share the local database: start this (rolled-back) transaction with no prices, then
+    # a stale close from the day before, which the new file must replace.
+    db.execute(delete(Price))
+    db.add(Price(company_id=pricey.id, trade_date=date(2020, 1, 2), close=Decimal(1)))
+    db.flush()
     result = load_day(db, client, date(2020, 1, 3))
     assert result["matched"] == 1 and result["with_market_cap"] == 1  # SMECO is not ours
+    assert result["replaced"] == 1  # only the latest close is kept
     price = db.scalar(select(Price).where(Price.company_id == pricey.id))
     assert price.close == Decimal("2465.0000") and price.prev_close == Decimal("99.0000")
     assert price.market_cap == Decimal("8923300000000.00")  # 2,465 x 3.62 bn
     # A stored day is never fetched again; a day with no file says so.
     assert load_day(db, client, date(2020, 1, 3))["skipped"] == "already stored"
+    # An older day never replaces a newer one, and isn't even fetched.
+    assert load_day(db, client, date(2020, 1, 1))["skipped"].startswith("a later close")
     assert fetch(client, date(2020, 1, 6)) is None
 
 

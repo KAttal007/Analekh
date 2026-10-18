@@ -2,9 +2,10 @@
 
 NSE publishes one file per trading day after the close, on nsearchives (rule 1, owner-approved
 2026-10-17): a zip of one CSV with every traded security, its ISIN, open, high, low, close,
-previous close and volume. One request a day; no history is kept beyond what is loaded from
-then on (owner's choice). Rows are matched to companies by ISIN; market cap is the close times
-the shares outstanding from the latest results filing (paid-up equity capital / face value).
+previous close and volume. One request a day. Only the latest day is kept: each new file
+replaces the previous day's prices (owner's rule, 2026-10-18), and the day's change comes from the
+previous close the file carries. Rows are matched to companies by ISIN; market cap is the close
+times the shares outstanding from the latest results filing (paid-up equity capital / face value).
 """
 
 import csv
@@ -13,10 +14,12 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import Any, cast
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Price
@@ -173,11 +176,24 @@ def stored_for(session: Session, day: date) -> int:
     )
 
 
+def latest_stored(session: Session) -> date | None:
+    return session.scalar(select(func.max(Price.trade_date)))
+
+
 def load_day(session: Session, client: PoliteClient, day: date) -> dict[str, object]:
-    """Fetch and store one trading day's prices (skipped when already stored)."""
+    """Fetch one trading day's prices and make them the only ones stored: the previous day's
+    are replaced. Skipped when that day, or a later one, is already stored."""
     if stored_for(session, day):
         return {"day": day.isoformat(), "skipped": "already stored"}
+    newest = latest_stored(session)
+    if newest and newest > day:
+        return {"day": day.isoformat(), "skipped": f"a later close ({newest}) is stored"}
     rows = fetch(client, day)
     if rows is None:
         return {"day": day.isoformat(), "skipped": "no file (holiday, or not published yet)"}
-    return {"day": day.isoformat(), **store(session, rows)}
+    counts = store(session, rows)
+    # Only the latest close is kept, so a company missing from today's file (suspended, not
+    # traded) has no price rather than a stale one.
+    gone = cast("CursorResult[Any]", session.execute(delete(Price).where(Price.trade_date < day)))
+    replaced = gone.rowcount
+    return {"day": day.isoformat(), **counts, "replaced": replaced}

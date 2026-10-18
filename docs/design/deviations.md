@@ -1,18 +1,27 @@
 # Deviations from the Technical Design
 
-The current design is **v0.0.3** ([technical-design.md](technical-design.md); the formatted
-copy is `Analekh - Technical Design v0.0.3.docx`, the diagrams `Analekh - Architecture v0.0.3.pdf`).
+The current design is **v0.0.4** ([technical-design.md](technical-design.md); the formatted
+copy is `Analekh - Technical Design v0.0.4.docx`, the diagrams `Analekh - Architecture v0.0.4.pdf`).
 Record here every place the build departs from it, with the section number, what changed, why
 and when, and fold the list into the next version of the document.
 
 Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed, not decided
 
-## Since v0.0.3
+## Since v0.0.4
+
+| Design says | Now | Why | Date |
+|---|---|---|---|
+| (nothing yet) | | | |
+
+## Folded into v0.0.4 (18 October 2026)
+
+Everything below was a departure from v0.0.3 and is now part of v0.0.4, along with the NSE sector
+taxonomy, the welcome screen, prices on screen and the motion rule. Section numbers are v0.0.3's.
 
 | Design says | Now | Why | Date |
 |---|---|---|---|
 | NSE access on www.nseindia.com: the home page and the integrated-filing lookup only (3.2, 23; rule 1) | Also `/api/corporates-financial-results` (NSE's corporate financial-results list), queried per company with the usual honest headers. It lists results back to 2005, with XBRL from 2018 (TCS: 26 quarters, Sep 2018 to Dec 2024; ICICI Bank: 28), ending where integrated filings start. | Approved by the owner on 2026-10-15: 28 quarters and 7 years of annuals are needed to build a model; integrated filings only go back to March 2025. | 2026-10-15 |
-| Price source undecided (3.3): Stocks data type now, bhavcopy later | NSE's daily bhavcopy (nsearchives `/content/cm/`), ONE file per trading day after the close (`analekh prices`, beat `fetch-prices` 19:00-23:00 IST on weekdays, skipped once stored). Close, open, high, low and volume in `prices`, matched by ISIN; market cap = close x shares in issue (paid-up equity capital / face value from the latest results filing). No price history and no live prices. | Owner's decision 2026-10-17: free, end of day only; no money for a live feed. | 2026-10-17 |
+| Price source undecided (3.3): Stocks data type now, bhavcopy later | NSE's daily bhavcopy (nsearchives `/content/cm/`), ONE file per trading day after the close (`analekh prices`, beat `fetch-prices` 19:00-23:00 IST on weekdays, skipped once stored). Close, open, high, low and volume in `prices`, matched by ISIN; market cap = close x shares in issue (paid-up equity capital / face value from the latest results filing), plus the previous close for the day's change. Only the latest day is kept: each file replaces the previous day's prices. No live prices. | Owner's decision 2026-10-17: free, end of day only; no money for a live feed. Overwriting daily: owner's rule 2026-10-18 (storage). | 2026-10-17, 2026-10-18 |
 | Daily results watcher: ONE request a day without a ticker (9.3; rule 1) | ONE request every 2 hours (`RESULTS_WATCH_CRON=0 */2 * * *`). Locally a Windows scheduled task runs `analekh results-watch` every 2 hours until the scheduler (Redis, worker, beat) is deployed. | Owner's choice on 2026-10-16, for the September-quarter results season. | 2026-10-16 |
 | History back to 2018 (the financial-results list links XBRL from 2018) | History from **March 2023** only. NSE's older files (the `_WEB.xml` publications up to December 2022, and some early-2023 bank files) leave out the quarter, year-to-date and balance-sheet contexts that most values point to, so the basis and the main figures can't be placed. Such files are rejected and noted (`pipeline.IncompleteXbrl`), never half-stored; `_WEB` links in the list are not fetched. Rebuilding the missing contexts from the files' declared dates was offered and declined: it would bend rule 5 (contexts by dates, never by id). With integrated filings: about 15 quarters and 4 years of annuals (FY23-FY26). | Owner's decision, 2026-10-15 ("2023 is fine"). TCS and ICICI Bank had 69 + 4 half-read filings, removed. | 2026-10-15 |
 | (not specified) | A broken XBRL file (XML cut off partway) is fetched once more, then skipped and noted like a 404, instead of losing the company's other filings. | Laurus Labs lost all 14 filings to one broken file. | 2026-10-15 |

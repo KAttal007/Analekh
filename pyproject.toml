@@ -1,6 +1,6 @@
 [project]
 name = "analekh"
-version = "0.0.3"
+version = "0.0.4"
 description = "Analekh: the analyst's record, kept for you. NSE filings to validated numbers, approved model updates and grounded drafts."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -7,6 +7,8 @@
 import asyncio
 import base64
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -81,7 +83,15 @@ async def main(url: str, out: str) -> None:
                     fh.write(base64.b64decode(shot["data"]))
                 print("panel", i, round(w), round(h))
     finally:
-        proc.terminate()
+        # Edge starts child processes: stop the whole tree, then remove the throwaway profile
+        # (about 450 MB each), or every run leaves both behind.
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        else:
+            proc.terminate()
+        proc.wait(timeout=10)
+        time.sleep(1)
+        shutil.rmtree(profile, ignore_errors=True)
 
 
 asyncio.run(main(sys.argv[1], sys.argv[2]))

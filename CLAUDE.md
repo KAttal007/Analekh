@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository.
 
 Analekh (`analekh/`): any NSE-listed company in; validated XBRL facts, a built or updated Excel
 model (analyst-approved) and grounded research drafts out. Section numbers in comments (e.g.
-"design doc 12.3") refer to *Analekh Technical Design Document v0.0.3*
+"design doc 12.3") refer to *Analekh Technical Design Document v0.0.4*
 (`docs/design/technical-design.md`; the `.docx` and the architecture PDF are generated from it and
 `architecture.html` with `scripts/design_docx.py` and `scripts/diagram_panels.py`; earlier versions
 are kept as the record). Record every departure from it in `docs/design/deviations.md`.
@@ -89,7 +89,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    (`analekh results-watch`; owner's limit, once a day from 2026-10-14, every 2 hours from
    2026-10-16). NSE's daily bhavcopy on nsearchives (`/content/cm/BhavCopy_NSE_CM_…csv.zip`): ONE
    file per trading day after the close, for closing prices (`analekh prices`; approved by the owner
-   2026-10-17; no price history, no live prices).
+   2026-10-17; no live prices). Only the latest day's prices are kept: each file replaces the
+   previous day's (owner's rule, 2026-10-18).
    No other NSE website page or internal API: never widen
    `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
    never crawl pages. Requests identify as Analekh: never disguise them as a browser.

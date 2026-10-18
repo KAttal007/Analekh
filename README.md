@@ -9,7 +9,7 @@
   <img alt="PostgreSQL 16 + pgvector" src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
-  <img alt="v0.0.3" src="https://img.shields.io/badge/version-v0.0.3-informational">
+  <img alt="v0.0.4" src="https://img.shields.io/badge/version-v0.0.4-informational">
   <img alt="Phase 1 in progress" src="https://img.shields.io/badge/status-Phase%201%20in%20progress-orange">
 </p>
 
@@ -18,10 +18,10 @@ numbers, builds a model from your own template (or updates the model you already
 to Excel only after you approve, and drafts the results flash, earnings note, initiation, slides
 and comps with every number traced to its source.
 
-> **Design document:** *Analekh Technical Design Document v0.0.3*
+> **Design document:** *Analekh Technical Design Document v0.0.4*
 > ([docs/design/technical-design.md](docs/design/technical-design.md); formatted copy
-> `docs/design/Analekh - Technical Design v0.0.3.docx`, diagrams
-> `docs/design/Analekh - Architecture v0.0.3.pdf`). Section numbers in code comments (e.g.
+> `docs/design/Analekh - Technical Design v0.0.4.docx`, diagrams of every workflow
+> `docs/design/Analekh - Architecture v0.0.4.pdf`). Section numbers in code comments (e.g.
 > "design doc 12.3") refer to it; departures since are logged in
 > [docs/design/deviations.md](docs/design/deviations.md).
 >
@@ -69,18 +69,19 @@ flowchart LR
 
 ## Status
 
-**v0.0.3, status on 17 October 2026.** The data layer runs on real NSE data:
+**v0.0.4, status on 18 October 2026.** The data layer runs on real NSE data:
 
 | | |
 |---|---|
 | Companies in the universe | 3,186 (2,606 main board + 580 SME) |
-| Companies with results stored | **2,537** (backfills still finishing: S to Z, and the companies that gained a sector on 16 October) |
-| Results filings / values | **50,319 filings, 9.5 million values**, both bases |
-| History | From **March 2023** (NSE's older files are incomplete); 1,407 companies already have 14 or more quarters |
+| Companies with results stored | **2,748** (both backfills finished) |
+| Results filings / values | **54,242 filings, 10.1 million values**, both bases |
+| History | From **March 2023** (NSE's older files are incomplete); 1,567 companies have 14 or more quarters |
 | Blocked by a check | 14 filings (V2; see Next up) |
-| September 2026 quarter (Q2 FY27) | 113 companies reported so far, collected every 2 hours |
+| September 2026 quarter (Q2 FY27) | 109 companies reported by 17 October (watcher paused since) |
+| Daily prices | NSE's bhavcopy after each close; 16 October loaded (3,044 companies, 2,596 with market cap); only the latest day is kept |
 | Sectors | **NSE's own taxonomy** for 1,430 companies (22 sectors), LSEG groups for 1,587 (mapping to NSE names awaits the owner), none for 169 |
-| Storage | About 10 GB (PostgreSQL 5.1 GB, raw XBRL 4.1 GB) |
+| Storage | About 10.4 GB (PostgreSQL 5.9 GB, raw XBRL 4.5 GB) |
 
 Results come from NSE's integrated-filing lookup (the results feed stopped on 24 August 2026)
 and, for 2023-2024, its financial-results list. Banks, NBFCs, general insurers (reinsurers
@@ -96,18 +97,20 @@ The full picture is in design doc 26.1. In short:
 | Phase | Waiting on |
 |---|---|
 | 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test` |
-| 1 → v0.2.0 | Backfills finishing (history S-Z; results for the 559 companies that gained an NSE sector, then their history); the 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the scheduler on a server (the results watcher runs from a Windows scheduled task on the laptop for now; the feed watcher not at all) |
-| 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; a price source |
+| 1 → v0.2.0 | The 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the scheduler on a server (the results watcher runs from a Windows scheduled task on the laptop for now; the feed watcher not at all) |
+| 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; debt and cash for EV-based valuation |
 | 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
-| 5 | A price source for comps; hosting in an Indian region with a login |
+| 5 | Hosting in an Indian region with a login (Oracle and Azure for Students fell through; design doc 22.7) |
 
 ### Next up
 
-1. **Finish the backfills:** history for S-Z (running), results for the newly sectored
-   companies (running), then history for the newly sectored companies before "S".
-2. **Hosting on Oracle Cloud** (Always Free Arm VM, Mumbai): account, VM, then one honest NSE
-   request from it to see whether NSE serves cloud addresses; then the stack, the data (dump, not
-   re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler moved off the laptop.
+1. **Results watcher by season:** poll every 2 hours from 09:00 to 23:00 during SEBI's four
+   results windows and once a day otherwise (design doc 9.6), then re-enable the watcher and the
+   price job (both paused).
+2. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
+   home machine with Cloudflare Tunnel; one honest NSE request from it first; then the stack, the
+   data (dump, not re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler
+   moved off the laptop.
 3. **The 14 blocked filings** (V2: L&T, KIMS, MT Educare, four SME companies): likely one P&L line
    V2 doesn't include yet (share of associates or joint ventures), as with GIC Re's transfer to
    reserves.
@@ -120,9 +123,9 @@ The full picture is in design doc 26.1. In short:
    off the quote page for covered companies.
 
 Decisions waiting on the owner: the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
-bank presentation and calculations (owner's walkthrough); hosting details (domain, login);
+bank presentation and calculations (owner's walkthrough); hosting (provider, domain, login); the logo;
 investor presentations through NSE's announcements list; the 250 BSE-only filers (manual import
-or a tooltip); the price source; the Anthropic API key.
+or a tooltip); the Anthropic API key.
 
 ### Tracker
 
@@ -145,7 +148,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
 | V2 exceptional-items sign convention | ✅ | Tagged with their sign (a charge is negative) and added: Tata Elxsi Q3 FY26 labour-code charge |
-| Daily prices | ✅ | NSE's bhavcopy after each close (`analekh prices`; rule 1 amended 2026-10-17): close, previous close, open, high, low, volume, market cap (close x shares in issue from the results filing). Shown on the company page (share price, day's change, market cap) and as a sortable market-cap column on the Results desk; `GET /companies/{symbol}/price`. No history, no live prices |
+| Daily prices | ✅ | NSE's bhavcopy after each close (`analekh prices`; rule 1 amended 2026-10-17): close, previous close, open, high, low, volume, market cap (close x shares in issue from the results filing). Shown on the company page (share price, day's change, market cap) and as a sortable market-cap column on the Results desk; `GET /companies/{symbol}/price`. Only the latest close is kept: each day's file replaces the previous day's (owner's rule, 2026-10-18). No live prices |
 
 #### Phase 1 · Data layer
 
@@ -215,10 +218,10 @@ Keep these tables current in the same merge request as the change, and add a lin
 |---|:---:|---|
 | GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
-| Hosting (Oracle Cloud Always Free, Mumbai) | 🔲 | Walkthrough started 2026-10-16; first test: does NSE serve the VM's address? Arm VM, so images build on the server |
+| Hosting in India | ⛔ | Oracle Cloud charged the card without creating an account; Azure for Students couldn't verify the student ID. Next: GitHub Education route or a home server with Cloudflare Tunnel; first test: does NSE serve the server's address? |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0005`; 118 Python and 15 web tests run locally, none skipped. A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
-| Design documents | ✅ | v0.0.3 Markdown, Word copy and architecture PDF; `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
+| Design documents | ✅ | v0.0.4 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |
@@ -229,6 +232,18 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-18** v0.0.4: design document and architecture brought up to date, with a diagram for
+  every workflow, built or planned (results, prices, sectors, reading results, model update,
+  start coverage, templates, documents and drafts, events and alerts), the job schedule and the
+  hosting plan. The Word copy puts each diagram on its own landscape page. Code version 0.0.4.
+- **2026-10-18** Daily prices keep only the latest close: each bhavcopy replaces the previous day
+  (owner's rule, for storage). A check of NSE's two lookups for 24 companies: NSE shows a filing
+  about a second after it is filed, and every first filing since 2023 fell inside SEBI's windows,
+  which supports polling by season.
+- **2026-10-17** Prices on screen: share price and market cap on the company page, a market-cap
+  column and sort on the desk, `GET /companies/{symbol}/price`; previous close stored (migration
+  0005). A welcome screen opens each session; tabs and switches glide; data stays fresh for five
+  minutes instead of reloading on every tab. Filings box scrolls inside its card.
 - **2026-10-17** Results for the 559 companies that gained an NSE sector (539 SME, through NSE's
   SME index) are being fetched; they were outside the first backfill. The results watcher runs
   every 2 hours from a Windows scheduled task; 113 companies have reported the September quarter.

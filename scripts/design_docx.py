@@ -1,13 +1,15 @@
 """Build the formatted design document (.docx) from docs/design/technical-design.md, using the
 previous version's Word file as the template: its styles, list numbering, title block, table look
 and the landscape section around Figure 1. Figures are the diagram panels of architecture.html
-(scripts/diagram_panels.py writes panel1..3.png). Headers and footers get the new version number.
+(scripts/diagram_panels.py writes panel1..N.png); each one gets a landscape page, with the heading
+just above it when there is one. Numbered lists ("1. ...") restart at 1. Headers and footers get
+the new version number.
 
     uv run python scripts/diagram_panels.py file:///.../docs/design/architecture.html out/figs
     uv run python scripts/design_docx.py "docs/design/<previous>.docx"
         docs/design/technical-design.md "docs/design/<new>.docx" out/figs   (one command)
 
-Bump the "0.0.2" -> "0.0.3" replacement and the core properties for the next version.
+Bump OLD and NEW below (and the template argument) for the next version.
 """
 
 import copy
@@ -22,6 +24,7 @@ from docx.oxml.ns import qn
 from docx.shared import Emu
 
 TEMPLATE, MARKDOWN, OUT, FIGS = sys.argv[1:5]
+OLD, NEW = "0.0.3", "0.0.4"  # the template's version, this document's
 
 d = docx.Document(TEMPLATE)
 body = d.element.body
@@ -166,6 +169,29 @@ def heading(level, text, page_break=True):
     p.append(pp)
     p.append(run(text))
     add(p)
+
+
+numbering = d.part.numbering_part.element
+_base = next(n for n in numbering.findall(qn("w:num")) if n.get(qn("w:numId")) == "4")
+NUMBERED_ABSTRACT = _base.find(qn("w:abstractNumId")).get(qn("w:val"))
+
+
+def new_numbered_list():
+    """A fresh numbering instance of the numbered-list style, starting again at 1."""
+    nid = str(max(int(n.get(qn("w:numId"))) for n in numbering.findall(qn("w:num"))) + 1)
+    num = OxmlElement("w:num")
+    num.set(qn("w:numId"), nid)
+    ab = OxmlElement("w:abstractNumId")
+    ab.set(qn("w:val"), NUMBERED_ABSTRACT)
+    num.append(ab)
+    lo = OxmlElement("w:lvlOverride")
+    lo.set(qn("w:ilvl"), "0")
+    so = OxmlElement("w:startOverride")
+    so.set(qn("w:val"), "1")
+    lo.append(so)
+    num.append(lo)
+    numbering.append(num)
+    return nid
 
 
 def list_item(text, num_id):
@@ -341,6 +367,15 @@ i += 1
 figure_n = 0
 in_contents = False
 after_break = False
+landscape_open = False  # a landscape section was opened for the next figure
+
+
+def next_line(j):
+    while j < len(lines) and not lines[j].strip():
+        j += 1
+    return lines[j].strip() if j < len(lines) else ""
+
+
 while i < len(lines):
     line = lines[i]
     s = line.strip()
@@ -371,10 +406,19 @@ while i < len(lines):
         if text.startswith("5. System architecture"):
             section_break(portrait_break)  # the architecture chapter opens a landscape section
             after_break = True
+        elif next_line(i + 1).startswith("*Figure"):
+            section_break(portrait_break)  # the heading goes on its figure's landscape page
+            after_break = landscape_open = True
         heading(level, text, page_break=not after_break)
         after_break = False
         in_contents = text == "Contents"
         i += 1
+        continue
+    if re.match(r"^\d+\. ", s):
+        num_id = new_numbered_list()
+        while i < len(lines) and re.match(r"^\d+\. ", lines[i].strip()):
+            list_item(re.sub(r"^\d+\.\s+", "", lines[i].strip()), num_id)
+            i += 1
         continue
     if s.startswith("- "):
         first = re.sub(r"[*`]", "", s[2:])
@@ -395,8 +439,12 @@ while i < len(lines):
             section_break(landscape_break)
             after_break = True
         else:
-            figure(f"{FIGS}/panel{figure_n}.png", 5734050)
+            if not landscape_open:
+                section_break(portrait_break)
+            figure(f"{FIGS}/panel{figure_n}.png", 8591550)
             caption(s)
+            section_break(landscape_break)
+            after_break, landscape_open = True, False
         i += 1
         continue
     # Ordinary paragraph: join wrapped lines until a blank line or a block start.
@@ -405,7 +453,7 @@ while i < len(lines):
     while (
         i < len(lines)
         and lines[i].strip()
-        and not re.match(r"^(#|\||- |```|\*Figure)", lines[i].strip())
+        and not re.match(r"^(#|\||- |```|\*Figure|\d+\. )", lines[i].strip())
     ):
         para.append(lines[i].strip())
         i += 1
@@ -415,13 +463,13 @@ while i < len(lines):
 for sec in d.sections:
     for part in (sec.footer, sec.header, sec.first_page_footer, sec.first_page_header):
         for t in part._element.iter(qn("w:t")):
-            if t.text and "0.0.2" in t.text:
-                t.text = t.text.replace("0.0.2", "0.0.3")
+            if t.text and OLD in t.text:
+                t.text = t.text.replace(OLD, NEW)
 
 # Core properties
 cp = d.core_properties
 cp.title = "Analekh Technical Design Document"
-cp.subject = "Version 0.0.3"
+cp.subject = f"Version {NEW}"
 cp.author = "Kaushal Attal"
 d.save(OUT)
 print("saved", OUT)
