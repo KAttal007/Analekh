@@ -236,7 +236,7 @@ Design rule: poll published RSS feeds at their stated refresh interval and fetch
 Prices feed market cap, comps, the profile slide and valuation pages. Decided on 17 October 2026: end of day only, from NSE's bhavcopy; no live feed (no budget for one) and no price history.
 
 - **Source.** NSE's daily bhavcopy (section 3.1): ONE file per trading day, fetched after the close (analekh prices; section 9.5). Equity series only (EQ, BE, BZ on the main board; SM, ST, SZ on SME), one row per ISIN, the main series first.
-- **What is stored.** For each company the file matches by ISIN: trade date, open, high, low, close, previous close and volume, and a market cap: the close times the shares in issue, worked out from the latest results filing (paid-up equity capital divided by face value). On 16 October 2026, 3,044 companies matched and 2,596 had a share count; Reliance came to Rs 16,39,117 crore.
+- **What is stored.** For each company the file matches by ISIN: trade date, open, high, low, close, previous close and volume, and a market cap: the close times the shares in issue, worked out as paid-up equity capital from the results filings divided by the face value in NSE's equity list. Filed face values are unreliable (tagged as 0, as the capital itself, or from before a split), and some filers tag paid-up capital 1,000 to 1,00,000 times too large, so: when the latest quarter and the one before differ by more than 50 times, the smaller is used; capital above 100 times total assets is ignored (Ind-AS and banks); a market cap above Rs 30 lakh crore is not shown. The results watcher recomputes market caps when new filings arrive (analekh prices --recompute does it by hand). On 16 October 2026, 3,044 companies matched and 2,624 had a market cap; Reliance came to Rs 16,39,117 crore.
 - **Only the latest day** (owner's rule, 18 October 2026). Each new file replaces the previous day's prices; the day's change comes from the previous close in the same file. A company missing from the day's file (suspended, not traded) has no price rather than a stale one. An older day is never loaded over a newer one.
 - **In Excel.** An analyst's workbook can still show a delayed price with the Stocks data type (=FIELDVALUE(cell,"Price")) on Microsoft 365; it stays in that workbook.
 - **Not used:** Kite Connect (INR 2,000 a month), live quotes, and any NSE website page or internal API.
@@ -339,7 +339,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 3. **It skips** if that day, or a later one, is already stored; no request is made.
 4. **ONE request** fetches the bhavcopy from nsearchives; 404 means a holiday or not published yet.
 5. **The file is parsed:** equity series only, one row per ISIN, the main series first.
-6. **Companies are matched by ISIN**; shares in issue come from the latest results filing (paid-up equity capital divided by face value) and market cap is the close times the shares.
+6. **Companies are matched by ISIN**; shares in issue are paid-up equity capital from the results filings divided by the face value in NSE's equity list (with the guards above) and market cap is the close times the shares.
 7. **Today's rows are upserted and every older day deleted:** the table holds one day, about 3,000 rows.
 8. **Read by** GET /companies/{symbol}/price, the company page's share price and market cap tiles, the desk's market-cap column and sort, and the comps export; the AI's get_prices tool will use it in Phase 4.
 
@@ -865,7 +865,7 @@ Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense
 
 #### 19.3 Developer and operator interfaces
 
-- CLI: analekh universe load, analekh universe sectors [--stocks-file], analekh search, analekh watch, analekh refresh, analekh backfill, analekh results-backfill, analekh results-watch, analekh prices, analekh revalidate, analekh recompute-latest, analekh transcribe-audio, analekh template add, analekh build, analekh sync, analekh golden-test.
+- CLI: analekh universe load, analekh universe sectors [--stocks-file], analekh search, analekh watch, analekh refresh, analekh backfill, analekh results-backfill, analekh results-watch, analekh prices, analekh revalidate, analekh recompute-latest, analekh transcribe-audio, analekh template add, analekh build, analekh sync, analekh golden-sheet, analekh golden-import, analekh golden-test.
 - Swagger at /docs for every endpoint.
 - Internal Streamlit admin: feed health, failed jobs, validation failures, token spend.
 
@@ -1047,7 +1047,7 @@ GitLab (Free tier) is the single source of truth. GitHub hosts a read-only publi
 
 | **Test** | **Approach and target** |
 |---|---|
-| Golden set | 20 filings across sectors and every results format (Ind-AS standalone and consolidated, bank, NBFC, general insurer, life insurer) with hand-checked values. |
+| Golden set | 20 filings across sectors and every results format (Ind-AS standalone and consolidated, bank, NBFC, general insurer, life insurer) with hand-checked values. analekh golden-sheet copies their XBRL from storage and writes a worksheet (each line, Analekh's value, the results PDF link); the analyst marks every line against the PDF; analekh golden-import writes the manifest. Lines are resolved through the element tables, so the mapping is tested, not only the parser. A line Analekh cannot find stays on the sheet for the PDF's figure. |
 | Results views | Revisions: a revision downloaded before its original must still be the value in use; the popup lists old and new values. Layout: no cell or page overflows at 390, 1,366 and 2,000 pixels (measured in a headless browser). |
 | XBRL parsing | 100% exact match on mapped elements. |
 | KPI extraction | 95% or better precision with correct pages. |
@@ -1114,6 +1114,13 @@ Ordered by value:
 - **Sector editing screen** and the LSEG-to-NSE mapping.
 
 Decisions waiting on the owner: the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide); how banks are presented and calculated (the owner's walkthrough); hosting details (provider, domain, login); investor presentations through NSE's announcements list (section 28); the 250 BSE-only filers (manual import, or a note that NSE has no data); the logo; the Anthropic API key.
+
+#### 26.3 Future scope (after v1)
+
+Left out of v1 by the owner's choice, for a later release with paid data:
+
+- **Live and intraday prices** through a paid market-data API (Kite Connect or similar), in place of the end-of-day bhavcopy (section 3.3).
+- **NSE's finer classification** (industry and basic industry, such as Gems, Jewellery and Watches under Consumer Durables) for every company. NSE publishes only the 22 sectors in its index lists, and its per-company classification is not open to Analekh (section 4.2); setting thousands by hand is not worth it (owner, 18 October 2026). A licensed data feed would supply it.
 
 Versions follow the build phases: v0.0.x while Phase 0 is under way, v0.1.x once Phase 0 is complete, v0.2.x once Phase 1 is complete, and so on (the middle number counts completed phases; the last counts revisions within a phase). The first release for proper testing is v1.0.0-pre-release. This document and the code are at v0.0.4.
 

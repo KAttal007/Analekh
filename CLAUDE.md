@@ -71,7 +71,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 - `genai/` Claude client (token logging, refusal fallbacks), tools (incl. `ModelReader`), calc,
   grounding check, report loop (flash, note, initiation), Q&A, Word/PowerPoint writers.
 - `ib/` comps, profile slide, pitch refresh. `alerts/`. Daily prices: `ingest/bhavcopy.py`
-  (NSE's bhavcopy after each close; market cap = close x shares from the latest results filing).
+  (NSE's bhavcopy after each close; market cap = close x paid-up capital from the results filings / face value from NSE's equity
+  list, with guards for tagging errors; `analekh prices --recompute` redoes it without a download).
 - `api/` FastAPI app with routers (design doc 20). `jobs/` Celery app, beat schedule, tasks.
   `cli.py` typer CLI. `admin/` Streamlit ops dashboard. `golden.py` golden-set runner.
 - `web/` React + TypeScript (types generated from OpenAPI). `office-addin/` Excel task pane.
@@ -116,9 +117,10 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 - `universe/loader.py`: SME list path unconfirmed. `universe/sectors.py`: index list file names
   and columns checked against niftyindices.com on 2026-10-16 (the importer has not been run);
   `data/sector_map.csv` holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
-- Test fixtures (`tests/xbrl_factory.py`, built-in templates) are SYNTHETIC. Put real files
-  under `tests/fixtures/golden/` (gitignored unless licensing is clear) with a `manifest.yaml`
-  and run `uv run analekh golden-test`.
+- Test fixtures (`tests/xbrl_factory.py`, built-in templates) are SYNTHETIC. The golden set
+  of real filings lives in `tests/fixtures/golden/` (gitignored): `uv run analekh golden-sheet`
+  (20 filings' XBRL from storage plus a worksheet), the owner marks it against the results PDFs,
+  then `uv run analekh golden-import` (writes `manifest.yaml`) and `uv run analekh golden-test`.
 - `templates_builtin/specs.py`: P&L and KPIs only; balance sheet and cash flow need annual
   backfill.
 - `docs/pipeline.py`: V10 not wired; embeddings provider undecided (open question 28.7).

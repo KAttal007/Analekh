@@ -3,10 +3,10 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from analekh import coverage
-from analekh.db.models import Company
+from analekh.db.models import Company, Watchlist
 from analekh.ingest.http import PoliteClient
 from analekh.universe import sectors
 from analekh.universe.loader import parse_equity_list, upsert_universe
@@ -37,6 +37,34 @@ def test_parse_equity_list_handles_both_header_styles():
     assert demo.listing_date == date(2012, 1, 5) and demo.face_value == Decimal("10")
     sme = rows[-1]
     assert sme.symbol == "TINYSME" and sme.is_sme and sme.listing_date == date(2024, 8, 12)
+
+
+def test_sector_worksheet_applies_only_confirmed_nse_sectors(db, tmp_path):
+    from openpyxl import Workbook
+
+    upsert_universe(db, parse_equity_list(EQUITY_L))
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Symbol", "Company", "Sector", "Confidence", "Confirmed"])
+    ws.append(["DEMOFIN", "Demo Finance", "Financial Services", "High", "Yes"])
+    ws.append(["ACMEIND", "Acme Industries", "Capital Goods", "Low", None])  # not reviewed
+    ws.append(["OLDCO", "Old Company", "Widgets", "Low", "Yes"])  # not one of NSE's sectors
+    wb.save(tmp_path / "sectors.xlsx")
+    map_path = tmp_path / "sector_map.csv"
+
+    r = sectors.import_sector_worksheet(db, tmp_path / "sectors.xlsx", map_path)
+    assert r == {"rows": 3, "confirmed": 2, "not_an_nse_sector": 1, "updated": 1}
+    demo, acme = (
+        db.scalar(select(Company).where(Company.nse_symbol == s)) for s in ("DEMOFIN", "ACMEIND")
+    )
+    assert (demo.sector, demo.sector_source) == ("Financial Services", "user")
+    assert acme.sector is None
+    assert sectors.load_sector_map(map_path) == {"DEMOFIN": ("Financial Services", None)}
+
+
+def test_rights_entitlements_are_not_companies():
+    data = EQUITY_L + b"DEMOFIN-RE,Demo Finance Limited-RE,BE,12-Oct-2026,10,1,INE000D20011,10\n"
+    assert "DEMOFIN-RE" not in {r.symbol for r in parse_equity_list(data)}
 
 
 def test_upsert_by_isin_renames_and_deactivates(db):
@@ -127,6 +155,7 @@ def test_sector_map_and_taxonomy(db):
 
 
 def test_watchlist_controls_coverage_level(db):
+    db.execute(delete(Watchlist))  # the owner's own watchlist, in a rolled-back transaction
     upsert_universe(db, parse_equity_list(EQUITY_L))
     demo = db.scalar(select(Company).where(Company.nse_symbol == "DEMOFIN"))
     assert coverage.level(db, demo) == "universe"

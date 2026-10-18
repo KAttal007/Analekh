@@ -8,6 +8,7 @@ inactive, never deleted.
 
 import csv
 import io
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
@@ -25,6 +26,7 @@ log = structlog.get_logger()
 EQUITY_LIST_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
 # PHASE 0: confirm the SME list's published path and columns on nsearchives.
 SME_LIST_URL = "https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv"
+RIGHTS_ENTITLEMENT = re.compile(r"-RE\d*$")
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,9 @@ def parse_equity_list(data: bytes, is_sme: bool = False) -> list[ListedCompany]:
     for raw in csv.DictReader(io.StringIO(text)):
         row = {_norm_header(k): (v or "").strip() for k, v in raw.items() if k}
         symbol = row.get("SYMBOL", "").upper()
-        if not symbol:
+        # Rights entitlements trade for a few weeks as SYMBOL-RE (NATCO-RE, October 2026): the
+        # right to buy shares in a rights issue, not a company.
+        if not symbol or RIGHTS_ENTITLEMENT.search(symbol):
             continue
         rows.append(
             ListedCompany(

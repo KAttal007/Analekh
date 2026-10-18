@@ -142,7 +142,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Contexts with the same dates but different values | 🔲 | Seen in a real filing (`OneD` vs `FourD`); parser keeps the first value; decide how to flag |
 | Hand-check of spike values against the results PDF | 🔲 | 10 values per file |
 | V2 exceptional-items sign convention | ✅ | Tagged with their sign (a charge is negative) and added: Tata Elxsi Q3 FY26 labour-code charge |
-| Daily prices | ✅ | NSE's bhavcopy after each close (`analekh prices`; rule 1 amended 2026-10-17): close, previous close, open, high, low, volume, market cap (close x shares in issue from the results filing). Shown on the company page (share price, day's change, market cap) and as a sortable market-cap column on the Results desk; `GET /companies/{symbol}/price`. Only the latest close is kept: each day's file replaces the previous day's (owner's rule, 2026-10-18). No live prices |
+| Daily prices | ✅ | NSE's bhavcopy after each close (`analekh prices`; rule 1 amended 2026-10-17): close, previous close, open, high, low, volume, market cap (close x shares in issue: paid-up capital from the results filings / face value from NSE's equity list, with guards for tagging errors; recomputed when new filings arrive). Shown on the company page (share price, day's change, market cap) and as a sortable market-cap column on the Results desk; `GET /companies/{symbol}/price`. Only the latest close is kept: each day's file replaces the previous day's (owner's rule, 2026-10-18). No live prices |
 
 #### Phase 1 · Data layer
 

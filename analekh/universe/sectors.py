@@ -104,6 +104,50 @@ def load_sector_map(path: Path = SECTOR_MAP) -> Mapping:
         }
 
 
+def save_sector_map(mapping: Mapping, path: Path = SECTOR_MAP) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        out = csv.writer(fh)
+        out.writerow(["symbol", "sector", "industry"])
+        for symbol in sorted(mapping):
+            sector, industry = mapping[symbol]
+            out.writerow([symbol, sector, industry or ""])
+
+
+def import_sector_worksheet(
+    session: Session, path: Path, map_path: Path = SECTOR_MAP
+) -> dict[str, int]:
+    """The analyst's sectors from a worksheet (Symbol, Sector and Confirmed columns): rows
+    confirmed with "Yes" and naming one of NSE's sectors are merged into the curated map and
+    applied as the user's own, which no other source replaces. Nothing is downloaded."""
+    ws = load_workbook(path, data_only=True, read_only=True).worksheets[0]
+    rows = ws.iter_rows(values_only=True)
+    header = [" ".join(str(h or "").split()).lower() for h in next(rows)]
+    missing = {"symbol", "sector", "confirmed"} - set(header)
+    if missing:
+        raise ValueError(f"{path.name}: needs Symbol, Sector and Confirmed columns, found {header}")
+    i_symbol, i_sector, i_ok = (header.index(c) for c in ("symbol", "sector", "confirmed"))
+    confirmed: Mapping = {}
+    counts = {"rows": 0, "confirmed": 0, "not_an_nse_sector": 0}
+    for row in rows:
+        symbol = str(row[i_symbol] or "").strip().upper()
+        if not symbol:
+            continue
+        counts["rows"] += 1
+        if str(row[i_ok] or "").strip().lower() != "yes":
+            continue
+        counts["confirmed"] += 1
+        sector = str(row[i_sector] or "").strip()
+        if sector not in NSE_SECTORS:
+            counts["not_an_nse_sector"] += 1
+            continue
+        confirmed[symbol] = (sector, None)
+    curated = load_sector_map(map_path) | confirmed
+    save_sector_map(curated, map_path)
+    counts["updated"] = apply_sectors(session, confirmed, source="user")
+    return counts
+
+
 def parse_constituents(data: bytes) -> Mapping:
     """Symbol -> (sector, None) from a constituent list.
 

@@ -5,12 +5,14 @@ NSE publishes one file per trading day after the close, on nsearchives (rule 1, 
 previous close and volume. One request a day. Only the latest day is kept: each new file
 replaces the previous day's prices (owner's rule, 2026-10-18), and the day's change comes from the
 previous close the file carries. Rows are matched to companies by ISIN; market cap is the close
-times the shares outstanding from the latest results filing (paid-up equity capital / face value).
+times the shares outstanding: paid-up equity capital from the latest results filing / the face
+value in NSE's equity list. The results watcher recomputes it when new filings arrive.
 """
 
 import csv
 import io
 import zipfile
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -96,32 +98,111 @@ def fetch(client: PoliteClient, day: date) -> list[BhavRow] | None:
     return parse(data)
 
 
+# Paid-up equity capital in the Ind-AS, IRDAI general and IRDAI life formats (banks use the first).
+PAID_UP = ("PaidUpValueOfEquityShareCapital", "PaidUpEquityCapital", "PaidUpEquityShareCapital")
+FACE_VALUE = "FaceValueOfEquityShareCapital"
+ASSETS = "Assets"  # total assets for Ind-AS filers and banks; not in the insurers' formats
+INSURERS = ("insurance", "life_insurance")
+# Above the largest Indian company: a market cap past this comes from a bad filing, so none is
+# shown rather than a wrong one.
+MAX_MARKET_CAP = Decimal("30e12")  # ₹30 lakh crore
+ASSETS_MULTIPLE = 100  # paid-up capital above this many times total assets is a tagging error
+JUMP = 50  # bonus and rights issues never move paid-up capital this far in a quarter
+
+
+def paid_up_capital(history: list[tuple[date, Decimal]], assets: Decimal | None) -> Decimal | None:
+    """The paid-up capital to use from a company's filed values (period end, value).
+
+    Filers sometimes tag it 1,000 to 1,00,000 times too large: in the latest quarter (Steelcast,
+    CMR Green, Orient Bell, June 2026) or the earlier ones (Taurian, Lloyds). The errors only ever
+    go up, so when the latest quarter and the one before differ by more than JUMP times, the
+    smaller is used. A company whose every value is wrong (Vishwas: ₹10 lakh crore) is caught by
+    its total assets: heavily loss-making companies carry capital above their assets, but not
+    ASSETS_MULTIPLE times (GTL Infra and TTML: 20 times at most). A quarter filed twice
+    (standalone, consolidated) with different values uses the larger."""
+    by_period: dict[date, Decimal] = {}
+    for end, value in history:
+        if assets is not None and value > assets * ASSETS_MULTIPLE:
+            continue
+        by_period[end] = max(value, by_period.get(end, value))
+    ordered = [by_period[end] for end in sorted(by_period, reverse=True)]
+    if not ordered:
+        return None
+    latest = ordered[0]
+    if len(ordered) > 1 and not ordered[1] / JUMP <= latest <= ordered[1] * JUMP:
+        return min(latest, ordered[1])
+    return latest
+
+
 def shares_outstanding(session: Session, company_ids: list[int]) -> dict[int, Decimal]:
-    """Shares in issue from each company's latest results filing: paid-up equity capital divided
-    by face value (both filed in rupees)."""
-    out: dict[int, Decimal] = {}
-    latest: dict[tuple[int, str], tuple[date, Decimal]] = {}
+    """Shares in issue: paid-up equity capital from each company's results filings divided by the
+    face value in NSE's equity list. The filed face value is a fallback only: filers tag it as 0
+    (Honasa), as their capital (Bharti Airtel: 19,13,672) or from before a split, while the list is
+    current, as the price is. (Insurers' NumberOfShares is no better: New India, 2,400.)"""
+    face: dict[int, Decimal] = {}
+    insurers: set[int] = set()
+    for cid, value, taxonomy in session.execute(
+        select(Company.id, Company.face_value, Company.results_taxonomy).where(
+            Company.id.in_(company_ids)
+        )
+    ):
+        if value:
+            face[cid] = value
+        if taxonomy in INSURERS:
+            insurers.add(cid)
+    paid_up: dict[int, list[tuple[date, Decimal]]] = defaultdict(list)
+    filed_face: dict[int, tuple[date, Decimal]] = {}
     rows = session.execute(
         select(Fact.company_id, Fact.element, Fact.period_end, Fact.value).where(
             Fact.company_id.in_(company_ids),
             Fact.is_latest,
             Fact.dimensions == {},
-            Fact.element.in_(("PaidUpValueOfEquityShareCapital", "FaceValueOfEquityShareCapital")),
+            Fact.element.in_((*PAID_UP, FACE_VALUE, ASSETS)),
         )
     )
+    assets: dict[int, tuple[date, Decimal]] = {}
     for cid, element, end, value in rows:
-        if value is None:
+        if not value or value < 0:
             continue
-        have = latest.get((cid, element))
-        if have is None or end > have[0]:
-            latest[(cid, element)] = (end, value)
-    for (cid, element), (_, paid_up) in latest.items():
-        if element != "PaidUpValueOfEquityShareCapital":
-            continue
-        face = latest.get((cid, "FaceValueOfEquityShareCapital"))
-        if face and face[1] > 0:
-            out[cid] = paid_up / face[1]
+        if element == ASSETS:
+            if cid not in insurers and (cid not in assets or end > assets[cid][0]):
+                assets[cid] = (end, value)
+        elif element != FACE_VALUE:
+            paid_up[cid].append((end, value))
+        elif cid not in filed_face or end > filed_face[cid][0]:
+            filed_face[cid] = (end, value)
+    out: dict[int, Decimal] = {}
+    for cid, history in paid_up.items():
+        capital = paid_up_capital(history, assets.get(cid, (None, None))[1])
+        per_share = face.get(cid) or filed_face.get(cid, (None, None))[1]
+        if capital and per_share:
+            out[cid] = capital / per_share
     return out
+
+
+def market_cap(close: Decimal | None, shares: Decimal | None) -> Decimal | None:
+    if close is None or shares is None:
+        return None
+    cap = (close * shares).quantize(Decimal("0.01"))
+    return cap if cap <= MAX_MARKET_CAP else None
+
+
+def recompute_market_caps(session: Session) -> dict[str, int]:
+    """Market caps of the stored prices from the current share counts, without downloading: after
+    new results filings, or a change to how shares are counted."""
+    prices = session.scalars(select(Price)).all()
+    shares = shares_outstanding(session, [p.company_id for p in prices])
+    changed = 0
+    for p in prices:
+        cap = market_cap(p.close, shares.get(p.company_id))
+        if cap != p.market_cap:
+            p.market_cap = cap
+            changed += 1
+    return {
+        "prices": len(prices),
+        "with_market_cap": sum(p.market_cap is not None for p in prices),
+        "changed": changed,
+    }
 
 
 def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
@@ -138,7 +219,6 @@ def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
         if isin is None:
             continue
         r = by_isin[isin]
-        cap = r.close * shares[cid] if r.close is not None and cid in shares else None
         values.append(
             {
                 "company_id": cid,
@@ -149,7 +229,7 @@ def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
                 "close": r.close,
                 "prev_close": r.prev_close,
                 "volume": r.volume,
-                "market_cap": cap.quantize(Decimal("0.01")) if cap is not None else None,
+                "market_cap": market_cap(r.close, shares.get(cid)),
             }
         )
     if values:

@@ -9,7 +9,14 @@ import httpx
 from sqlalchemy import delete, select
 
 from analekh.db.models import Company, Price
-from analekh.ingest.bhavcopy import fetch, load_day, parse
+from analekh.ingest.bhavcopy import (
+    fetch,
+    load_day,
+    market_cap,
+    paid_up_capital,
+    parse,
+    recompute_market_caps,
+)
 from analekh.ingest.http import PoliteClient
 from analekh.ingest.pipeline import ingest_results_xbrl
 from analekh.jobs.tasks import last_close_day
@@ -90,6 +97,58 @@ def test_store_matches_by_isin_and_works_out_market_cap(db, store):
     # An older day never replaces a newer one, and isn't even fetched.
     assert load_day(db, client, date(2020, 1, 1))["skipped"].startswith("a later close")
     assert fetch(client, date(2020, 1, 6)) is None
+
+
+CR = 10_000_000  # one crore rupees
+
+
+def test_paid_up_capital_survives_the_tagging_errors_seen_in_filings():
+    jun, mar, dec = date(2026, 6, 30), date(2026, 3, 31), date(2025, 12, 31)
+    assets = Decimal(460 * CR)
+    # Steelcast: June tagged 1,00,000 times too large; March filed twice (1.01 and 10.12 crore).
+    steelcast = [
+        (jun, Decimal(1_012_000 * CR)),
+        (mar, Decimal(1_010_000)),
+        (mar, Decimal(101_200_000)),
+    ]
+    assert paid_up_capital(steelcast, assets) == Decimal(101_200_000)
+    # Taurian: the latest quarter is right and the one before is the error.
+    taurian = [(mar, Decimal("8.88") * CR), (dec, Decimal(88_832 * CR))]
+    assert paid_up_capital(taurian, None) == Decimal("8.88") * CR
+    # A genuine change (a bonus issue doubles the capital) is taken as filed.
+    assert paid_up_capital([(jun, Decimal(20 * CR)), (mar, Decimal(10 * CR))], assets) == 20 * CR
+    # Every quarter wrong: out of all proportion to total assets, so no capital at all...
+    assert paid_up_capital([(jun, Decimal(1_000_000 * CR))], Decimal(113 * CR)) is None
+    # ...while a loss-making company's capital may exceed its assets (TTML: about 16 times).
+    assert paid_up_capital([(jun, Decimal(19_549 * CR))], Decimal(1_200 * CR)) == 19_549 * CR
+
+
+def test_market_cap_uses_the_listed_face_value_and_is_recomputed_without_a_download(db, store):
+    airtel = Company(nse_symbol="AIRTELX", name="Airtel X", isin="INE000A01011", face_value=5)
+    db.add(airtel)
+    db.flush()
+    db.execute(delete(Price))
+    db.add(Price(company_id=airtel.id, trade_date=date(2020, 1, 3), close=Decimal(1905)))
+    db.flush()
+    assert recompute_market_caps(db)["with_market_cap"] == 0  # no results filing yet
+    # As Bharti Airtel files: face value tagged as 19,13,672 instead of 5.
+    q = pnl(1_000_000_000, 0, 800_000_000, 50_000_000)
+    q |= {"PaidUpValueOfEquityShareCapital": 3_000 * CR, "FaceValueOfEquityShareCapital": 1913672}
+    ingest_results_xbrl(
+        db,
+        store,
+        airtel,
+        build_instance(
+            q_start=date(2026, 7, 1),
+            q_end=date(2026, 9, 30),
+            ytd_start=date(2026, 4, 1),
+            values_q=q,
+        ),
+    )
+    assert recompute_market_caps(db) == {"prices": 1, "with_market_cap": 1, "changed": 1}
+    price = db.scalar(select(Price).where(Price.company_id == airtel.id))
+    assert price.market_cap == Decimal(1905 * 600 * CR)  # 3,000 crore / Rs 5 = 600 crore shares
+    assert market_cap(Decimal(1905), Decimal(10**12)) is None  # past any listed company
 
 
 def test_latest_close_day_waits_for_the_evening_and_skips_weekends():

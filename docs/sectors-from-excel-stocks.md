@@ -36,6 +36,16 @@ columns in front:
 `XBOM` is BSE's exchange code. Using it with the security code points to exactly one listing,
 whereas a bare ticker like `TCS` could also match a foreign security.
 
+**NSE version.** The same workbook for every active NSE company (main board and SME), with
+`XNSE:` + NSE symbol in column B, from Analekh's universe; no BSE file needed:
+
+```bash
+uv run python scripts/stocks_workbook.py nse D:/Downloads/NSE_active.xlsx
+```
+
+Add `--equity-csv EQUITY_L.csv` to build it from NSE's equity list downloaded by hand instead.
+It covers the NSE SME companies the BSE file misses.
+
 ### 2. Convert the IDs in Excel
 
 1. Open the workbook in Microsoft 365 Excel. For Excel for the web, upload it to OneDrive first.
@@ -65,8 +75,21 @@ uv run python scripts/stocks_workbook.py remaining D:/Downloads/Sectors_remainin
 ```
 
 This lists every active company still without a sector, with `XNSE:` + NSE symbol in column B.
-Repeat steps 2 and 3 with it. Companies Excel can't recognise at all get a sector set by hand,
-later on the company page.
+Repeat steps 2 and 3 with it.
+
+### 5. Set the last ones by hand
+
+Companies Excel can't recognise at all (168 on 2026-10-18, mostly former SME companies and new
+listings) get a sector from a worksheet: Symbol, Sector (one of NSE's 22) and Confirmed columns.
+Mark each row you agree with as `Yes`, correcting the sector first where needed, then:
+
+```bash
+uv run analekh universe sectors --worksheet out/sector-worksheet.xlsx
+```
+
+Confirmed rows go into `analekh/universe/data/sector_map.csv` as your own sectors (source
+`user`), which no other source replaces. Unconfirmed rows are left alone, so the worksheet can be
+imported in several passes. Nothing is downloaded.
 
 ## How Analekh uses the result
 

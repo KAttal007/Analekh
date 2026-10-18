@@ -3,11 +3,16 @@
 Runbook: docs/sectors-from-excel-stocks.md
 
     uv run python scripts/stocks_workbook.py bse Equity.csv Equity_active.xlsx
+    uv run python scripts/stocks_workbook.py nse NSE_active.xlsx [--equity-csv EQUITY_L.csv]
     uv run python scripts/stocks_workbook.py remaining Sectors_remaining.xlsx
 
 ``bse``: from BSE's List of Securities (Equity.csv), keeps active company shares only (drops
 delisted and suspended securities, mutual fund ETFs, rights entitlements and preference shares)
 and adds two columns in front: Sector (a formula) and BSE Stock ID (``XBOM:<security code>``).
+
+``nse``: the NSE version of ``bse``: every active NSE company (main board and SME) with
+``XNSE:<NSE symbol>`` IDs, from Analekh's universe (loaded from NSE's equity lists) or from an
+EQUITY_L.csv downloaded by hand. Rights entitlements are left out, as the loader does.
 
 ``remaining``: every active company in Analekh still without a sector, with
 ``XNSE:<NSE symbol>`` IDs, for companies not on BSE (including NSE SME).
@@ -34,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # The Stocks field holding the sector; FIELDVALUE needs the _xlfn prefix in the file format.
 SECTOR_FORMULA = '=IFERROR(_xlfn.FIELDVALUE(B{row},"Industry"),"")'
 WIDTHS = {"Sector": 30, "Issuer Name": 40, "Security Name": 34, "Company": 44, "Note": 30}
+DATE_COLUMNS = {"Date of Listing"}
 
 
 def _write(path: Path, title: str, header: list[str], rows: list[list[Any]]) -> None:
@@ -49,6 +55,10 @@ def _write(path: Path, title: str, header: list[str], rows: list[list[Any]]) -> 
         cell.font, cell.fill = Font(bold=True), PatternFill("solid", fgColor="E8F0FC")
     for j, name in enumerate(header, start=1):
         ws.column_dimensions[get_column_letter(j)].width = WIDTHS.get(name, 16)
+    for j, name in enumerate(header, start=1):
+        if name in DATE_COLUMNS:
+            for (cell,) in ws.iter_rows(min_row=2, min_col=j, max_col=j):
+                cell.number_format = "dd-mmm-yyyy"
     ws.freeze_panes = "C2"
     ws.auto_filter.ref = ws.dimensions
     wb.save(path)
@@ -77,6 +87,65 @@ def bse(src: Path, out: Path) -> None:
         out_rows.append([f"XBOM:{r['Security Code'].strip()}", *values])
     print(f"read {len(rows)} BSE securities; kept {len(keep)} active company shares")
     _write(out, "BSE active equity", ["Sector", "BSE Stock ID", *cols], out_rows)
+
+
+def nse(out: Path, equity_csv: Path | None = None) -> None:
+    header = [
+        "Sector",
+        "NSE Stock ID",
+        "NSE Symbol",
+        "Company",
+        "Series",
+        "Board",
+        "Date of Listing",
+        "Face Value",
+        "ISIN No",
+    ]
+    if equity_csv:
+        from analekh.universe.loader import parse_equity_list
+
+        listed = parse_equity_list(equity_csv.read_bytes())
+        rows = [
+            [
+                f"XNSE:{c.symbol}",
+                c.symbol,
+                c.name,
+                c.series,
+                "SME" if c.is_sme else "Main board",
+                c.listing_date,
+                float(c.face_value) if c.face_value is not None else None,
+                c.isin,
+            ]
+            for c in listed
+        ]
+        print(f"read {len(listed)} companies from {equity_csv.name}")
+    else:
+        from sqlalchemy import select
+
+        from analekh.db.models import Company
+        from analekh.db.session import session_scope
+
+        with session_scope() as s:
+            companies = s.scalars(
+                select(Company)
+                .where(Company.is_active)
+                .order_by(Company.is_sme, Company.nse_symbol)
+            ).all()
+            rows = [
+                [
+                    f"XNSE:{c.nse_symbol}",
+                    c.nse_symbol,
+                    c.name,
+                    c.series,
+                    "SME" if c.is_sme else "Main board",
+                    c.listing_date,
+                    float(c.face_value) if c.face_value is not None else None,
+                    c.isin,
+                ]
+                for c in companies
+            ]
+        print(f"{len(rows)} active companies in Analekh's universe")
+    _write(out, "NSE active equity", header, rows)
 
 
 def remaining(out: Path) -> None:
@@ -113,11 +182,16 @@ def main() -> None:
     b = sub.add_parser("bse", help="BSE List of Securities -> workbook with XBOM: IDs")
     b.add_argument("equity_csv", type=Path)
     b.add_argument("out", type=Path)
+    n = sub.add_parser("nse", help="every active NSE company -> workbook with XNSE: IDs")
+    n.add_argument("out", type=Path)
+    n.add_argument("--equity-csv", type=Path, help="EQUITY_L.csv instead of Analekh's universe")
     r = sub.add_parser("remaining", help="companies without a sector -> workbook with XNSE: IDs")
     r.add_argument("out", type=Path)
     args = ap.parse_args()
     if args.cmd == "bse":
         bse(args.equity_csv, args.out)
+    elif args.cmd == "nse":
+        nse(args.out, args.equity_csv)
     else:
         remaining(args.out)
 

@@ -353,12 +353,17 @@ def watch_results(force: bool = False) -> dict:
     due, reason = watch_due()
     if not (due or force):
         return {"skipped": reason}
+    from analekh.ingest.bhavcopy import recompute_market_caps
+
     with session_scope() as s:
         out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
+        # A first or newer filing changes the share count behind today's market cap.
+        caps = recompute_market_caps(s) if out.new else None
     return {
         "why": reason if due else "forced",
         "listed": out.listed,
         "new": out.new,
+        "market_caps_changed": caps["changed"] if caps else 0,
         "missing": len(out.missing),
         "unknown_symbols": sorted(set(out.unknown_symbols)),
         "warning": (

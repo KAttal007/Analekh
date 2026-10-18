@@ -69,10 +69,30 @@ def universe_sectors(
     stocks_file: Path | None = typer.Option(
         None, help="Workbook converted with Excel's Stocks data type (Sector + ISIN No columns)"
     ),
+    worksheet: Path | None = typer.Option(
+        None, help="Your confirmed sectors (Symbol, Sector, Confirmed columns); no download"
+    ),
 ) -> None:
-    """Fill sectors: from a Stocks workbook, or the curated map then NSE Indices' lists."""
-    from analekh.universe.sectors import import_stocks_workbook, refresh_sectors
+    """Fill sectors: from a Stocks workbook, your worksheet, or the curated map then NSE Indices'
+    lists."""
+    from analekh.universe.sectors import (
+        import_sector_worksheet,
+        import_stocks_workbook,
+        refresh_sectors,
+    )
 
+    if worksheet:
+        with _session() as s:
+            r = import_sector_worksheet(s, worksheet)
+        typer.echo(
+            f"{r['rows']} rows, {r['confirmed']} confirmed, {r['updated']} sectors set"
+            + (
+                f", {r['not_an_nse_sector']} skipped (not an NSE sector)"
+                if r["not_an_nse_sector"]
+                else ""
+            )
+        )
+        return
     if stocks_file:
         with _session() as s:
             w = import_stocks_workbook(s, stocks_file)
@@ -150,8 +170,17 @@ def prices(
     day: str | None = typer.Option(
         None, "--date", help="Trading day (YYYY-MM-DD); default: latest close."
     ),
+    recompute: bool = typer.Option(
+        False, help="Recompute market caps of the stored prices only (no download)."
+    ),
 ) -> None:
     """Closing prices for every company from NSE's bhavcopy (ONE request; skipped if stored)."""
+    if recompute:
+        from analekh.ingest.bhavcopy import recompute_market_caps
+
+        with _session() as s:
+            typer.echo(recompute_market_caps(s))
+        return
     from analekh.jobs.tasks import fetch_prices
 
     typer.echo(fetch_prices(day))
@@ -438,8 +467,43 @@ def golden_test(
         f"fixtures {result.fixtures}, checked {result.checked}, matched {result.matched}"
         f"{' - ' + result.note if result.note else ''}"
     )
+    for m in result.mismatches:
+        typer.echo(f"  {m.file} {m.element} {m.period_end}: PDF {m.expected}, parsed {m.actual}")
     if result.checked and not result.passed:
         raise typer.Exit(1)
+
+
+@app.command("golden-sheet")
+def golden_sheet(
+    folder: Path = typer.Option(Path("tests/fixtures/golden")),
+    force: bool = typer.Option(False, help="Replace a worksheet that may hold answers"),
+) -> None:
+    """Worksheet for the golden-set hand-check: 20 filings' XBRL from storage (no downloads)."""
+    from analekh import golden
+
+    with _session() as s:
+        try:
+            out, built, missing = golden.build_sheet(s, _store(), folder, force=force)
+        except FileExistsError as e:
+            raise typer.BadParameter(str(e)) from e
+    lines = sum(len(f.lines) for f in built)
+    typer.echo(f"{out}: {len(built)} filings, {lines} lines to check")
+    for p in missing:
+        typer.echo(f"  not in the database: {p.symbol} {p.period_end} {p.format}")
+
+
+@app.command("golden-import")
+def golden_import(folder: Path = typer.Option(Path("tests/fixtures/golden"))) -> None:
+    """Write the golden set's manifest.yaml from the marked worksheet."""
+    from analekh import golden
+
+    r = golden.import_sheet(folder)
+    typer.echo(
+        f"confirmed {r.confirmed}, corrected {r.corrected}, not in PDF {r.not_in_pdf}, "
+        f"still to mark {r.pending}"
+    )
+    for problem in r.problems:
+        typer.echo(f"  {problem}")
 
 
 if __name__ == "__main__":

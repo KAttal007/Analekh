@@ -6,11 +6,11 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from analekh.api.deps import get_store
 from analekh.api.main import app
-from analekh.db.models import Company, Filing, Model, Price
+from analekh.db.models import Company, Filing, Model, Price, Watchlist
 from analekh.db.session import get_session
 from analekh.facts import DbValueSource
 from analekh.ingest.pipeline import ingest_results_xbrl
@@ -59,7 +59,8 @@ def test_company_index_for_in_browser_search(client, demo):
     assert again.status_code == 304 and again.headers["ETag"] == etag
 
 
-def test_search_company_page_and_watchlist(client, demo):
+def test_search_company_page_and_watchlist(client, demo, db):
+    db.execute(delete(Watchlist))  # the owner's own watchlist, in a rolled-back transaction
     hits = client.get("/companies/search", params={"q": "demo fin"}).json()
     assert hits[0]["nse_symbol"] == "DEMOFIN"
     page = client.get("/companies/demofin").json()
