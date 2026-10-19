@@ -533,6 +533,7 @@ PostgreSQL with pgvector is the single source of truth. Raw files live in MinIO;
 | reports, initiation_reports | Generated outputs with citations and prompt hash. |
 | llm_calls, alerts | Token and cost tracking; sent notifications. |
 | peer_lists | Saved peer lists for comps: name, symbols. |
+| job_status | When each scheduled job (results_watch, prices) last ran and last did its work, for Settings (migration 0006). |
 
 #### 8.3 Indexes and constraints
 
@@ -831,7 +832,7 @@ For each driver, actual versus estimate is compared and the GenAI engine suggest
 
 ## 18. IB Output Engine
 
-- **Comps:** saved peer lists; EV/Sales, EV/EBITDA, P/E, P/B; EV = market cap + debt − cash from the latest balance sheet; trailing twelve months from quarterly facts; fiscal-year alignment; Excel export. Market cap comes from the latest close (section 3.3), so P/E and P/B work; EV-based multiples wait for debt and cash to be sourced.
+- **Comps:** saved peer lists (up to 30 companies each) and suggested peers (same NSE sector and results format, closest in market cap, the same LSEG group first); price, market cap, TTM revenue, revenue YoY, EBITDA and net margins, P/E and P/B, with median and mean; Excel export. TTM is the last four quarters back to back on one basis (consolidated when four exist, else standalone; the row says which). EBITDA is derived as on the company page and left out for lenders and insurers. Book value is the latest balance sheet's equity attributable to owners (capital plus reserves for banks; not yet for insurers). EV = market cap + debt − cash, shown only once debt and cash are sourced: until then EV multiples are blank, never market cap passed off as EV. A symbol that has left the universe is reported, not fatal.
 - **Company profile slide:** business summary, shareholding, key financials, valuation, recent events. No price chart: only the latest close is kept.
 - **Pitch page refresh:** placeholders such as {{MUTHOOTFIN.pat_q}} replaced with current values plus a change log.
 - **Precedents (later):** curated set from deal announcements with AI extraction flagged for review.
@@ -853,8 +854,8 @@ For each driver, actual versus estimate is compared and the GenAI engine suggest
 | Models | Discovered and built models, link status, versions. |
 | Reports | Flash, digest, notes, initiation drafts; downloads. |
 | Q&A | Chat over a company's filings with page links. |
-| Comps builder | Peer lists, multiples table, export. |
-| Settings | Watched folders, alert channels, API keys. |
+| Comps | Saved peer lists (beside the table from 1,500 pixels, a row of buttons above it otherwise); companies added by search or from suggested peers; the table with a basis switch (auto, consolidated, standalone), median and mean rows and an Excel export. The working set lives in the URL. Rows become cards on phones. |
+| Settings | Data status (the results watcher's season, last ask and next ask, with a warning when a scheduled start left no record; the latest close and its coverage; stored counts and database size; whether an Anthropic key is set, never the key). Alerts (Telegram and email set up or not, a test message per channel, recent alerts; errors are summarised, never echoed, as they can hold the bot token). Display preferences saved in the browser: theme, amounts (auto, crore or million), the company page's basis and the Results desk order. NSE schedules are not editable: they follow the owner's approvals. Watched folders and save mode come with the Excel bridge. |
 
 Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense grids, ECharts, PDF.js for the side-by-side source viewer, and the Inter font bundled with the app. Layout: collapsible left sidebar; light, dark and system themes; clean, dense screens. Motion is for what is clicked, never for data (owner's rule, 17 October 2026): the sidebar highlight glides to the chosen tab, segmented switches have a sliding thumb (the theme switch a springy one), tabs dip when pressed and a faint light follows the pointer over the sidebar; screens and figures appear at once, and the browser keeps data fresh for five minutes so returning to a tab refetches nothing. All motion stops under the reduced-motion setting. Every screen works at phone width without sideways scrolling (checked at 390, 1,366 and 2,000 pixels); notes and tags open on hover, tap or keyboard focus, never on hover alone. The front end stays light: a new library has to earn its weight.
 
@@ -899,8 +900,11 @@ Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense
 | POST /reports | Flash, note, slides, digest or initiation. |
 | GET /reports/{id} | Fetch a generated report. |
 | POST /qa | Question over filings with citations. |
-| POST /comps | Comps for a peer list. |
-| GET /alerts | Recent alerts. |
+| GET, POST /peer-lists; PUT, DELETE /peer-lists/{id} | Saved peer lists (names unique ignoring case; symbols checked against the universe). |
+| GET /companies/{symbol}/peers | Suggested peers. |
+| POST /comps/table; POST /comps | The comps table as JSON, or as an Excel workbook. |
+| GET /status | Data status for Settings; reads only, never contacts NSE. |
+| GET /alerts/channels; POST /alerts/test; GET /alerts | Alert channels set up, a test message, recent alerts. |
 
 ## 21. Technology stack
 

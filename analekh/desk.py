@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Filing, Watchlist
 from analekh.glance import (
-    FINANCIAL_SECTORS,
     change,
     derive,
+    is_financial,
     missing_quarter_note,
     quarter_label,
 )
@@ -219,7 +219,7 @@ def desk(
         rev, rev_prev = _value(q, "revenue", end), _value(q, "revenue", year_ago)
         pat, pat_prev = _value(q, "pat", end), _value(q, "pat", year_ago)
         margin = margin_prev = None
-        if taxonomy == "indas" and c.sector not in FINANCIAL_SECTORS:
+        if taxonomy == "indas" and not is_financial(c):
             margin, margin_prev = (
                 derive(q, end)["=ebitda_margin"],
                 derive(q, year_ago)["=ebitda_margin"],

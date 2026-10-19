@@ -124,7 +124,7 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 - `templates_builtin/specs.py`: P&L and KPIs only; balance sheet and cash flow need annual
   backfill.
 - `docs/pipeline.py`: V10 not wired; embeddings provider undecided (open question 28.7).
-- `ib/comps.py`: EBITDA, debt, cash, book value not yet sourced.
+- `ib/comps.py`: debt and cash not yet sourced (EV multiples stay blank); insurers' book value not mapped.
 - Reports run inline in the API; move to Celery jobs and store files in object storage.
 
 ## Claude API usage

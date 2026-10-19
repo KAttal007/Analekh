@@ -417,3 +417,17 @@ class PeerList(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
     symbols: Mapped[list[str]] = mapped_column(ARRAY(Text))
+
+
+class JobStatus(Base):
+    """When each scheduled job last ran and last did its work (Settings: data status). One row
+    per job, overwritten on every run."""
+
+    __tablename__ = "job_status"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)  # results_watch, prices
+    last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str] = mapped_column(Text)  # ok, skipped, error
+    last_summary: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default=text("'{}'"))
+    last_ok_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_ok_summary: Mapped[dict[str, Any] | None] = mapped_column()

@@ -14,6 +14,7 @@ import {
   signedPct,
   tone,
 } from "../lib/format";
+import { usePrefs } from "../lib/prefs";
 
 const PAGE = 10;
 const PERIODS = [
@@ -305,12 +306,16 @@ function Sectors({ d, onPick }: { d: Desk; onPick: (sector: string) => void }) {
 /** Home: the results season at a glance. Filters live in the URL so a view can be shared. */
 export function ResultsDesk() {
   const [params, setParams] = useSearchParams();
+  // The order follows the URL, else the Results desk order preference (Settings).
+  const { deskSort } = usePrefs();
+  const askedSort = params.get("sort");
+  const sort: DeskSort = askedSort === "market_cap" || askedSort === "filed" ? askedSort : deskSort;
   const query: DeskQuery = {
     quarter_end: params.get("quarter") ?? undefined,
     sector: params.get("sector") ?? undefined,
     watchlist: params.get("watchlist") === "1" || undefined,
     days: Number(params.get("days")) || undefined,
-    sort: params.get("sort") === "market_cap" ? "market_cap" : undefined,
+    sort: sort === "market_cap" ? "market_cap" : undefined,
   };
   const page = Math.max(1, Number(params.get("page")) || 1);
   const set = (key: string, value: string | null) => {
@@ -388,8 +393,8 @@ export function ResultsDesk() {
             <select
               className="desk-sort"
               aria-label="Sort results"
-              value={query.sort ?? "filed"}
-              onChange={(e) => set("sort", e.target.value === "filed" ? null : e.target.value)}
+              value={sort}
+              onChange={(e) => set("sort", e.target.value === deskSort ? null : e.target.value)}
             >
               {SORTS.map((s) => (
                 <option key={s.sort} value={s.sort}>

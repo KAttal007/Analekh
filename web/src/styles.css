@@ -125,6 +125,11 @@
 *::after {
   box-sizing: border-box;
 }
+/* The page colour behind everything, so overscroll and tall pages never show the browser's
+   default canvas (white in light mode, black in dark). */
+html {
+  background: var(--bg);
+}
 body {
   margin: 0;
   background:
@@ -2209,5 +2214,410 @@ table.glance tbody tr:last-child > * {
   .welcome-lead,
   .welcome-fresh {
     display: none;
+  }
+}
+
+/* ---------- Comps (design doc 18) ---------- */
+
+.comps-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+/* The saved lists sit beside the table only where the table still has room for every column;
+   below that they are a row of buttons above it. */
+@media (min-width: 1500px) {
+  .comps-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .comps-side {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s4));
+  }
+}
+.comps-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+.comps-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  list-style: none;
+}
+.comps-list-btn {
+  gap: var(--s2);
+  border-color: var(--border);
+}
+@media (min-width: 1500px) {
+  .comps-lists {
+    display: block;
+    max-height: 60vh;
+    padding: var(--s2);
+    overflow-y: auto;
+  }
+  .comps-list-btn {
+    width: 100%;
+    border-color: transparent;
+  }
+}
+.comps-list-btn {
+  justify-content: space-between;
+  height: auto;
+  min-height: 32px;
+  padding: 6px var(--s2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-weight: 500;
+  text-align: left;
+  white-space: normal;
+}
+.comps-list-btn[aria-current="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.comps-list-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.comps-build {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.comps-build .search {
+  width: min(480px, 100%);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.chip .badge-mono {
+  padding: 0;
+  background: none;
+}
+.chip-x {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+}
+.chip-x:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--negative);
+}
+.chip-add {
+  padding: 0 10px 0 6px;
+  border-style: dashed;
+  color: var(--accent);
+  font-weight: 500;
+}
+.chip-add:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.comps-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.comps-hint {
+  margin: 0;
+  font-size: 12px;
+}
+.comps-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.comps-name {
+  display: flex;
+  gap: var(--s2);
+  margin-left: auto;
+}
+.comps-name input {
+  width: 200px;
+  height: 26px;
+  font-size: 12px;
+}
+.comps-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.link-btn {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+}
+.link-btn:hover:not(:disabled) {
+  background: none;
+  color: var(--accent-hover);
+}
+.comps-result {
+  container: comps / inline-size;
+}
+.comps-result > .card-header {
+  flex-wrap: wrap;
+}
+.comps-table .num {
+  white-space: nowrap;
+}
+.comps-table .c-co {
+  min-width: 180px;
+}
+.comps-table .desk-ticker .info-tip {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.comps-table .c-remove {
+  width: 36px;
+  padding-left: 0;
+  padding-right: var(--s2);
+  text-align: right;
+}
+.comps-table .icon-btn {
+  width: 26px;
+  color: var(--muted);
+}
+.comps-table .icon-btn:hover:not(:disabled) {
+  color: var(--negative);
+}
+.comps-table tfoot td {
+  border-top: 1px solid var(--border-strong);
+  border-bottom: none;
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.comps-table tfoot tr + tr td {
+  border-top-color: var(--border);
+}
+.comps-foot {
+  border-top: none;
+}
+/* Margins give way first when the card is narrow; the table never scrolls the page sideways. */
+@container comps (max-width: 900px) {
+  .comps-table .c-margin {
+    display: none;
+  }
+}
+/* Phones: each company becomes a card, its figures on a two-column grid. */
+@container comps (max-width: 560px) {
+  .comps-table {
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .comps-table table,
+  .comps-table tbody,
+  .comps-table tfoot {
+    display: block;
+  }
+  .comps-table thead {
+    display: none;
+  }
+  .comps-table tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px var(--s3);
+    padding: var(--s3) var(--s4);
+    border-bottom: 1px solid var(--border);
+  }
+  .comps-table td {
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .comps-table td.num {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    text-align: right;
+  }
+  .comps-table td.num::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+    text-transform: capitalize;
+  }
+  .comps-table .c-co,
+  .comps-table .comps-stat-label {
+    grid-column: 1 / -1;
+    padding-right: 32px;
+  }
+  .comps-table .c-margin {
+    display: flex;
+  }
+  .comps-table .c-remove {
+    position: absolute;
+    top: var(--s2);
+    right: var(--s2);
+    width: auto;
+    padding: 0;
+  }
+  .comps-table .c-empty {
+    display: none;
+  }
+  .comps-table tfoot tr {
+    background: var(--surface-2);
+  }
+  .comps-table tfoot td {
+    border: none;
+  }
+  .comps-result > .card-header .comps-tools {
+    width: 100%;
+  }
+  .comps-tools .segmented {
+    flex: 1;
+  }
+  .comps-tools .segmented button {
+    flex: 1;
+    padding: 0 var(--s2);
+  }
+}
+@media (max-width: 640px) {
+  .comps-name {
+    width: 100%;
+    margin-left: 0;
+  }
+  .comps-name input {
+    flex: 1;
+    width: auto;
+  }
+}
+
+/* ---------- Settings (design doc 19.1) ---------- */
+
+.settings > .card {
+  max-width: 1200px;
+}
+.settings-stats {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  align-items: stretch;
+}
+.settings-stat {
+  box-shadow: none;
+}
+.settings-stat-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.settings-stat .badge {
+  margin: 2px 0;
+  white-space: normal;
+  text-align: left;
+}
+.settings-checked {
+  font-size: 12px;
+}
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  list-style: none;
+}
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child {
+  border-bottom: none;
+}
+.settings-row-text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.settings-row-text p {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.settings-alerts .settings-rows {
+  padding: 0;
+}
+.settings-sub {
+  margin: var(--s4) 0 var(--s2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.settings-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.settings-alert-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.settings-alert-text {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .settings-row .segmented {
+    width: 100%;
+  }
+  .settings-row .segmented button {
+    flex: 1;
+    padding: 0 var(--s2);
   }
 }

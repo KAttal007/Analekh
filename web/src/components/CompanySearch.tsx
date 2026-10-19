@@ -11,14 +11,26 @@ const PAGE = 20;
 const INDEX_FRESH_MS = 10 * 60_000;
 const PREFETCH_MS = 150; // pause on a highlighted result before fetching its company page
 
-type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
+export type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
 
 // Type-ahead over every NSE company (design doc F2). The list narrows with each keystroke:
 // "T" lists tickers and names starting with T, "TC" anything with TC in the ticker or name.
 // The company list loads once in the background and is searched in the browser, so results
 // update on every keystroke with no network wait. The server answers only when the list is not
 // loaded yet, or when nothing matches locally (its fuzzy search catches typos).
-export function CompanySearch() {
+// With `onPick` it picks instead of navigating (adding a peer to comps): no "/" shortcut, no
+// company-page prefetch, and companies in `exclude` are left out of the list.
+export function CompanySearch({
+  onPick,
+  placeholder = "Search any NSE company by name or ticker",
+  label = "Search companies",
+  exclude = [],
+}: {
+  onPick?: (hit: Suggestion) => void;
+  placeholder?: string;
+  label?: string;
+  exclude?: string[];
+} = {}) {
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
   const [active, setActive] = useState(0);
@@ -30,6 +42,7 @@ export function CompanySearch() {
 
   // "/" jumps to the search box from anywhere, unless the user is already typing somewhere.
   useEffect(() => {
+    if (onPick) return; // only the main search answers to "/"
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const typing = t?.closest("input, textarea, select, [contenteditable='true']");
@@ -40,7 +53,7 @@ export function CompanySearch() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [onPick]);
 
   useEffect(() => {
     const t = setTimeout(() => setTerm(q.trim()), DEBOUNCE_MS);
@@ -71,11 +84,10 @@ export function CompanySearch() {
   });
 
   const fromLocal = local !== null && local.length > 0;
-  const hits: Suggestion[] = fromLocal
-    ? local.slice(0, shown)
-    : askServer
-      ? (server.data?.pages.flat() ?? [])
-      : [];
+  const skip = new Set(exclude);
+  const hits: Suggestion[] = (
+    fromLocal ? local.slice(0, shown) : askServer ? (server.data?.pages.flat() ?? []) : []
+  ).filter((h) => !skip.has(h.nse_symbol));
   // Results match what was typed: always for local results; for the server once it caught up.
   const current = fromLocal || (term === q.trim() && !server.isPlaceholderData);
   const selected = Math.min(active, hits.length - 1);
@@ -96,15 +108,16 @@ export function CompanySearch() {
   // Fetch the highlighted company ahead of the click, so its page opens with data in hand.
   const highlighted = hits[selected]?.nse_symbol;
   useEffect(() => {
-    if (!highlighted) return;
+    if (!highlighted || onPick) return;
     const t = setTimeout(() => void qc.prefetchQuery(companyQuery(highlighted)), PREFETCH_MS);
     return () => clearTimeout(t);
-  }, [highlighted, qc]);
+  }, [highlighted, qc, onPick]);
 
-  const open = (symbol: string) => {
+  const open = (hit: Suggestion) => {
     setQ("");
     setTerm("");
-    navigate(`/companies/${symbol}`);
+    if (onPick) onPick(hit);
+    else navigate(`/companies/${hit.nse_symbol}`);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -115,7 +128,7 @@ export function CompanySearch() {
       setActive(next);
       if (next >= hits.length - 3) loadMore();
     } else if (e.key === "Enter" && current && hits[selected]) {
-      open(hits[selected].nse_symbol);
+      open(hits[selected]);
     } else if (e.key === "Escape") {
       setQ("");
     }
@@ -129,8 +142,8 @@ export function CompanySearch() {
       </span>
       <input
         ref={inputRef}
-        aria-label="Search companies"
-        placeholder="Search any NSE company by name or ticker"
+        aria-label={label}
+        placeholder={placeholder}
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
@@ -139,9 +152,10 @@ export function CompanySearch() {
           listRef.current?.scrollTo?.({ top: 0 });
         }}
         onKeyDown={onKeyDown}
-        onFocus={() => void loadCompanyPage()} // load the company page's code before it's needed
+        // load the company page's code before it's needed
+        onFocus={onPick ? undefined : () => void loadCompanyPage()}
       />
-      {!q && <kbd aria-hidden="true">/</kbd>}
+      {!q && !onPick && <kbd aria-hidden="true">/</kbd>}
       {typed.length >= 1 && hits.length > 0 && (
         <ul
           ref={listRef}
@@ -160,7 +174,7 @@ export function CompanySearch() {
               aria-selected={i === selected}
               className={i === selected ? "active" : undefined}
               onMouseEnter={() => setActive(i)}
-              onClick={() => open(h.nse_symbol)}
+              onClick={() => open(h)}
             >
               <strong>{h.nse_symbol}</strong>
               <span className="name">{highlight(h.name, fromLocal ? typed : term)}</span>

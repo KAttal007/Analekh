@@ -1,12 +1,11 @@
-"""Reports, initiation drafts, Q&A, comps and alerts (design doc 17, 18, 20)."""
+"""Reports, initiation drafts and Q&A (design doc 17, 20). Comps and alerts have their own
+routers (comps.py, system.py)."""
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
-from sqlalchemy import select
 
 from analekh.api import schemas
 from analekh.api.deps import DB, Store, company_or_404
-from analekh.db.models import Alert, Model, PeerList, Report
+from analekh.db.models import Model, Report
 
 router = APIRouter(tags=["outputs"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -83,34 +82,3 @@ def qa(body: schemas.QaRequest, db: DB) -> dict:
         "blocked": run.blocked,
         "unmatched_numbers": run.grounding.unmatched,
     }
-
-
-@router.post("/comps")
-def comps(body: schemas.CompsRequest, db: DB) -> Response:
-    from analekh.ib.comps import compute, gather, to_xlsx
-
-    symbols = body.symbols
-    if body.peer_list:
-        pl = db.scalar(select(PeerList).where(PeerList.name == body.peer_list))
-        if pl is None:
-            raise HTTPException(404, "peer list not found")
-        symbols = pl.symbols
-    rows = [
-        compute(gather(db, company_or_404(db, s).nse_symbol, body.consolidated)) for s in symbols
-    ]
-    return Response(to_xlsx(rows), media_type=XLSX)
-
-
-@router.get("/alerts")
-def alerts(db: DB, limit: int = 50) -> list[dict]:
-    rows = db.scalars(select(Alert).order_by(Alert.id.desc()).limit(limit))
-    return [
-        {
-            "id": a.id,
-            "kind": a.kind,
-            "payload": a.payload,
-            "channel": a.channel,
-            "sent_at": a.sent_at,
-        }
-        for a in rows
-    ]

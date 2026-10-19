@@ -7,7 +7,7 @@ import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
 
 type NavItem = { to: string; label: string; icon: IconName; soon?: boolean };
 
-// Sections from design doc 19.1. `soon` marks screens that arrive in Phases 4-5.
+// Sections from design doc 19.1. `soon` marks screens that arrive in Phase 4.
 const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Research",
@@ -28,11 +28,11 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: "/reports", label: "Reports", icon: "file", soon: true },
       { to: "/qa", label: "Q&A", icon: "chat", soon: true },
-      { to: "/comps", label: "Comps", icon: "bars", soon: true },
+      { to: "/comps", label: "Comps", icon: "bars" },
     ],
   },
 ];
-const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders", soon: true };
+const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders" };
 
 const THEMES: { choice: ThemeChoice; icon: IconName; label: string }[] = [
   { choice: "light", icon: "sun", label: "Light theme" },

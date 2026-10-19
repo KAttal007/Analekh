@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../api/client";
+import { api, type CompanyDetail, type WatchlistEntry } from "../api/client";
 import { Icon } from "../components/Icon";
 import { QuarterRail } from "../components/QuarterRail";
 import { RevisionTag } from "../components/RevisionTag";
@@ -17,6 +17,7 @@ import {
 } from "../components/ui";
 import { companyQuery } from "../lib/preload";
 import { crore, money, price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
+import { usePrefs } from "../lib/prefs";
 import { useTheme } from "../lib/theme";
 
 // "revenue" is resolved per results format on the server; these name what each format calls it.
@@ -91,8 +92,10 @@ export function CompanyPage() {
   const company = useQuery(companyQuery(symbol));
   const filings = useQuery({ queryKey: ["filings", symbol], queryFn: () => api.filings(symbol) });
   // Many companies file both standalone and consolidated results: every figure on the page
-  // follows one basis at a time, consolidated first when the company files it.
+  // follows one basis at a time, consolidated first when the company files it (or standalone
+  // first, by the Company page basis preference in Settings).
   // Kept in the URL (?basis=standalone): the view can be shared and survives leaving the page.
+  const { basis: preferred } = usePrefs();
   const [params, setParams] = useSearchParams();
   const asked = params.get("basis");
   const chosen: Basis | null = asked === "consolidated" || asked === "standalone" ? asked : null;
@@ -101,8 +104,8 @@ export function CompanyPage() {
     consolidated: allFilings.some((f) => f.consolidated === true),
     standalone: allFilings.some((f) => f.consolidated === false),
   };
-  const basis: Basis =
-    chosen && filed[chosen] ? chosen : filed.consolidated ? "consolidated" : "standalone";
+  const wanted: Basis = chosen ?? preferred;
+  const basis: Basis = filed[wanted] ? wanted : filed.consolidated ? "consolidated" : "standalone";
   const revenue = useQuery({
     queryKey: ["facts", symbol, "revenue", basis],
     queryFn: () => api.logicalFacts(symbol, "revenue", basis === "consolidated"),
@@ -118,11 +121,24 @@ export function CompanyPage() {
       return api.watch(symbol); // the company as it now stands: watched, deep coverage
     },
     onSuccess: (updated) => {
-      if (updated) qc.setQueryData(["company", symbol], updated); // the button flips at once
+      // The button flips as soon as the server answers: with the company as it now stands after
+      // a watch, or (an unwatch returns nothing) by marking it unwatched here, so removing never
+      // waits for a second request.
+      if (updated) qc.setQueryData(["company", symbol], updated);
+      else {
+        qc.setQueryData<CompanyDetail>(["company", symbol], (old) =>
+          old ? { ...old, watched: false } : old,
+        );
+        qc.setQueryData<WatchlistEntry[]>(["watchlist"], (old) =>
+          old?.filter((w) => w.symbol !== symbol),
+        );
+      }
       // Everything that shows the watchlist, which the browser otherwise keeps for 5 minutes:
-      // the company itself, the Watchlist page and the desk's "Watchlist only" view.
+      // the company itself (its coverage level), the Watchlist page and the desk's "Watchlist
+      // only" view. The Watchlist is fetched now, not on the next visit, so opening it never
+      // shows the list from before the change.
       qc.invalidateQueries({ queryKey: ["company", symbol] });
-      qc.invalidateQueries({ queryKey: ["watchlist"] });
+      qc.invalidateQueries({ queryKey: ["watchlist"], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["desk"] });
     },
   });

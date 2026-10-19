@@ -384,3 +384,147 @@ class CompsRequest(BaseModel):
     # One basis for every company; None picks per company (consolidated when it has four
     # consolidated quarters, else standalone) and the export's Basis column shows which.
     consolidated: bool | None = None
+
+
+# --- comps (design doc 18) ------------------------------------------------------------------------
+
+
+class PeerListIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    symbols: list[str] = Field(default_factory=list, max_length=30)
+
+
+class PeerListUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    symbols: list[str] | None = Field(default=None, max_length=30)
+
+
+class PeerListOut(ORM):
+    id: int
+    name: str
+    symbols: list[str]
+
+
+class PeerOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str | None
+    market_cap: Decimal | None
+
+
+class CompRowOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str | None
+    taxonomy: str
+    consolidated: bool | None  # the basis the row's figures were looked up on
+    price: Decimal | None
+    price_date: date | None
+    market_cap: Decimal | None
+    ttm_revenue: Decimal | None  # last four back-to-back quarters
+    ttm_ebitda: Decimal | None  # Ind-AS, non-financial companies only
+    ttm_pat: Decimal | None
+    revenue_yoy: Decimal | None  # latest quarter on a year earlier, %
+    ebitda_margin: Decimal | None  # TTM, %
+    pat_margin: Decimal | None
+    pe: Decimal | None
+    pb: Decimal | None
+    book_value: Decimal | None
+    book_value_at: date | None
+    ev: Decimal | None  # None until balance-sheet debt and cash are sourced
+    ev_ebitda: Decimal | None
+    quarter_end: date | None
+    quarter_label: str | None
+    notes: list[str]
+
+
+class CompStatOut(BaseModel):
+    median: Decimal | None
+    mean: Decimal | None
+
+
+class CompsTableOut(BaseModel):
+    rows: list[CompRowOut]
+    stats: dict[str, CompStatOut]
+    missing: list[str]  # symbols not in the universe (delisted or renamed since the list was saved)
+    as_of: date | None  # the latest close in the table
+
+
+# --- system: data status and alerts (Settings) --------------------------------------------------
+
+
+class JobRunOut(BaseModel):
+    last_run_at: datetime | None = None
+    last_status: str | None = None  # ok, skipped, error
+    last_summary: dict[str, Any] = Field(default_factory=dict)
+    last_ok_at: datetime | None = None
+    last_ok_summary: dict[str, Any] | None = None
+
+
+class SeasonOut(BaseModel):
+    quarter_end: date
+    quarter_label: str
+    opens: date
+    closes: date
+
+
+class WatcherStatusOut(BaseModel):
+    run: JobRunOut
+    in_season: bool
+    season: SeasonOut | None  # the season under way
+    next_season: SeasonOut | None  # outside a season: when the next one opens
+    schedule: str
+    next_ask_at: datetime
+    # No run recorded since the last scheduled start: the scheduler is off or the machine slept.
+    missed_start_at: datetime | None
+
+
+class PricesStatusOut(BaseModel):
+    run: JobRunOut
+    latest_day: date | None
+    expected_day: date  # the latest trading day whose file should exist (holidays have none)
+    priced: int
+    with_market_cap: int
+
+
+class DataCountsOut(BaseModel):
+    companies: int
+    with_sector: int
+    with_results: int
+    filings: int
+    values_estimate: int  # stored XBRL values, from the planner's row estimate
+    latest_filed_at: datetime | None
+    database_bytes: int | None
+
+
+class StatusOut(BaseModel):
+    version: str
+    checked_at: datetime
+    watcher: WatcherStatusOut
+    prices: PricesStatusOut
+    data: DataCountsOut
+    ai_configured: bool  # an Anthropic API key is set (never the key itself)
+
+
+class AlertChannelsOut(BaseModel):
+    telegram: bool
+    email: bool
+    email_to: str | None  # masked: k•••@gmail.com
+
+
+class AlertTestIn(BaseModel):
+    channel: Literal["telegram", "email"]
+
+
+class AlertTestOut(BaseModel):
+    ok: bool
+    detail: str
+
+
+class AlertOut(BaseModel):
+    id: int
+    kind: str | None
+    symbol: str | None
+    text: str | None
+    channel: str | None  # telegram, email, or none (not delivered)
+    sent_at: datetime | None

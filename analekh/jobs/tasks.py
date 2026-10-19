@@ -336,10 +336,17 @@ def fetch_prices(day: str | None = None) -> dict:
     """NSE's bhavcopy for one trading day (default: the latest close): ONE request, then closing
     prices and market caps for every company it lists (rule 1, owner-approved 2026-10-17)."""
     from analekh.ingest.bhavcopy import load_day
+    from analekh.jobs import status
 
     target = date.fromisoformat(day) if day else last_close_day()
-    with session_scope() as s:
-        return load_day(s, PoliteClient(), target)
+    try:
+        with session_scope() as s:
+            result = load_day(s, PoliteClient(), target)
+    except Exception as exc:
+        status.record("prices", "error", {"day": target.isoformat(), "error": str(exc)})
+        raise
+    status.record("prices", "skipped" if "skipped" in result else "ok", result)
+    return result
 
 
 @app.task
@@ -347,19 +354,25 @@ def watch_results(force: bool = False) -> dict:
     """New results filings for every company, from one request to NSE's latest list. Runs only
     when the season schedule says so (analekh.seasons): every 2 hours from 09:00 to 23:00 IST in
     a results season, at 21:00 otherwise. `force` asks NSE regardless."""
-    from analekh.ingest.integrated import fetch_latest
-    from analekh.seasons import watch_due
-
-    due, reason = watch_due()
-    if not (due or force):
-        return {"skipped": reason}
+    from analekh import seasons
     from analekh.ingest.bhavcopy import recompute_market_caps
+    from analekh.ingest.integrated import fetch_latest
+    from analekh.jobs import status
 
-    with session_scope() as s:
-        out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
-        # A first or newer filing changes the share count behind today's market cap.
-        caps = recompute_market_caps(s) if out.new else None
-    return {
+    due, reason = seasons.watch_due()
+    if not (due or force):
+        skipped = {"skipped": reason}
+        status.record("results_watch", "skipped", skipped)
+        return skipped
+    try:
+        with session_scope() as s:
+            out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
+            # A first or newer filing changes the share count behind today's market cap.
+            caps = recompute_market_caps(s) if out.new else None
+    except Exception as exc:
+        status.record("results_watch", "error", {"why": reason, "error": str(exc)})
+        raise
+    result = {
         "why": reason if due else "forced",
         "listed": out.listed,
         "new": out.new,
@@ -372,3 +385,5 @@ def watch_results(force: bool = False) -> dict:
             else None
         ),
     }
+    status.record("results_watch", "ok", result)
+    return result

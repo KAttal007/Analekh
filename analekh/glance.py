@@ -100,6 +100,14 @@ FINANCIAL_SECTORS = {
 }
 NOT_FOR_FINANCIALS = {"=ebitda", "=ebitda_margin"}
 
+
+def is_financial(company: Company) -> bool:
+    """A lender, insurer or investment company, for which EBITDA means nothing. NSE's single
+    "Financial Services" sector holds exchanges too, so LSEG's finer group decides where the
+    company has one (Bajaj Finance: Banking Services); without it, EBITDA is kept."""
+    return company.sector in FINANCIAL_SECTORS or company.sector_lseg in FINANCIAL_SECTORS
+
+
 # Shown only when non-zero this quarter: a row of zeros is noise.
 ONLY_WHEN_NONZERO = {"exceptional_items"}
 
@@ -282,7 +290,7 @@ def glance(session: Session, company: Company, consolidated: bool | None = None)
 
     for name, label, kind in LINES.get(taxonomy, LINES["indas"]):
         cur = value(name, end)
-        if name in NOT_FOR_FINANCIALS and company.sector in FINANCIAL_SECTORS:
+        if name in NOT_FOR_FINANCIALS and is_financial(company):
             continue
         if cur is None or (name in ONLY_WHEN_NONZERO and cur == 0):
             continue  # not in this filing: leave the line out rather than show a blank

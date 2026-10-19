@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 from pptx import Presentation
 from pptx.util import Inches
 
-from analekh.db.models import Company
+from analekh.db.models import Company, Price
 from analekh.ib.comps import CompInputs, compute, gather, summary_stats, to_xlsx
 from analekh.ib.pitch import refresh
 from analekh.ib.profile import ProfileData, build
@@ -37,6 +37,9 @@ def test_multiples_and_not_meaningful():
     assert row.ev_sales == Decimal("2.8") and row.ev_ebitda is None
     loss = compute(comp("BBB", 5_000, -100))
     assert loss.pe is None  # negative earnings: n.m., not a negative multiple
+    # Without debt and cash there is no EV: market cap is never passed off as EV.
+    unsourced = compute(comp("CCC", 10_000, 500, revenue=4_000))
+    assert unsourced.ev is None and unsourced.ev_sales is None
 
 
 def test_summary_and_xlsx_export():
@@ -47,7 +50,8 @@ def test_summary_and_xlsx_export():
     ]
     assert summary_stats(rows)["pe"]["median"] == Decimal("25.0")
     ws = load_workbook(io.BytesIO(to_xlsx(rows)))["Comps"]
-    assert ws["A5"].value == "A" and ws["I5"].value == 20.0 and ws["I7"].value == "n.m."
+    assert ws["K4"].value == "P/E"
+    assert ws["A5"].value == "A" and ws["K5"].value == 20.0 and ws["K7"].value == "n.m."
     assert ws["B4"].value == "Basis" and ws["B5"].value == "n.a."  # inputs built by hand
 
 
@@ -137,3 +141,56 @@ def test_gather_uses_standalone_when_consolidated_is_short(db, store):
 def ws_basis(inputs):
     ws = load_workbook(io.BytesIO(to_xlsx([compute(inputs)])))["Comps"]
     return ws["B5"].value
+
+
+def test_ttm_needs_four_back_to_back_quarters(db, store):
+    gap = _company(db, "GAPCO")  # December 2025 never filed
+    ends = [date(2025, 6, 30), date(2025, 9, 30), date(2026, 3, 31), date(2026, 6, 30)]
+    _file_quarters(db, store, gap, "Standalone", 100, ends)
+    inputs = gather(db, "GAPCO")
+    assert inputs.ttm_revenue is None and inputs.consolidated is False  # still says which basis
+    assert "fewer than four back-to-back quarters of results on record" in inputs.notes
+
+
+def test_comps_row_has_margins_growth_book_value_and_no_ebitda_for_lenders(db, store):
+    co = _company(db, "FULLCO")
+    ends = [date(2025, 6, 30), *QUARTER_ENDS]  # five quarters, so June has a year-ago quarter
+    for i, end in enumerate(ends):
+        revenue = (100 + 10 * i) * 10_000_000
+        q = pnl(revenue, 0, revenue * 8 // 10, revenue // 20)  # PBT 20%, PAT 15% of revenue
+        q |= {
+            "FinanceCosts": revenue // 100,
+            "DepreciationDepletionAndAmortisationExpense": revenue // 50,
+        }
+        last = end == ends[-1]
+        data = build_instance(
+            q_start=date(end.year, end.month - 2, 1),
+            q_end=end,
+            ytd_start=date(end.year, end.month - 2, 1),
+            values_q=q,
+            values_instant={"Equity": 1_000 * 10_000_000} if last else None,
+            nature="Standalone",
+        )
+        ingest_results_xbrl(db, store, co, data)
+    db.add(
+        Price(
+            company_id=co.id,
+            trade_date=date(2026, 10, 16),
+            close=Decimal(500),
+            market_cap=2_000 * CR,
+        )
+    )
+    db.flush()
+
+    row = compute(gather(db, "FULLCO"))
+    i = row.inputs
+    assert i.ttm_revenue == 500 * CR  # 110 + 120 + 130 + 140
+    assert i.ebitda_margin == Decimal("23.0")  # PBT 20% + finance 1% + D&A 2%
+    assert i.pat_margin == Decimal("15.0") and i.revenue_yoy == Decimal("40.0")
+    assert i.book_value == 1_000 * CR and i.book_value_at == date(2026, 6, 30)
+    assert row.pb == Decimal("2.0") and row.pe == Decimal("26.7")  # 2,000 / 75
+    assert row.ev is None and row.ev_ebitda is None
+
+    co.sector_lseg = "Banking Services"  # a lender: EBITDA means nothing
+    db.flush()
+    assert gather(db, "FULLCO").ttm_ebitda is None

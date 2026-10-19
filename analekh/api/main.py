@@ -7,7 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from analekh import __version__
-from analekh.api.routers import change_sets, companies, models, outputs, templates
+from analekh.api.routers import change_sets, companies, comps, models, outputs, system, templates
 from analekh.config import get_settings
 from analekh.ingest.storage import StorageUnavailable
 
@@ -28,6 +28,8 @@ for router in (
     models.router,
     change_sets.router,
     outputs.router,
+    comps.router,
+    system.router,
 ):
     app.include_router(router)
 

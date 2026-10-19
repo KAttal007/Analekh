@@ -78,3 +78,34 @@ def watch_due(now: datetime | None = None) -> tuple[bool, str]:
         return True, "off season: the daily 21:00 run"
     upcoming = next_season(today)
     return False, f"off season: one run a day at 21:00 IST until {upcoming.opens}"
+
+
+# The hours the watcher is started (results_watch_cron, "0 9-23/2 * * *", IST); each start either
+# asks NSE or records a skip, as watch_due decides.
+RUN_HOURS = tuple(range(9, 24, 2))
+
+
+def _slots(day: date) -> list[datetime]:
+    return [datetime(day.year, day.month, day.day, h, tzinfo=IST) for h in RUN_HOURS]
+
+
+def previous_start(now: datetime | None = None) -> datetime:
+    """The latest scheduled start at or before `now` (IST)."""
+    local = (now or datetime.now(UTC)).astimezone(IST)
+    for day in (local.date(), local.date() - timedelta(days=1)):
+        past = [s for s in _slots(day) if s <= local]
+        if past:
+            return past[-1]
+    raise AssertionError("unreachable: yesterday always has a 23:00 start")
+
+
+def next_ask(now: datetime | None = None) -> datetime:
+    """When the watcher will next ask NSE: the next scheduled start that watch_due allows."""
+    local = (now or datetime.now(UTC)).astimezone(IST)
+    day = local.date()
+    for _ in range(3):  # off season runs daily at 21:00, so this always finds one
+        for slot in _slots(day):
+            if slot > local and watch_due(slot)[0]:
+                return slot
+        day += timedelta(days=1)
+    raise AssertionError("unreachable: every day has a due start")

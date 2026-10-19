@@ -1,18 +1,25 @@
 // Number and date formats shared by the results screens. Values arrive from the API as decimal
 // strings in rupees; display is in crore (1 crore = 10 million), Indian digit grouping, IST.
+// The Amounts preference (Settings) can switch large amounts to millions instead.
+
+import { readPrefs, type Units } from "./prefs";
 
 export const CRORE = 1e7;
+export const MILLION = 1e6;
 
-/** ₹1,056 cr; one decimal below ₹1,000 crore, none above. */
-export function crore(raw: string | number | null | undefined): string {
+/** ₹1,056 cr; one decimal below ₹1,000 crore, none above. In millions (₹10,560 mn) when the
+ *  Amounts preference says so. */
+export function crore(raw: string | number | null | undefined, units?: Units): string {
   if (raw == null || raw === "") return "–";
-  const cr = Number(raw) / CRORE;
-  const digits = Math.abs(cr) < 1000 ? 1 : 0;
-  const text = Math.abs(cr).toLocaleString("en-IN", {
+  const inMillions = (units ?? readPrefs().units) === "million";
+  const v = Number(raw) / (inMillions ? MILLION : CRORE);
+  const digits = Math.abs(v) < 1000 ? 1 : 0;
+  // Millions are grouped in thousands (16,391,170 mn); lakh and crore the Indian way.
+  const text = Math.abs(v).toLocaleString(inMillions ? "en-US" : "en-IN", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
-  return `${cr < 0 ? "−" : ""}₹${text} cr`; // a loss reads −₹0.3 cr, not ₹-0.3 cr
+  return `${v < 0 ? "−" : ""}₹${text} ${inMillions ? "mn" : "cr"}`; // −₹0.3 cr, not ₹-0.3 cr
 }
 
 /** ₹1,211.20: a share price, always two decimals. */
@@ -31,10 +38,18 @@ export const LAKH_BELOW = 10 * CRORE;
 export type Scale = { divisor: number; short: string; long: string; digits: number };
 export const IN_CRORE: Scale = { divisor: CRORE, short: "cr", long: "crore", digits: 0 };
 export const IN_LAKH: Scale = { divisor: LAKH, short: "lakh", long: "lakh", digits: 1 };
+export const IN_MILLION: Scale = { divisor: MILLION, short: "mn", long: "million", digits: 0 };
 
-/** Lakhs when the largest value is under ₹10 crore, else crore: one unit for a whole view. */
-export function scaleFor(values: (string | number | null | undefined)[]): Scale {
-  const nums = values.filter((v) => v != null && v !== "").map((v) => Math.abs(Number(v)));
+/** One unit for a whole view. By default lakhs when the largest value is under ₹10 crore, else
+ *  crore; the Amounts preference can fix crore or millions instead. */
+export function scaleFor(values: (string | number | null | undefined)[], units?: Units): Scale {
+  const chosen = units ?? readPrefs().units;
+  if (chosen === "million") return IN_MILLION;
+  if (chosen === "crore") return IN_CRORE;
+  const nums = values
+    .filter((v) => v != null && v !== "")
+    .map((v) => Math.abs(Number(v)))
+    .filter(Number.isFinite);
   return nums.length && Math.max(...nums) < LAKH_BELOW ? IN_LAKH : IN_CRORE;
 }
 
@@ -43,7 +58,7 @@ export function money(raw: string | number | null | undefined, scale: Scale): st
   if (raw == null || raw === "") return "–";
   const v = Number(raw) / scale.divisor;
   const digits = scale === IN_LAKH || Math.abs(v) < 1000 ? 1 : 0;
-  const text = Math.abs(v).toLocaleString("en-IN", {
+  const text = Math.abs(v).toLocaleString(scale === IN_MILLION ? "en-US" : "en-IN", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });

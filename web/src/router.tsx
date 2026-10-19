@@ -19,6 +19,8 @@ const AssumptionReview = lazy(() =>
 );
 const Models = lazy(() => import("./pages/Models").then((m) => ({ default: m.Models })));
 const Templates = lazy(() => import("./pages/Templates").then((m) => ({ default: m.Templates })));
+const Comps = lazy(() => import("./pages/Comps").then((m) => ({ default: m.Comps })));
+const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
@@ -28,7 +30,7 @@ function Home() {
   return hasWelcomed() ? <SearchPage /> : <Navigate to="/welcome" replace />;
 }
 
-// Screens from design doc 19.1. Reports, Q&A, Comps and Settings land in Phases 4-5.
+// Screens from design doc 19.1. Reports and Q&A land in Phase 4.
 export const router = createBrowserRouter([
   { path: "/welcome", element: <Welcome /> },
   {
@@ -44,8 +46,8 @@ export const router = createBrowserRouter([
       { path: "templates", element: page(<Templates />) },
       { path: "reports", element: <Placeholder title="Reports" phase={4} /> },
       { path: "qa", element: <Placeholder title="Q&A" phase={4} /> },
-      { path: "comps", element: <Placeholder title="Comps builder" phase={5} /> },
-      { path: "settings", element: <Placeholder title="Settings" phase={5} /> },
+      { path: "comps", element: page(<Comps />) },
+      { path: "settings", element: page(<Settings />) },
     ],
   },
 ]);

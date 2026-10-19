@@ -31,8 +31,19 @@ export type Template = Schemas["TemplateOut"];
 export type Assumption = Schemas["AssumptionOut"];
 export type ModelOut = Schemas["ModelOut"];
 export type BuildOut = Schemas["BuildOut"];
+export type PeerList = Schemas["PeerListOut"];
+export type Peer = Schemas["PeerOut"];
+export type CompsTable = Schemas["CompsTableOut"];
+export type CompRow = Schemas["CompRowOut"];
+export type Status = Schemas["StatusOut"];
+export type JobRun = Schemas["JobRunOut"];
+export type AlertChannels = Schemas["AlertChannelsOut"];
+export type AlertTest = Schemas["AlertTestOut"];
+export type AlertEntry = Schemas["AlertOut"];
 
 const BASE = "/api";
+export const STALE_API =
+  "The API server is running older code than this page: restart it to load the new features.";
 
 export class ApiError extends Error {
   constructor(
@@ -54,6 +65,11 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       /* not JSON */
     }
+    // FastAPI's bare "Not Found" means the route doesn't exist: the API process is older than
+    // this page. Analekh's own 404s always say what is missing ("peer list not found").
+    if (res.status === 404 && detail === "Not Found") {
+      throw new ApiError(404, STALE_API);
+    }
     throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
@@ -61,6 +77,24 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const post = <T>(path: string, body?: unknown) =>
   call<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+const put = <T>(path: string, body: unknown) =>
+  call<T>(path, { method: "PUT", body: JSON.stringify(body) });
+
+/** POST that answers with a file: saved by the browser under `filename`. */
+async function download(path: string, body: unknown, filename: string): Promise<void> {
+  const res = await fetch(BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export const api = {
   companyIndex: () => call<CompanyIndexEntry[]>("/companies/index"),
@@ -109,4 +143,21 @@ export const api = {
   testTemplate: (id: number, symbol: string) =>
     post<Schemas["TemplateTestOut"]>(`/templates/${id}/test`, { symbol }),
   activateTemplate: (id: number) => post<Template>(`/templates/${id}/activate`),
+  // Comps (design doc 18)
+  peerLists: () => call<PeerList[]>("/peer-lists"),
+  createPeerList: (name: string, symbols: string[]) =>
+    post<PeerList>("/peer-lists", { name, symbols }),
+  updatePeerList: (id: number, body: { name?: string; symbols?: string[] }) =>
+    put<PeerList>(`/peer-lists/${id}`, body),
+  deletePeerList: (id: number) => call<void>(`/peer-lists/${id}`, { method: "DELETE" }),
+  peers: (symbol: string, limit = 8) => call<Peer[]>(`/companies/${symbol}/peers?limit=${limit}`),
+  compsTable: (symbols: string[], consolidated: boolean | null) =>
+    post<CompsTable>("/comps/table", { symbols, consolidated }),
+  compsXlsx: (symbols: string[], consolidated: boolean | null) =>
+    download("/comps", { symbols, consolidated }, "comps.xlsx"),
+  // Settings: what the scheduled jobs did, and the alert channels
+  status: () => call<Status>("/status"),
+  alertChannels: () => call<AlertChannels>("/alerts/channels"),
+  testAlert: (channel: "telegram" | "email") => post<AlertTest>("/alerts/test", { channel }),
+  alerts: (limit = 20) => call<AlertEntry[]>(`/alerts?limit=${limit}`),
 };

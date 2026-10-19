@@ -200,10 +200,10 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 | Item | Status | Notes / still needed |
 |---|:---:|---|
-| Comps | 🟡 | EBITDA, debt, cash, book value not sourced |
+| Comps | 🟡 | Peer lists, suggestions, TTM margins, P/E and P/B on screen and in Excel; EV multiples wait for debt and cash |
 | Profile slide, pitch refresh | 🟡 | Branded templates |
 | Alerts, Office.js task pane, Streamlit admin | 🟡 | |
-| Web Comps and Settings screens | 🔲 | Placeholders |
+| Web Comps and Settings screens | ✅ | Comps table and peer lists; Settings: data status, alerts, display preferences |
 | Demo | 🔲 | |
 
 #### Platform and CI/CD

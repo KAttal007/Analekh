@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 
 from analekh.api.deps import get_store
 from analekh.api.main import app
-from analekh.db.models import Company, Filing, Model, Price, Watchlist
+from analekh.db.models import Company, Filing, Model, PeerList, Price, Watchlist
 from analekh.db.session import get_session
 from analekh.facts import DbValueSource
 from analekh.ingest.pipeline import ingest_results_xbrl
@@ -491,3 +491,93 @@ def test_latest_close_on_the_company_page_and_largest_first_on_the_desk(client, 
     assert [r["symbol"] for r in rows] == ["BIGCAP", "SMALLCAP"]
     assert rows[0]["price_date"] == "2020-01-03"
     assert client.get("/desk", params=params | {"sort": "size"}).status_code == 422
+
+
+def test_peer_lists_and_the_comps_table(client, demo, db):
+    db.execute(delete(PeerList))  # the owner's own lists, in a rolled-back transaction
+    made = client.post("/peer-lists", json={"name": "  Gold  lenders ", "symbols": ["demofin"] * 2})
+    assert made.status_code == 201
+    assert made.json()["name"] == "Gold lenders" and made.json()["symbols"] == ["DEMOFIN"]
+    assert client.post("/peer-lists", json={"name": "GOLD LENDERS"}).status_code == 409
+    unknown = client.post("/peer-lists", json={"name": "Other", "symbols": ["NOPE"]})
+    assert unknown.status_code == 422 and "NOPE" in unknown.json()["detail"]
+    assert client.post("/peer-lists", json={"name": "   "}).status_code == 422
+    list_id = made.json()["id"]
+    updated = client.put(f"/peer-lists/{list_id}", json={"symbols": ["DEMOFIN", "ACMEIND"]})
+    assert updated.json()["symbols"] == ["DEMOFIN", "ACMEIND"]
+    assert [p["name"] for p in client.get("/peer-lists").json()] == ["Gold lenders"]
+
+    # A symbol that has left the universe is reported, not fatal.
+    table = client.post("/comps/table", json={"symbols": ["DEMOFIN", "GONECO"]}).json()
+    assert table["missing"] == ["GONECO"]
+    [row] = table["rows"]
+    assert row["symbol"] == "DEMOFIN" and row["ttm_revenue"] is not None
+    assert row["quarter_label"] and row["ev"] is None  # no EV until debt and cash are sourced
+    assert set(table["stats"]) >= {"pe", "pb", "ebitda_margin", "revenue_yoy"}
+    assert client.post("/comps/table", json={"symbols": [" "]}).status_code == 422
+    sheet = client.post("/comps", json={"peer_list": "Gold lenders"})
+    assert sheet.status_code == 200 and "comps.xlsx" in sheet.headers["content-disposition"]
+    assert load_workbook(io.BytesIO(sheet.content))["Comps"]["A5"].value == "Demo Finance Limited"
+
+    assert client.delete(f"/peer-lists/{list_id}").status_code == 204
+    assert client.delete(f"/peer-lists/{list_id}").status_code == 404
+
+
+def test_peer_suggestions_stay_in_sector(client, demo):
+    peers = client.get("/companies/DEMOFIN/peers").json()
+    assert all(p["sector"] == "Financial Services" and p["symbol"] != "DEMOFIN" for p in peers)
+    assert client.get("/companies/ACMEIND/peers").json() == []  # no sector, no suggestions
+
+
+def test_status_reads_without_contacting_nse(client, demo):
+    s = client.get("/status").json()
+    assert s["data"]["companies"] > 0 and s["watcher"]["next_ask_at"]
+    assert s["prices"]["expected_day"] and isinstance(s["ai_configured"], bool)
+
+
+def test_alert_channels_and_test_messages_never_leak_secrets(client, monkeypatch):
+    from analekh.api.routers import system
+    from analekh.config import get_settings
+
+    s = get_settings()
+    monkeypatch.setattr(s, "telegram_bot_token", "")
+    monkeypatch.setattr(s, "smtp_url", "smtp://bot@mail.example.com:587")
+    monkeypatch.setattr(s, "alert_email_to", "kaushal@example.com")
+    channels = client.get("/alerts/channels").json()
+    assert channels == {"telegram": False, "email": True, "email_to": "k•••@example.com"}
+    off = client.post("/alerts/test", json={"channel": "telegram"}).json()
+    assert not off["ok"] and "TELEGRAM_BOT_TOKEN" in off["detail"]
+
+    monkeypatch.setattr(s, "telegram_bot_token", "SECRET-TOKEN")
+    monkeypatch.setattr(s, "telegram_chat_id", "42")
+
+    def refused(_text):
+        raise RuntimeError("https://api.telegram.org/botSECRET-TOKEN/sendMessage: 401")
+
+    monkeypatch.setattr(system, "send_telegram", refused)
+    failed = client.post("/alerts/test", json={"channel": "telegram"}).json()
+    assert not failed["ok"] and "SECRET" not in failed["detail"]
+    monkeypatch.setattr(system, "send_email", lambda subject, body: True)
+    sent = client.post("/alerts/test", json={"channel": "email"}).json()
+    assert sent == {"ok": True, "detail": "Sent to k•••@example.com"}
+    assert client.post("/alerts/test", json={"channel": "sms"}).status_code == 422
+
+
+def test_comps_refuses_more_than_thirty_companies(client, demo):
+    many = [f"CO{i}" for i in range(31)]
+    too_many = client.post("/comps/table", json={"symbols": many})
+    assert too_many.status_code == 422 and "at most 30" in too_many.json()["detail"]
+
+
+def test_prices_are_overdue_only_after_the_evening_window():
+    from datetime import UTC, datetime
+
+    from analekh.api.routers.system import PRICES_DUE_AFTER
+    from analekh.jobs.tasks import last_close_day
+
+    def expected(h, m):  # IST on Friday 16 October 2026
+        return last_close_day(datetime(2026, 10, 16, h, m, tzinfo=UTC) - PRICES_DUE_AFTER)
+
+    # 23:00 IST = 17:30 UTC: the job may still run, so Thursday's close is what's expected.
+    assert expected(17, 30).isoformat() == "2026-10-15"
+    assert expected(18, 0).isoformat() == "2026-10-16"  # 23:30 IST: Friday's close is due
