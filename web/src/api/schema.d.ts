@@ -220,6 +220,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/companies/{symbol}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Company History
+         * @description Every stored quarter's P&L lines, oldest first (up to 28), on one basis.
+         */
+        get: operations["company_history_companies__symbol__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/companies/{symbol}/history.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Company History Xlsx
+         * @description The results history as an Excel workbook, amounts in crore.
+         */
+        get: operations["company_history_xlsx_companies__symbol__history_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/companies/{symbol}/price": {
         parameters: {
             query?: never;
@@ -754,6 +794,26 @@ export interface paths {
          * @description What the scheduled jobs last did and what is stored. Reads only; never contacts NSE.
          */
         get: operations["status_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Jobs Available
+         * @description Whether background jobs (Analyse, Refresh) can be queued; answers in under half a second.
+         */
+        get: operations["jobs_available_system_jobs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1346,6 +1406,35 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistoryLineOut */
+        HistoryLineOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "inr" | "eps" | "pct";
+            /** Values */
+            values: (string | null)[];
+            /** Note */
+            note?: string | null;
+        };
+        /** HistoryOut */
+        HistoryOut: {
+            /** Consolidated */
+            consolidated: boolean;
+            /** Taxonomy */
+            taxonomy: string;
+            /** Quarter Ends */
+            quarter_ends: string[];
+            /** Quarter Labels */
+            quarter_labels: string[];
+            /** Lines */
+            lines: components["schemas"]["HistoryLineOut"][];
+        };
         /** JobOut */
         JobOut: {
             /** Job Id */
@@ -1371,6 +1460,13 @@ export interface components {
             last_ok_summary?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** JobsAvailableOut */
+        JobsAvailableOut: {
+            /** Available */
+            available: boolean;
+            /** Detail */
+            detail?: string | null;
         };
         /** KpiOut */
         KpiOut: {
@@ -1754,6 +1850,33 @@ export interface components {
             validation_blocked: boolean;
             /** Pending Change Sets */
             pending_change_sets: number;
+            /** Sector */
+            sector?: string | null;
+            /**
+             * Taxonomy
+             * @default indas
+             */
+            taxonomy: string;
+            /** Consolidated */
+            consolidated?: boolean | null;
+            /** Price */
+            price?: string | null;
+            /** Change Pct */
+            change_pct?: string | null;
+            /** Price Date */
+            price_date?: string | null;
+            /** Market Cap */
+            market_cap?: string | null;
+            /** Quarter Label */
+            quarter_label?: string | null;
+            /** Revenue */
+            revenue?: string | null;
+            /** Revenue Yoy */
+            revenue_yoy?: string | null;
+            /** Pat */
+            pat?: string | null;
+            /** Pat Yoy */
+            pat_yoy?: string | null;
         };
         /** WorkbookHintsIn */
         WorkbookHintsIn: {
@@ -2136,6 +2259,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GlanceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_history_companies__symbol__history_get: {
+        parameters: {
+            query?: {
+                consolidated?: boolean | null;
+                quarters?: number;
+            };
+            header?: never;
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_history_xlsx_companies__symbol__history_xlsx_get: {
+        parameters: {
+            query?: {
+                consolidated?: boolean | null;
+                quarters?: number;
+            };
+            header?: never;
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -3202,6 +3393,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    jobs_available_system_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobsAvailableOut"];
                 };
             };
         };

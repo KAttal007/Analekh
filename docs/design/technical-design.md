@@ -326,7 +326,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 5. **The file is hashed and stored** in MinIO at kind/yyyy/mm/sha256.xml; a file with a known hash is skipped.
 6. **A guard checks it:** a file whose main contexts are missing is rejected and noted (never half-stored); broken XML is fetched once more, then skipped and noted.
 7. **The parser** reads the facts, resolving contexts by their dates, and decides the results format from the line items.
-8. **Validation** runs V1 to V10 with the format's own terms and sets the block flag on failure.
+8. **Validation** runs V1 to V11 with the format's own terms and sets the block flag on failure; V11 corrects amounts tagged in the wrong unit when two signals agree.
 9. **Facts are inserted as history** and the newest filed value of each line becomes the one in use, whatever order files arrived in; refiled quarters get a revision status and the list of what changed.
 10. **One transaction per company:** a stopped run keeps what it stored. When NSE stops answering, the watchdog waits 10 minutes and resumes at the company it stopped on. Each company's outcome is one JSON line in the run log.
 
@@ -636,6 +636,7 @@ The check in section 3.1 supports it: NSE shows a filing about a second after it
 | V8 | Filed after SEBI's results deadline (LODR 33(3)): 45 days after a quarter (or an SME half-year), 60 days when the filing closes the financial year, plus one day's grace for the XBRL; filing date in IST. | Label late |
 | V9 | Same period refiled with different values. | Keep both; the most recently filed is in use; tag the quarter and show what changed |
 | V10 | AI value conflicts with XBRL for the same item. | XBRL wins; AI value flagged |
+| V11 | Rupee amounts tagged in the wrong unit (100 to 1 crore times off; Metro Brands' consolidated September 2025 filing gave revenue as Rs 6.51 crore for Rs 651.14 crore, and V1 to V3 still passed). Two signals: the other basis (consolidated cannot be far below standalone, nor standalone far above consolidated) and the median of at least three neighbouring quarters. | Both agree on the same power of ten: amounts corrected by that exact factor, per-share values and ratios left as filed, the factor recorded on the filing. One signal alone: suspect, block auto-apply, kept out of growth, Movers and comps until the PDF is checked. In line with its own quarters: pass, whatever the other basis shows |
 
 Insurers' balance sheets are not mapped yet, so V4 skips for them. A filing where an identity's elements are not tagged records the rule as skipped.
 
@@ -1467,7 +1468,7 @@ universe/       equity list loader, sectors (precedence, Stocks import, index li
 ingest/         feed watcher, integrated-filing lookup and financial-results list, polite HTTP client and host and path allow-list, fetcher, pipeline (incomplete-file guard, latest value by filing time), backfill, bhavcopy (daily prices)
 xbrl/           parser, context mapping, taxonomies
 docs/           page classifier, extraction, chunking, embeddings, call audio to text
-validate/       rules V1 to V10
+validate/       rules V1 to V11
 workbook/       structure reader, label matcher, dependency graph, fingerprint
 templates/      onboarding, mapping confirmation, test builds
 templates_builtin/  NBFC and manufacturing or consumer templates

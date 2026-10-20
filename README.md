@@ -46,7 +46,7 @@ and comps with every number traced to its source.
 ```mermaid
 flowchart LR
     NSE["NSE integrated filings,<br/>published feeds and lists"] --> Ingest["Ingest<br/>fetch, link, store"]
-    Ingest --> XBRL["XBRL parse<br/>+ validate V1-V10"]
+    Ingest --> XBRL["XBRL parse<br/>+ validate V1-V11"]
     Ingest --> Docs["PDF read<br/>+ KPI extraction"]
     XBRL --> Facts[("Facts<br/>PostgreSQL")]
     Docs --> Facts

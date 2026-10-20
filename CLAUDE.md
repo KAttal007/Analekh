@@ -55,7 +55,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
   company), http (polite client + host allow-list), linking (feed item ->
   company), storage (hash-keyed S3/local), pipeline (hash -> parse -> validate -> facts,
   restatements), backfill.
-- `xbrl/` lxml instance parser, element vocabulary per taxonomy. `validate/rules.py` V1-V10.
+- `xbrl/` lxml instance parser, element vocabulary per taxonomy. `validate/rules.py` V1-V11 (V11 corrects amounts tagged in the wrong unit when
+  two signals agree; `analekh revalidate` reapplies it from the stored files).
 - `docs/` PDF read, page classifier, Claude KPI extraction, chunking, embeddings, transcripts.
 - `facts.py` = one place that resolves a mapping row to a sourced value (XBRL, then KPI).
 - `workbook/` understanding engine (design doc 12): periods (axis, A/E flags), labels

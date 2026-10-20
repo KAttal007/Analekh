@@ -67,6 +67,20 @@ class WatchlistEntryOut(BaseModel):
     last_filing: date | None
     validation_blocked: bool
     pending_change_sets: int
+    # For watching day to day: the sector, the latest close and the latest quarter's growth, from
+    # the same figures as the company page (glance.py).
+    sector: str | None = None
+    taxonomy: str = "indas"
+    consolidated: bool | None = None
+    price: Decimal | None = None
+    change_pct: Decimal | None = None
+    price_date: date | None = None
+    market_cap: Decimal | None = None
+    quarter_label: str | None = None
+    revenue: Decimal | None = None
+    revenue_yoy: Decimal | None = None
+    pat: Decimal | None = None
+    pat_yoy: Decimal | None = None
 
 
 # --- filings, facts, KPIs -------------------------------------------------------------------------
@@ -528,3 +542,27 @@ class AlertOut(BaseModel):
     text: str | None
     channel: str | None  # telegram, email, or none (not delivered)
     sent_at: datetime | None
+
+
+# --- results history and the job queue ------------------------------------------------------------
+
+
+class HistoryLineOut(BaseModel):
+    key: str
+    label: str
+    kind: Literal["inr", "eps", "pct"]
+    values: list[Decimal | None]  # one per quarter, oldest first
+    note: str | None = None
+
+
+class HistoryOut(BaseModel):
+    consolidated: bool
+    taxonomy: str
+    quarter_ends: list[date]
+    quarter_labels: list[str]
+    lines: list[HistoryLineOut]
+
+
+class JobsAvailableOut(BaseModel):
+    available: bool
+    detail: str | None = None

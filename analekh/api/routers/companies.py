@@ -78,8 +78,13 @@ def unwatch(symbol: str, db: DB, user: User) -> None:
 
 @router.get("/watchlist", response_model=list[schemas.WatchlistEntryOut])
 def watchlist(db: DB, user: User) -> list[schemas.WatchlistEntryOut]:
+    from analekh.glance import glance
+    from analekh.prices import latest_prices
+
+    entries = list(coverage.entries(db, user))
+    prices = latest_prices(db, [w.company_id for w in entries])
     out = []
-    for w in coverage.entries(db, user):
+    for w in entries:
         last = db.scalar(
             select(Filing)
             .where(Filing.company_id == w.company_id, Filing.kind == "results_xbrl")
@@ -93,6 +98,9 @@ def watchlist(db: DB, user: User) -> list[schemas.WatchlistEntryOut]:
             )
             or 0
         )
+        g = glance(db, w.company)
+        lines = {line.key: line for line in g.lines}
+        price = prices.get(w.company_id)
         out.append(
             schemas.WatchlistEntryOut(
                 symbol=w.company.nse_symbol,
@@ -102,6 +110,18 @@ def watchlist(db: DB, user: User) -> list[schemas.WatchlistEntryOut]:
                 last_filing=last.period_end if last else None,
                 validation_blocked=bool(last and last.meta.get("blocks_auto_apply")),
                 pending_change_sets=pending,
+                sector=w.company.sector,
+                taxonomy=g.taxonomy,
+                consolidated=g.consolidated if g.lines else None,
+                price=price.close if price else None,
+                change_pct=price.change_pct if price else None,
+                price_date=price.trade_date if price else None,
+                market_cap=price.market_cap if price else None,
+                quarter_label=g.quarter_label,
+                revenue=lines["revenue"].value if "revenue" in lines else None,
+                revenue_yoy=lines["revenue"].yoy if "revenue" in lines else None,
+                pat=lines["pat"].value if "pat" in lines else None,
+                pat_yoy=lines["pat"].yoy if "pat" in lines else None,
             )
         )
     return out
@@ -234,6 +254,39 @@ def company_glance(symbol: str, db: DB, consolidated: bool | None = None) -> sch
 
     return schemas.GlanceOut.model_validate(
         asdict(glance(db, company_or_404(db, symbol), consolidated))
+    )
+
+
+@router.get("/companies/{symbol}/history", response_model=schemas.HistoryOut)
+def company_history(
+    symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 8
+) -> schemas.HistoryOut:
+    """Every stored quarter's P&L lines, oldest first (up to 28), on one basis."""
+    from dataclasses import asdict
+
+    from analekh.history import history
+
+    return schemas.HistoryOut.model_validate(
+        asdict(history(db, company_or_404(db, symbol), consolidated, quarters))
+    )
+
+
+@router.get("/companies/{symbol}/history.xlsx")
+def company_history_xlsx(
+    symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 12
+) -> Response:
+    """The results history as an Excel workbook, amounts in crore."""
+    from analekh.history import history, to_xlsx
+
+    c = company_or_404(db, symbol)
+    h = history(db, c, consolidated, quarters)
+    basis = "consolidated" if h.consolidated else "standalone"
+    return Response(
+        to_xlsx(h, c),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{c.nse_symbol}-results-{basis}.xlsx"'
+        },
     )
 
 

@@ -203,6 +203,12 @@ The spike ran on 2026-10-13 (`out/phase0/20261013-115051`, not in git).
 
 Still open from Phase 0: a hand-check of 10 values per file against the results PDF.
 
+### 10a. Values stored as corrected, not as filed (V11, 21 October 2026)
+
+| Design doc says | Done instead | Why |
+|---|---|---|
+| Values stay in full INR as filed (8.1, parser) | When V11's two signals agree that a filing's rupee amounts are in the wrong unit, the corrected amounts are stored; the factor and reason are on the filing (meta `scale`), and the stored XBRL file keeps the values as filed | Metro Brands' consolidated September 2025 XBRL tagged every amount 100 times too small (revenue Rs 6.51 crore for Rs 651.14 crore), which put ">+999%" growth at the top of the Results desk. Correcting only on two agreeing signals, with an exact power of ten, keeps rule 5 (XBRL wins) honest: the figure is the filer's own, in the right unit. A suspect with one signal is never changed, only blocked and kept out of growth figures |
+
 ### 11. Proposed, not decided
 
 | Area | Proposal |

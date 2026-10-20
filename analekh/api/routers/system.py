@@ -130,6 +130,15 @@ def status(db: DB) -> schemas.StatusOut:
     )
 
 
+@router.get("/system/jobs")
+def jobs_available() -> schemas.JobsAvailableOut:
+    """Whether background jobs (Analyse, Refresh) can be queued; answers in under half a second."""
+    from analekh.jobs.health import NOT_RUNNING, queue_available
+
+    ok = queue_available()
+    return schemas.JobsAvailableOut(available=ok, detail=None if ok else NOT_RUNNING)
+
+
 def _mask(email: str) -> str:
     user, _, domain = email.partition("@")
     return f"{user[:1]}•••@{domain}" if domain else "•••"

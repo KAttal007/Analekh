@@ -43,5 +43,11 @@ def company_or_404(db: Session, symbol: str) -> Company:
 
 
 def job(task: Any, *args: Any) -> schemas.JobOut:
+    """Queue a background job, or answer 503 at once when the queue isn't running (Celery would
+    otherwise retry the broker and leave the request hanging)."""
+    from analekh.jobs.health import NOT_RUNNING, queue_available
+
+    if not queue_available():
+        raise HTTPException(503, NOT_RUNNING)
     result = task.delay(*args)
     return schemas.JobOut(job_id=result.id, status=result.status)

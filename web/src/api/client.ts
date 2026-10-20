@@ -40,6 +40,8 @@ export type JobRun = Schemas["JobRunOut"];
 export type AlertChannels = Schemas["AlertChannelsOut"];
 export type AlertTest = Schemas["AlertTestOut"];
 export type AlertEntry = Schemas["AlertOut"];
+export type History = Schemas["HistoryOut"];
+export type HistoryLine = Schemas["HistoryLineOut"];
 
 const BASE = "/api";
 export const STALE_API =
@@ -114,6 +116,13 @@ export const api = {
   },
   // Latest close from NSE's bhavcopy (end of day); null before the first load.
   price: (symbol: string) => call<Price | null>(`/companies/${symbol}/price`),
+  // Every stored quarter's P&L lines, oldest first; the chart and the history table share it.
+  history: (symbol: string, consolidated: boolean, quarters = 12) =>
+    call<History>(`/companies/${symbol}/history?consolidated=${consolidated}&quarters=${quarters}`),
+  historyXlsxUrl: (symbol: string, consolidated: boolean, quarters = 12) =>
+    `${BASE}/companies/${symbol}/history.xlsx?consolidated=${consolidated}&quarters=${quarters}`,
+  // Whether Analyse and Refresh can be queued (the job queue comes with hosting).
+  jobsAvailable: () => call<Schemas["JobsAvailableOut"]>("/system/jobs"),
   glance: (symbol: string, consolidated: boolean) =>
     call<Glance>(`/companies/${symbol}/glance?consolidated=${consolidated}`),
   // By logical name (e.g. "revenue"), resolved for the company's results format on the server.

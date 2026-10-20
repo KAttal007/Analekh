@@ -581,3 +581,34 @@ def test_prices_are_overdue_only_after_the_evening_window():
     # 23:00 IST = 17:30 UTC: the job may still run, so Thursday's close is what's expected.
     assert expected(17, 30).isoformat() == "2026-10-15"
     assert expected(18, 0).isoformat() == "2026-10-16"  # 23:30 IST: Friday's close is due
+
+
+def test_results_history_and_its_excel_export(client, demo):
+    h = client.get("/companies/DEMOFIN/history", params={"quarters": 4}).json()
+    assert len(h["quarter_ends"]) == 4 and h["quarter_ends"] == sorted(h["quarter_ends"])
+    assert h["quarter_labels"][-1].startswith("Q")
+    revenue = next(line for line in h["lines"] if line["key"] == "revenue")
+    assert len(revenue["values"]) == 4 and all(v is not None for v in revenue["values"])
+    assert client.get("/companies/DEMOFIN/history", params={"quarters": 99}).status_code == 200
+    sheet = client.get("/companies/DEMOFIN/history.xlsx")
+    assert "DEMOFIN-results" in sheet.headers["content-disposition"]
+    ws = load_workbook(io.BytesIO(sheet.content))["Results"]
+    assert ws["A4"].value == "Line" and ws["B4"].value.startswith("Q")
+
+
+def test_watchlist_rows_carry_growth_and_price(client, demo, db):
+    db.execute(delete(Watchlist))  # the owner's own watchlist, in a rolled-back transaction
+    client.post("/watchlist", json={"symbol": "DEMOFIN"})
+    [entry] = client.get("/watchlist").json()
+    assert entry["quarter_label"] and entry["revenue"] is not None
+    assert entry["revenue_yoy"] is not None  # eight quarters on record: a year-ago quarter exists
+    assert entry["consolidated"] is not None
+
+
+def test_analyse_fails_fast_when_the_job_queue_is_down(client, demo, monkeypatch):
+    from analekh.jobs import health
+
+    monkeypatch.setattr(health, "queue_available", lambda timeout=0.4: False)
+    r = client.post("/companies/DEMOFIN/analyse")
+    assert r.status_code == 503 and "Background jobs aren't running" in r.json()["detail"]
+    assert client.get("/system/jobs").json()["available"] is False

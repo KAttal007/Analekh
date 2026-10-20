@@ -8,6 +8,11 @@ Re-running is idempotent: a file whose hash is already stored is skipped. A diff
 already-stored period is a revision: its facts are inserted and the newest FILED value of each
 line is the one in use (is_latest), whatever order the files were downloaded in; superseded values
 stay as history (V9). Nothing is deleted.
+
+V11 can find a filing's rupee amounts tagged in the wrong unit (100 times too small, say). When
+both its signals agree, the corrected amounts are stored and the filing records the factor
+(meta "scale"); the file in object storage keeps the values as filed, so revalidating always
+recomputes from it and never applies a factor twice.
 """
 
 from dataclasses import dataclass
@@ -20,9 +25,15 @@ from analekh.db.models import Company, Fact, FeedItem, Filing
 from analekh.ingest.feeds import IST
 from analekh.ingest.http import PoliteClient
 from analekh.ingest.storage import ObjectStore, sha256, storage_key
-from analekh.validate.rules import HistoryFact, ValidationContext, ValidationReport, validate
+from analekh.validate.rules import (
+    MONETARY_UNITS,
+    HistoryFact,
+    ValidationContext,
+    ValidationReport,
+    validate,
+)
 from analekh.xbrl.elements import detect_taxonomy
-from analekh.xbrl.parser import dims_hash, parse_instance, period_type
+from analekh.xbrl.parser import ParsedFiling, dims_hash, parse_instance, period_type
 
 _NO_DIMS = dims_hash({})
 
@@ -65,6 +76,19 @@ def load_history(session: Session, company_id: int, consolidated: bool) -> list[
     ]
 
 
+def scale_meta(report: ValidationReport) -> dict | None:
+    """V11's outcome for the filing's meta: corrected (with the factor) or suspect; None when the
+    amounts look right."""
+    v11 = next((r for r in report.results if r.rule == "V11"), None)
+    if v11 is None or v11.status != "fail":
+        return None
+    status = v11.details.get("status")
+    out = {"status": status, "message": v11.message}
+    if report.scale is not None:
+        out["factor"] = str(report.scale)
+    return out
+
+
 def ingest_results_xbrl(
     session: Session,
     store: ObjectStore,
@@ -102,8 +126,11 @@ def ingest_results_xbrl(
         company.results_taxonomy,
         filed_at.astimezone(IST).date() if filed_at else None,
         history,
+        other_basis=load_history(session, company.id, not consolidated),
     )
     report = validate(ctx)
+    stored = report.filing or parsed  # amounts corrected by V11, when it corrects them
+    scale = scale_meta(report)
 
     period_end = ctx.period_end
     period_start = parsed.declared_start or next(
@@ -136,12 +163,13 @@ def ingest_results_xbrl(
             "blocks_auto_apply": report.blocks_auto_apply,
             # NSE's own flag from the integrated-filing list: "Original" or "Revision".
             **({"revision": revision} if revision else {}),
+            **({"scale": scale} if scale else {}),
         },
     )
     session.add(filing)
     session.flush()
 
-    for f in parsed.facts:
+    for f in stored.facts:
         session.add(
             Fact(
                 filing_id=filing.id,
@@ -270,9 +298,41 @@ def store_document(
     return filing
 
 
+def _fact_key(element: str, start, end, dims: str, context: str | None) -> tuple:
+    return (element, start, end, dims, context)
+
+
+def rewrite_amounts(session: Session, filing: Filing, parsed: ParsedFiling, factor) -> int:
+    """Set the filing's stored rupee amounts to the values as filed times factor (1 restores
+    them). Always from the file, so it can never apply a factor twice. Returns rows changed."""
+    from decimal import Decimal
+
+    multiplier = Decimal(factor) if factor is not None else Decimal(1)
+    filed = {
+        _fact_key(f.element, f.period_start, f.period_end, f.dims_hash, f.context_ref): f.value
+        for f in parsed.facts
+        if f.unit in MONETARY_UNITS
+    }
+    changed = 0
+    for row in session.scalars(select(Fact).where(Fact.filing_id == filing.id)):
+        if row.unit not in MONETARY_UNITS:
+            continue
+        raw = filed.get(
+            _fact_key(row.element, row.period_start, row.period_end, row.dims_hash, row.context_ref)
+        )
+        if raw is None:
+            continue
+        value = raw * multiplier
+        if row.value != value:
+            row.value = value
+            changed += 1
+    return changed
+
+
 def revalidate_company(session: Session, store: ObjectStore, company: Company) -> list[Filing]:
-    """Re-run detection and V1-V10 on a company's stored results files, after the rules or the
-    element tables change. Reads the stored files; downloads nothing."""
+    """Re-run detection and V1-V11 on a company's stored results files, after the rules or the
+    element tables change. Reads the stored files; downloads nothing. A V11 correction that
+    appears, changes or goes away rewrites the filing's amounts from the file."""
     filings = list(
         session.scalars(
             select(Filing)
@@ -297,12 +357,24 @@ def revalidate_company(session: Session, store: ObjectStore, company: Company) -
         filed = filing.filed_at.astimezone(IST).date() if filing.filed_at else None
         report = validate(
             ValidationContext(
-                parsed[filing.id], company.results_taxonomy or "indas", filed, history
+                parsed[filing.id],
+                company.results_taxonomy or "indas",
+                filed,
+                history,
+                other_basis=load_history(session, company.id, not bool(filing.consolidated)),
             )
         )
+        scale = scale_meta(report)
+        before = ((filing.meta or {}).get("scale") or {}).get("factor")
+        after = scale.get("factor") if scale else None
+        if before != after:
+            rewrite_amounts(session, filing, parsed[filing.id], after)
+            session.flush()  # the next filing's checks read the corrected amounts
+        meta = {k: v for k, v in (filing.meta or {}).items() if k != "scale"}
         filing.meta = {
-            **(filing.meta or {}),
+            **meta,
             "validation": report.as_dict(),
             "blocks_auto_apply": report.blocks_auto_apply,
+            **({"scale": scale} if scale else {}),
         }
     return filings

@@ -1,11 +1,13 @@
-"""Validation rules V1-V10 (design doc 8.2).
+"""Validation rules V1-V11 (design doc 8.2).
 
 Each rule returns a RuleResult. Rules that cannot run because an element is not tagged return
 ``skip``; nothing is inferred. A ``block`` failure stops auto-apply of the filing's change set.
 """
 
+import math
+import statistics
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
@@ -60,6 +62,9 @@ class ValidationContext:
     filed_at: date | None = None
     history: list[HistoryFact] = field(default_factory=list)
     kpis: list[KpiValue] = field(default_factory=list)
+    # The same company's stored facts on the other basis (standalone for a consolidated filing),
+    # for V11.
+    other_basis: list[HistoryFact] = field(default_factory=list)
 
     @property
     def period_end(self) -> date | None:
@@ -89,6 +94,10 @@ class ValidationContext:
 @dataclass
 class ValidationReport:
     results: list[RuleResult]
+    # V11's correction of the filing's rupee amounts (e.g. 100 when tagged 100 times too small),
+    # and the filing as corrected: what the pipeline stores. None when no correction applies.
+    scale: Decimal | None = None
+    filing: ParsedFiling | None = field(default=None, compare=False, repr=False)
 
     @property
     def blocks_auto_apply(self) -> bool:
@@ -400,6 +409,128 @@ def v10_kpi_conflict(ctx: ValidationContext) -> RuleResult:
     return RuleResult("V10", "pass", "flag", "AI values agree with XBRL")
 
 
+# V11: amounts tagged in the wrong unit. A filer that enters lakh as rupees, or crore as lakh,
+# files every rupee amount 100, 1,000, 1 lakh or 1 crore times off; the statement still adds up,
+# so V1-V3 pass (Metro Brands, consolidated, September 2025: revenue Rs 6.51 cr for Rs 651.14 cr).
+# Two independent signals: the other basis (consolidated cannot be far below standalone, nor
+# standalone far above consolidated) and the company's own neighbouring quarters (median of at
+# least three, so one bad quarter cannot move it). Both agreeing on the same power of ten: the
+# amounts are corrected (rule 5 still holds: the factor is exact and recorded, and the stored file
+# keeps the values as filed). One signal alone, or a disagreement: flagged as a suspect and
+# blocked, never changed. Matching its own history: passes, whatever the other basis says (then
+# the other filing is the odd one). Per-share values and ratios are not amounts: left as filed.
+SCALE_POWERS = range(2, 8)  # 100 to 1 crore
+SCALE_SLACK = 0.3  # log10 distance from an exact power: within a factor of 2 either way
+SCALE_MIN_BASE = Decimal(10_000_000)  # Rs 1 crore: below it, ratios of tiny figures are noise
+SCALE_NEIGHBOURS = 4  # nearest other quarters compared (two each side when there are)
+SCALE_MIN_NEIGHBOURS = 3
+MONETARY_UNITS = frozenset({"INR"})
+
+
+def _power(ratio: Decimal) -> int | None:
+    """k when ratio is within SCALE_SLACK of 10**k for a unit-slip power, else None."""
+    if ratio <= 0:
+        return None
+    lg = math.log10(float(ratio))
+    k = round(lg)
+    return k if abs(k) in SCALE_POWERS and abs(lg - k) <= SCALE_SLACK else None
+
+
+def rescaled(filing: ParsedFiling, factor: Decimal) -> ParsedFiling:
+    """The filing with its rupee amounts multiplied by factor; everything else as filed."""
+    return replace(
+        filing,
+        facts=[
+            replace(f, value=f.value * factor) if f.unit in MONETARY_UNITS else f
+            for f in filing.facts
+        ],
+    )
+
+
+def _quarters(facts: list[HistoryFact], names: tuple[str, ...]) -> dict[date, Decimal]:
+    """{period_end: value} for quarter-length facts of the first candidate element present."""
+    out: dict[date, Decimal] = {}
+    for name in names:
+        for h in facts:
+            if (
+                h.element == name
+                and h.period_start is not None
+                and period_type(h.period_start, h.period_end) == "Q"
+            ):
+                out.setdefault(h.period_end, h.value)
+        if out:
+            return out
+    return out
+
+
+def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
+    """V11: amounts in the wrong unit. Returns the result and the correction factor, if any."""
+    logical = "revenue" if ctx.fact("revenue") is not None else "total_income"
+    q = ctx.fact(logical)
+    if q is None or q.period_start is None or q.value <= 0:
+        return RuleResult("V11", "skip", "block", "Unit check: no quarterly top line"), None
+    names = candidates(logical, ctx.taxonomy)
+    consolidated = ctx.filing.consolidated
+    details: dict[str, Any] = {"line": logical, "value": q.value}
+
+    k_basis = None
+    other = _quarters(ctx.other_basis, names).get(q.period_end)
+    if other is not None and other >= SCALE_MIN_BASE:
+        ratio = q.value / other
+        details["other_basis"] = {"value": other, "ratio": ratio}
+        k = _power(ratio)
+        if k is not None and (
+            (consolidated is not False and k < 0) or (consolidated is False and k > 0)
+        ):
+            k_basis = k
+
+    k_hist = None
+    own = _quarters(ctx.history, names)
+    near = sorted((e for e in own if e != q.period_end), key=lambda e: abs((e - q.period_end).days))
+    near = [e for e in near if abs((e - q.period_end).days) <= 400][:SCALE_NEIGHBOURS]
+    if len(near) >= SCALE_MIN_NEIGHBOURS:
+        typical = statistics.median(own[e] for e in near)
+        details["neighbours"] = {"median": typical, "quarters": [e.isoformat() for e in near]}
+        if typical >= SCALE_MIN_BASE:
+            k_hist = _power(q.value / typical)
+            if k_hist is None:
+                return RuleResult(
+                    "V11", "pass", "block", "Amounts in line with past quarters", details
+                ), None
+
+    if k_basis is not None and k_hist == k_basis:
+        factor = Decimal(10) ** -k_basis
+        size = f"{Decimal(10) ** abs(k_basis):,f}".split(".")[0]
+        way = "small" if k_basis < 0 else "large"
+        details |= {"status": "corrected", "factor": factor}
+        return (
+            RuleResult(
+                "V11",
+                "fail",
+                "flag",
+                f"Amounts tagged {size} times too {way}; corrected (other basis and past quarters"
+                " agree)",
+                details,
+            ),
+            factor,
+        )
+    k = k_hist if k_hist is not None else k_basis
+    if k is not None:
+        size = f"{Decimal(10) ** abs(k):,f}".split(".")[0]
+        details |= {"status": "suspect", "power": k}
+        return (
+            RuleResult(
+                "V11",
+                "fail",
+                "block",
+                f"Amounts look about {size} times off the company's other figures; check the PDF",
+                details,
+            ),
+            None,
+        )
+    return RuleResult("V11", "pass", "block", "No sign of amounts in the wrong unit", details), None
+
+
 RULES: list[Callable[[ValidationContext], RuleResult]] = [
     v1_total_income,
     v2_pbt,
@@ -415,7 +546,11 @@ RULES: list[Callable[[ValidationContext], RuleResult]] = [
 
 
 def validate(ctx: ValidationContext) -> ValidationReport:
-    return ValidationReport([rule(ctx) for rule in RULES])
+    """V11 first: when it corrects the amounts, V1-V10 judge the corrected filing."""
+    unit_check, factor = v11_scale(ctx)
+    if factor is not None:
+        ctx = replace(ctx, filing=rescaled(ctx.filing, factor))
+    return ValidationReport([rule(ctx) for rule in RULES] + [unit_check], factor, ctx.filing)
 
 
 def _jsonable(value: Any) -> Any:

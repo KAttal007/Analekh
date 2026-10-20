@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
+import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, type CompanyDetail, type WatchlistEntry } from "../api/client";
+import { api, type CompanyDetail, type HistoryLine, type WatchlistEntry } from "../api/client";
 import { Icon } from "../components/Icon";
 import { QuarterRail } from "../components/QuarterRail";
+import { ResultsHistory } from "../components/ResultsHistory";
 import { RevisionTag } from "../components/RevisionTag";
 import {
   Avatar,
@@ -28,14 +30,17 @@ const TOP_LINE: Record<string, { short: string; full: string }> = {
 };
 const topLine = (taxonomy?: string | null) =>
   TOP_LINE[taxonomy ?? ""] ?? { short: "Revenue", full: "revenue from operations" };
-const DAY_MS = 86_400_000;
 
-// Filings carry year-to-date figures next to the quarter's; keep quarter-length durations only.
-const isQuarter = (f: { period_start?: string | null; period_end: string }) => {
-  if (!f.period_start) return false;
-  const days = (Date.parse(f.period_end) - Date.parse(f.period_start)) / DAY_MS + 1;
-  return days >= 80 && days <= 100;
+// What the chart can show: the top line, profit, then the first margin the company's format has
+// (a bank's net interest income instead, since EBITDA means nothing for a lender).
+const CHART_KEYS = ["revenue", "pat", "ebitda_margin", "nii", "net_margin"];
+const CHART_LABEL: Record<string, string> = {
+  pat: "Net profit",
+  ebitda_margin: "EBITDA margin",
+  nii: "Net interest income",
+  net_margin: "Net margin",
 };
+const HISTORY_QUARTERS = 12;
 
 // Source files for a filing, readable first: NSE's iXBRL web page, the results PDF, raw XBRL.
 const LINK_KINDS = [
@@ -106,11 +111,21 @@ export function CompanyPage() {
   };
   const wanted: Basis = chosen ?? preferred;
   const basis: Basis = filed[wanted] ? wanted : filed.consolidated ? "consolidated" : "standalone";
-  const revenue = useQuery({
-    queryKey: ["facts", symbol, "revenue", basis],
-    queryFn: () => api.logicalFacts(symbol, "revenue", basis === "consolidated"),
+  // The chart, the tiles and the history table share one request: the same quarters, lines and
+  // exclusions as the latest-quarter column.
+  const history = useQuery({
+    queryKey: ["history", symbol, basis],
+    queryFn: () => api.history(symbol, basis === "consolidated", HISTORY_QUARTERS),
     enabled: filings.isSuccess,
   });
+  const [metric, setMetric] = useState("revenue");
+  // Analyse queues a background job: say so up front when the queue isn't running.
+  const jobs = useQuery({
+    queryKey: ["jobs-available"],
+    queryFn: api.jobsAvailable,
+    staleTime: 60_000,
+  });
+  const jobsDown = jobs.data?.available === false;
   const quote = useQuery({ queryKey: ["price", symbol], queryFn: () => api.price(symbol) });
   const watch = useMutation({
     mutationFn: async () => {
@@ -151,18 +166,39 @@ export function CompanyPage() {
   if (company.isError) return <ErrorNote error={company.error} />;
   if (!company.data) return <Loading />;
   const c = company.data;
-  const quarters = (revenue.data ?? [])
-    .filter(isQuarter)
-    .sort((a, b) => a.period_end.localeCompare(b.period_end));
-  const latest = quarters.at(-1);
-  const previous = quarters.at(-2);
-  // One unit for the chart and the revenue tile, from the largest quarter shown.
-  const scale = scaleFor(quarters.map((f) => Number(f.value ?? 0)));
+  const h = history.data;
+  const labels = h?.quarter_labels ?? [];
+  const byKey = new Map((h?.lines ?? []).map((l) => [l.key, l]));
+  const topValues = byKey.get("revenue")?.values ?? [];
+  let lastAt = topValues.length - 1;
+  while (lastAt >= 0 && topValues[lastAt] == null) lastAt -= 1;
+  const latest = lastAt >= 0 ? { value: topValues[lastAt], label: labels[lastAt] } : undefined;
+  const previous = lastAt > 0 ? topValues[lastAt - 1] : undefined;
+  // One unit for the chart, the tiles and the table, from the largest quarter shown.
+  const scale = scaleFor(topValues);
+  const chartLines = CHART_KEYS.map((k) => byKey.get(k)).filter(
+    (l): l is HistoryLine => l !== undefined,
+  );
+  const choices = [
+    ...chartLines.filter((l) => l.key === "revenue" || l.key === "pat"),
+    ...chartLines.filter((l) => l.key !== "revenue" && l.key !== "pat").slice(0, 1),
+  ];
+  const shown = choices.find((l) => l.key === metric) ?? choices[0];
+  const isPct = shown?.kind === "pct";
+  const points = (shown?.values ?? []).map((v) =>
+    v == null
+      ? null
+      : isPct
+        ? Number(v)
+        : Number((Number(v) / scale.divisor).toFixed(scale.digits)),
+  );
+  const shownLabel = (l: HistoryLine) =>
+    l.key === "revenue" ? topLine(c.results_taxonomy).short : (CHART_LABEL[l.key] ?? l.label);
   const rows = allFilings.filter((f) => (basis === "consolidated") === (f.consolidated !== false));
   const coverage = COVERAGE[c.coverage_level as keyof typeof COVERAGE] ?? COVERAGE.universe;
   const qoq =
-    latest && previous && Number(previous.value)
-      ? (Number(latest.value) / Number(previous.value) - 1) * 100
+    latest?.value != null && previous != null && Number(previous)
+      ? (Number(latest.value) / Number(previous) - 1) * 100
       : null;
 
   return (
@@ -213,7 +249,16 @@ export function CompanyPage() {
                 <Icon name="star" />
                 {c.watched ? "Watching" : "Watch"}
               </button>
-              <button onClick={() => analyse.mutate()} disabled={analyse.isPending}>
+              <button
+                onClick={() => analyse.mutate()}
+                disabled={analyse.isPending || jobsDown}
+                title={
+                  jobsDown
+                    ? (jobs.data?.detail ?? undefined)
+                    : "Collect history and read the documents in the background"
+                }
+                aria-describedby={jobsDown ? "analyse-note" : undefined}
+              >
                 <Icon name="play" />
                 Analyse
               </button>
@@ -227,12 +272,19 @@ export function CompanyPage() {
             </>
           }
         />
+        {jobsDown && (
+          <p id="analyse-note" className="muted action-note">
+            Analyse runs as a background job, and the job queue isn't running on this machine yet
+            (it comes with hosting). Watch and Start coverage work now.
+          </p>
+        )}
         {analyse.data && (
           <div className="alert alert-warn">
             <Icon name="clock" />
             <span>Analysis job {analyse.data.status}.</span>
           </div>
         )}
+        {analyse.isError && <ErrorNote error={analyse.error} />}
         {start.isError && <ErrorNote error={start.error} />}
 
         {allFilings.length > 0 && (
@@ -267,9 +319,7 @@ export function CompanyPage() {
             <div>
               <div className="stat-label">{topLine(c.results_taxonomy).short}, latest quarter</div>
               <div className="stat-value">{latest ? money(latest.value, scale) : "–"}</div>
-              <div className="stat-note">
-                {latest ? `Quarter ended ${latest.period_end}` : "No results loaded yet"}
-              </div>
+              <div className="stat-note">{latest ? latest.label : "No results loaded yet"}</div>
             </div>
           </div>
           <div className="card card-hover stat">
@@ -339,72 +389,117 @@ export function CompanyPage() {
 
         <div className="card area-chart">
           <div className="card-header">
-            <h2>{topLine(c.results_taxonomy).short} by quarter</h2>
-            <span className="muted">
-              ₹ {scale.long} · {basis}
-            </span>
+            <h2>{shown ? shownLabel(shown) : topLine(c.results_taxonomy).short} by quarter</h2>
+            <div className="actions">
+              {choices.length > 1 && (
+                <div className="segmented" role="tablist" aria-label="Chart shows">
+                  <SegmentThumb />
+                  {choices.map((l) => (
+                    <button
+                      key={l.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={shown?.key === l.key}
+                      onClick={() => setMetric(l.key)}
+                    >
+                      {shownLabel(l)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <span className="muted">
+                {isPct ? "%" : `₹ ${scale.long}`} · {basis}
+              </span>
+            </div>
           </div>
           <div className="card-body">
-            {quarters.length > 1 ? (
-              <ReactECharts
-                key={theme}
-                style={{ height: 320 }}
-                option={{
-                  // Headroom above the plot: the hover popup fits over even the tallest bar.
-                  grid: { left: 48, right: 16, top: 64, bottom: 32 },
-                  // Hovering a bar shows its value; no band across the column (an opaque axis
-                  // shadow painted over the bar in dark mode).
-                  tooltip: {
-                    trigger: "item",
-                    position: "top", // above the bar, clear of the bar and the axis labels
-                    confine: true, // and inside the chart, never over the card header
-                    backgroundColor: cssVar("--surface"),
-                    borderColor: cssVar("--border"),
-                    textStyle: { color: cssVar("--text") },
-                    formatter: (p: { name: string; value: number }) =>
-                      `Quarter ended ${p.name}<br/><b>₹${p.value.toLocaleString("en-IN")} ${scale.short}</b>`,
-                  },
-                  animationDuration: 600,
-                  animationEasing: "cubicOut",
-                  textStyle: { fontFamily: "inherit", color: cssVar("--muted") },
-                  xAxis: {
-                    type: "category",
-                    data: quarters.map((f) => f.period_end),
-                    axisLine: { lineStyle: { color: cssVar("--border-strong") } },
-                  },
-                  yAxis: {
-                    type: "value",
-                    splitLine: { lineStyle: { color: cssVar("--border") } },
-                  },
-                  series: [
-                    {
-                      name: topLine(c.results_taxonomy).short,
-                      type: "bar",
-                      barMaxWidth: 36,
-                      cursor: "default",
-                      emphasis: { focus: "none", itemStyle: { color: cssVar("--accent-hover") } },
-                      itemStyle: {
-                        borderRadius: [4, 4, 0, 0],
-                        color: {
-                          type: "linear",
-                          x: 0,
-                          y: 0,
-                          x2: 0,
-                          y2: 1,
-                          colorStops: [
-                            { offset: 0, color: cssVar("--accent-2") },
-                            { offset: 1, color: cssVar("--accent") },
-                          ],
-                        },
-                      },
-                      data: quarters.map((f) => {
-                        const v = Number(f.value ?? 0) / scale.divisor;
-                        return Number(v.toFixed(scale.digits)); // lakhs keep one decimal
-                      }),
+            {labels.length > 1 && shown ? (
+              <div
+                role="img"
+                aria-label={`${shownLabel(shown)} by quarter, ${labels[0]} to ${labels.at(-1)}; the same figures are in the results history table below`}
+              >
+                <ReactECharts
+                  key={`${theme}-${shown.key}`}
+                  style={{ height: 320 }}
+                  option={{
+                    grid: { left: 48, right: 16, top: 40, bottom: 32 },
+                    tooltip: {
+                      trigger: "item",
+                      position: "top", // above the bar, clear of the bar and the axis labels
+                      confine: true, // and inside the chart, never over the card header
+                      backgroundColor: cssVar("--surface"),
+                      borderColor: cssVar("--border"),
+                      textStyle: { color: cssVar("--text") },
+                      formatter: (p: { name: string; value: number }) =>
+                        `${p.name}<br/><b>${
+                          isPct
+                            ? `${p.value.toFixed(1)}%`
+                            : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`
+                        }</b>`,
                     },
-                  ],
-                }}
-              />
+                    animationDuration: 600,
+                    animationEasing: "cubicOut",
+                    textStyle: { fontFamily: "inherit", color: cssVar("--text-2") },
+                    xAxis: {
+                      type: "category",
+                      data: labels,
+                      axisLine: { lineStyle: { color: cssVar("--border-strong") } },
+                      axisLabel: { color: cssVar("--text-2") },
+                    },
+                    yAxis: {
+                      type: "value",
+                      axisLabel: {
+                        color: cssVar("--text-2"),
+                        formatter: isPct ? "{value}%" : undefined,
+                      },
+                      splitLine: { lineStyle: { color: cssVar("--border") } },
+                    },
+                    series: [
+                      {
+                        name: shownLabel(shown),
+                        type: "bar",
+                        barMaxWidth: 36,
+                        cursor: "default",
+                        // The value on each bar, as design doc 19.1 asks; on a narrow screen the
+                        // labels that would collide are dropped (the tooltip still has them).
+                        labelLayout: { hideOverlap: true },
+                        label: {
+                          show: true,
+                          position: "top",
+                          fontSize: 10,
+                          color: cssVar("--text-2"),
+                          formatter: (p: { value: number | null }) =>
+                            p.value == null
+                              ? ""
+                              : isPct
+                                ? `${p.value.toFixed(1)}%`
+                                : p.value.toLocaleString("en-IN", {
+                                    maximumFractionDigits: scale.digits,
+                                  }),
+                        },
+                        emphasis: { focus: "none", itemStyle: { color: cssVar("--accent-hover") } },
+                        itemStyle: {
+                          borderRadius: [4, 4, 0, 0],
+                          color: {
+                            type: "linear",
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [
+                              { offset: 0, color: cssVar("--accent-2") },
+                              { offset: 1, color: cssVar("--accent") },
+                            ],
+                          },
+                        },
+                        data: points,
+                      },
+                    ],
+                  }}
+                />
+              </div>
+            ) : history.isLoading || filings.isLoading ? (
+              <div className="chart-placeholder" />
             ) : (
               <EmptyState icon="bars" title="No quarterly figures yet">
                 The chart fills in once two or more quarterly results have been collected for this
@@ -413,6 +508,14 @@ export function CompanyPage() {
             )}
           </div>
         </div>
+
+        {h && h.lines.length > 0 && (
+          <ResultsHistory
+            history={h}
+            scale={scale}
+            excelUrl={api.historyXlsxUrl(symbol, basis === "consolidated", HISTORY_QUARTERS)}
+          />
+        )}
 
         <div className="card area-filings">
           <div className="card-header">

@@ -21,6 +21,7 @@ from analekh.glance import (
     is_financial,
     missing_quarter_note,
     quarter_label,
+    suspect_filings,
 )
 from analekh.prices import latest_prices
 from analekh.xbrl.elements import candidates
@@ -173,6 +174,7 @@ def desk(
             Fact.period_start,
             Fact.period_end,
             Fact.value,
+            Fact.filing_id,
         ).where(
             Fact.company_id.in_(by_company),
             Fact.is_latest,
@@ -183,7 +185,13 @@ def desk(
         )
     ).all()
     values: dict[tuple[int, bool], dict[str, dict[date, Decimal]]] = {}
+    # Figures from a filing V11 suspects of the wrong unit stay out of growth and Movers.
+    suspect = suspect_filings(session, list(by_company))
+    held_back: set[tuple[int, bool]] = set()
     for f in facts:
+        if f.filing_id in suspect:
+            held_back.add((f.company_id, bool(f.consolidated)))
+            continue
         if f.value is not None:
             values.setdefault((f.company_id, bool(f.consolidated)), {}).setdefault(f.element, {})[
                 f.period_end
@@ -246,7 +254,12 @@ def desk(
         )
         if price := prices.get(company_id):
             rows[-1].market_cap, rows[-1].price_date = price.market_cap, price.trade_date
-        if rev_prev is None and pat_prev is None:
+        if (company_id, basis) in held_back and (rev_prev is None or rev is None):
+            rows[-1].yoy_note = (
+                "A filing for this comparison looks tagged in the wrong unit (check V11): "
+                "left out until its PDF is checked"
+            )
+        elif rev_prev is None and pat_prev is None:
             rows[-1].yoy_note = missing_quarter_note(session, company_id, basis, year_ago)
 
     _movers(out, rows)

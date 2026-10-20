@@ -195,8 +195,24 @@ def _latest_revision(
     return in_use[0] if in_use else None
 
 
+def suspect_filings(session: Session, company_ids: list[int]) -> set[int]:
+    """Filings whose amounts V11 suspects are in the wrong unit and could not correct: their
+    figures stay off growth, margins and comps until someone checks the PDF."""
+    if not company_ids:
+        return set()
+    return set(
+        session.scalars(
+            select(Filing.id).where(
+                Filing.company_id.in_(company_ids),
+                Filing.meta["scale"]["status"].astext == "suspect",
+            )
+        )
+    )
+
+
 def _quarters(session: Session, company_id: int, consolidated: bool, taxonomy: str) -> dict:
-    """{logical: {period_end: (period_start, value)}} for quarter-length, undimensioned facts."""
+    """{logical: {period_end: (period_start, value)}} for quarter-length, undimensioned facts,
+    leaving out filings V11 suspects of the wrong unit."""
     wanted = {name for lines in LINES.values() for name, _, _ in lines if not name.startswith("=")}
     wanted |= {"pat_continuing"}
     order = {logical: candidates(logical, taxonomy) for logical in wanted}
@@ -213,8 +229,9 @@ def _quarters(session: Session, company_id: int, consolidated: bool, taxonomy: s
     )
     out: dict[str, dict[date, tuple[date, Decimal]]] = {}
     rank: dict[tuple[str, date], int] = {}
+    suspect = suspect_filings(session, [company_id])
     for f in facts:
-        if f.value is None or f.period_start is None:
+        if f.value is None or f.period_start is None or f.filing_id in suspect:
             continue
         if period_type(f.period_start, f.period_end) != "Q":
             continue
