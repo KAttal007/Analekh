@@ -1501,7 +1501,7 @@ package.json      pnpm workspace root (with pnpm-workspace.yaml, pnpm-lock.yaml)
 .gitlab/          merge request templates
 .pre-commit-config.yaml
 CLAUDE.md         project brief for the AI coding assistant
-.claude/          assistant settings, hooks and commands
+.claude/          assistant settings and hooks (the owner's commands and skills are kept outside the repo)
 ```
 
 ### Appendix F. GitLab CI/CD pipeline (skeleton)

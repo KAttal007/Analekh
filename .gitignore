@@ -1,6 +1,12 @@
 # Secrets
 .env
 
+# The owner's Claude commands and skills are private: kept in E:\.claude, never in the repo
+# (the repo's .claude holds only shared settings and hooks)
+.claude/commands/
+.claude/skills/
+.claude/settings.local.json
+
 # Raw exchange files, downloaded filings and user models never enter git (design doc 23)
 data/
 import/
