@@ -211,6 +211,7 @@
         <li><b>Sectors:</b> NSE’s own taxonomy first; LSEG groups kept apart.</li>
         <li><b>Watcher:</b> every 2 hours now; a SEBI-season schedule proposed, backed by NSE’s timings.</li>
         <li><b>Web app:</b> welcome screen, prices and market cap, gliding tabs and switches.</li>
+        <li><b>Future scope:</b> a live earnings-call listener, ahead of the filed recording.</li>
       </ul>
     </div>
   </div>
@@ -242,14 +243,15 @@
 
 <!-- 9. Documents and drafts -->
 <section class="page">
-  <h2>Workflow 8 · Documents, KPIs and grounded drafts <span class="tag plan">planned · phases 3–4</span></h2>
-  <div class="panel"><svg id="docs" viewBox="0 0 1240 500" role="img" aria-label="Documents, KPIs and grounded drafts"></svg></div>
+  <h2>Workflow 8 · Documents, KPIs and grounded drafts <span class="tag plan">planned · phases 3–4 · live calls: future scope</span></h2>
+  <div class="panel"><svg id="docs" viewBox="0 0 1240 556" role="img" aria-label="Documents, KPIs and grounded drafts, and the future live call listener"></svg></div>
   <p class="note">
     <b>Only selected pages reach Claude, and every number is checked.</b> For watchlist or on-demand
     companies, PDFs are read locally, pages classified and only the relevant ones sent for extraction
     against a JSON schema, each value with its page and quote. XBRL wins over any AI value. Drafts are
     written in a tool loop over the database and the model; a grounding check blocks any number that did
-    not come from a tool result or a calculation.
+    not come from a tool result or a calculation. Future scope: a listener that joins the earnings call as
+    it happens and transcribes it live, until the filed recording replaces it (section 26.3).
   </p>
 </section>
 
@@ -840,6 +842,19 @@ sequence("coverage",
   g.link("kpis.b", "tools.l@0.7", { kind: "plan", d: "M150,356 V378 H620 V183 H657", label: "KPIs, chunks", at: [400, 372] });
   g.text(20, 400, "Built so far: page classifier, extraction schema and batch parameters, transcript parser, local call transcription, tools, calc, grounding check and the report loop, with synthetic tests.");
   g.text(20, 416, "Waiting on: a valid Anthropic API key, a presentation and transcript source, and the embeddings provider (hosted or local).");
+
+  // Future scope (section 26.3): the live earnings-call listener, ahead of the filed recording.
+  heading(g.svg, 20, 1200, "FUTURE SCOPE (AFTER V1) · LIVE EARNINGS-CALL LISTENER", 444);
+  g.node("callLink", { x: 20, y: 462, w: 190, h: 56, title: "Call link", sub: ["pasted, or IR page", "(announcements: rule 1)"], kind: "source" });
+  g.node("listener", { x: 260, y: 462, w: 230, h: 56, title: "Listener", sub: ["headless browser · ffmpeg", "registers as the analyst"], kind: "plan" });
+  g.node("live", { x: 540, y: 462, w: 220, h: 56, title: "Whisper, live", sub: ["5–10 s pieces · GPU", "≈10 s behind the speaker"], kind: "plan" });
+  g.node("highlights", { x: 810, y: 462, w: 190, h: 56, title: "Call highlights", sub: ["live · unverified", "quotes · grounding check"], kind: "plan" });
+  g.node("filed", { x: 1050, y: 462, w: 170, h: 56, title: "Filed recording", sub: ["within a day", "replaces the live text"], kind: "plan" });
+  g.link("callLink.r", "listener.l", { kind: "plan", label: "starts", at: [235, 482] });
+  g.link("listener.r", "live.l", { kind: "plan", label: "audio", at: [515, 482] });
+  g.link("live.r", "highlights.l", { kind: "plan", label: "text", at: [785, 482] });
+  g.link("filed.l", "highlights.r", { kind: "plan", label: "replaces", at: [1025, 482] });
+  g.text(20, 540, "Needs an always-on machine during the call (section 22.7); phone-only calls would need a paid telephony service. Transcripts stay in the analyst’s own database; XBRL wins on any figure.");
 })();
 
 /* ---------- 10. Events, calendar, alerts ---------- */
