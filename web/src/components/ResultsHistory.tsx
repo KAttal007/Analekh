@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import type { History, HistoryLine } from "../api/client";
-import type { Scale } from "../lib/format";
+import { plain, type Scale } from "../lib/format";
 import { Icon } from "./Icon";
 import { InfoTip } from "./ui";
 
@@ -9,18 +9,6 @@ import { InfoTip } from "./ui";
 // hold plain numbers an analyst can read across.
 
 const BOLD = new Set(["revenue", "pat"]);
-
-/** 73,188 / 231.4 / −12.5 in the table's unit; one decimal below 1,000, as elsewhere. */
-export function plain(raw: string | null | undefined, scale: Scale): string {
-  if (raw == null || raw === "") return "–";
-  const v = Number(raw) / scale.divisor;
-  const digits = scale.short === "lakh" || Math.abs(v) < 1000 ? 1 : 0;
-  const text = Math.abs(v).toLocaleString(scale.short === "mn" ? "en-US" : "en-IN", {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  });
-  return `${v < 0 ? "−" : ""}${text}`;
-}
 
 function cell(line: HistoryLine, raw: string | null | undefined, scale: Scale): string {
   if (raw == null) return "–";

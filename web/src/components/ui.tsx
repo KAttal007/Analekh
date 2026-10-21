@@ -296,3 +296,37 @@ export function SegmentThumb({ selected = '[aria-selected="true"]' }: { selected
   }, [selected]);
   return <span className="segment-thumb" ref={ref} aria-hidden />;
 }
+
+/** A row of mutually exclusive choices with the sliding thumb. One place for the markup that six
+ * screens had written out by hand (role="tablist" + SegmentThumb + one tab per option); it emits
+ * exactly that markup, so the `.segmented` CSS and the thumb's observer see no difference.
+ * `value` is the selected option's value, or undefined when none is selected. */
+export function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: ReactNode; title?: string }[];
+  value: T | undefined;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="segmented" role="tablist" aria-label={label}>
+      <SegmentThumb />
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="tab"
+          title={o.title}
+          aria-selected={value === o.value}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}

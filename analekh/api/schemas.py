@@ -152,6 +152,32 @@ class QuarterCountOut(BaseModel):
     reported: int
 
 
+class CalendarEventOut(BaseModel):
+    date: date
+    kind: Literal["results", "meeting", "concall"]
+    symbol: str
+    name: str
+    sector: str | None
+    purpose: str | None
+    watched: bool
+    source_url: str | None
+    status: Literal["scheduled", "filed"] = "scheduled"
+
+
+class UnscheduledOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str | None
+
+
+class CalendarOut(BaseModel):
+    start: date
+    end: date
+    events: list[CalendarEventOut]
+    # Watchlist companies with no results date announced in the window (a gap, not a mistake).
+    unscheduled: list[UnscheduledOut]
+
+
 class DeskOut(BaseModel):
     quarter_end: date | None
     quarter_label: str | None

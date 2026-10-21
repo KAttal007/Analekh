@@ -14,7 +14,7 @@ import {
   ErrorNote,
   Loading,
   PageHeader,
-  SegmentThumb,
+  Segmented,
   StatusBadge,
 } from "../components/ui";
 import { companyQuery } from "../lib/preload";
@@ -291,20 +291,12 @@ export function CompanyPage() {
           <div className="basis-bar">
             <span className="muted">Figures</span>
             {filed.consolidated && filed.standalone ? (
-              <div className="segmented" role="tablist" aria-label="Basis of figures">
-                <SegmentThumb />
-                {BASES.map((b) => (
-                  <button
-                    key={b.basis}
-                    type="button"
-                    role="tab"
-                    aria-selected={basis === b.basis}
-                    onClick={() => setParams({ basis: b.basis }, { replace: true })}
-                  >
-                    {b.label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                label="Basis of figures"
+                options={BASES.map((b) => ({ value: b.basis, label: b.label }))}
+                value={basis}
+                onChange={(b) => setParams({ basis: b }, { replace: true })}
+              />
             ) : (
               <Badge>{basis === "consolidated" ? "Consolidated only" : "Standalone only"}</Badge>
             )}
@@ -333,7 +325,7 @@ export function CompanyPage() {
                   qoq === null ? "stat-value" : `stat-value ${qoq < 0 ? "delta-down" : "delta-up"}`
                 }
               >
-                {qoq === null ? "–" : `${qoq > 0 ? "+" : ""}${qoq.toFixed(1)}%`}
+                {signedPct(qoq, false)}
               </div>
               <div className="stat-note">
                 {basis === "standalone" ? "Standalone" : "Consolidated"}{" "}
@@ -392,20 +384,12 @@ export function CompanyPage() {
             <h2>{shown ? shownLabel(shown) : topLine(c.results_taxonomy).short} by quarter</h2>
             <div className="actions">
               {choices.length > 1 && (
-                <div className="segmented" role="tablist" aria-label="Chart shows">
-                  <SegmentThumb />
-                  {choices.map((l) => (
-                    <button
-                      key={l.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={shown?.key === l.key}
-                      onClick={() => setMetric(l.key)}
-                    >
-                      {shownLabel(l)}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  label="Chart shows"
+                  options={choices.map((l) => ({ value: l.key, label: shownLabel(l) }))}
+                  value={shown?.key}
+                  onChange={setMetric}
+                />
               )}
               <span className="muted">
                 {isPct ? "%" : `₹ ${scale.long}`} · {basis}

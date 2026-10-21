@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -261,6 +261,42 @@ def results_desk(
         for end, n in d.quarters
     ]
     return schemas.DeskOut.model_validate(data)
+
+
+@router.get("/calendar", response_model=schemas.CalendarOut)
+def results_calendar(
+    db: DB,
+    user: User,
+    start: date | None = None,
+    end: date | None = None,
+    watchlist: bool = False,
+) -> schemas.CalendarOut:
+    """Who reports results or meets, by day (from the Board Meetings feed). ``watchlist`` keeps
+    only watchlist companies; either way each event says whether its company is watched."""
+    from dataclasses import asdict
+
+    from analekh import schedule
+
+    today = date.today()
+    start = start or today - timedelta(days=2)
+    end = end or start + timedelta(days=45)
+    if end < start or (end - start).days > 400:
+        raise HTTPException(422, "end must be after start, within 400 days")
+    found = schedule.events(db, start, end, watchlist_user=user, only_watched=watchlist)
+    unscheduled: list[schemas.UnscheduledOut] = []
+    if watchlist:
+        dated = {e.symbol for e in found if e.kind == "results"}
+        unscheduled = [
+            schemas.UnscheduledOut(symbol=c.nse_symbol, name=c.name, sector=c.sector)
+            for c in (w.company for w in coverage.entries(db, user))
+            if c.nse_symbol not in dated
+        ]
+    return schemas.CalendarOut(
+        start=start,
+        end=end,
+        events=[schemas.CalendarEventOut(**asdict(e)) for e in found],
+        unscheduled=unscheduled,
+    )
 
 
 @router.get("/companies/{symbol}/glance", response_model=schemas.GlanceOut)

@@ -2,6 +2,7 @@ import io
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from openpyxl import load_workbook
 from pptx import Presentation
 from pptx.util import Inches
@@ -194,3 +195,24 @@ def test_comps_row_has_margins_growth_book_value_and_no_ebitda_for_lenders(db, s
     co.sector_lseg = "Banking Services"  # a lender: EBITDA means nothing
     db.flush()
     assert gather(db, "FULLCO").ttm_ebitda is None
+
+
+def test_gather_finds_a_company_however_the_symbol_is_typed(db, store):
+    # A symbol typed by hand ("soloco", " SOLOCO ") reaches the same company as the canonical one;
+    # an unknown symbol still raises LookupError.
+    solo = _company(db, "SOLOCO")
+    _file_quarters(db, store, solo, "Standalone", 100)
+    assert gather(db, "soloco").name == gather(db, " SOLOCO ").name == solo.name
+    assert gather(db, " soloco ").symbol == "SOLOCO"  # the canonical symbol, not what was typed
+    with pytest.raises(LookupError):
+        gather(db, "NOSUCHCO")
+
+
+def test_tool_executor_looks_companies_up_like_everywhere_else(db):
+    from analekh.genai.tools import ToolExecutor
+
+    _company(db, "TOOLCO")
+    executor = ToolExecutor(db)
+    assert executor._company(" toolco ").nse_symbol == "TOOLCO"
+    with pytest.raises(ValueError, match="unknown company"):
+        executor._company("NOPE")

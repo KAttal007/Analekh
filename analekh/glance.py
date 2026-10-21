@@ -271,6 +271,24 @@ def derive(q: dict, end: date) -> dict[str, Decimal | None]:
     return vals
 
 
+def raw_value(q: dict, name: str, at: date) -> Decimal | None:
+    """One line's figure for a quarter from ``_quarters``' shape ({logical: {end: (start, value)}}).
+    Some filings tag only the continuing-operations profit, so that stands in for ``pat``."""
+    hit = q.get(name, {}).get(at)
+    if hit is None and name == "pat":
+        hit = q.get("pat_continuing", {}).get(at)
+    return hit[1] if hit else None
+
+
+def quarter_value(q: dict, name: str, at: date) -> Decimal | None:
+    """A line as the company page shows it: derived lines ("=ebitda") computed, and ratios the
+    filing tags as fractions (life insurers' solvency 1.8041) in percent."""
+    if name.startswith("="):
+        return derive(q, at).get(name)
+    v = raw_value(q, name, at)
+    return v * HUNDRED if v is not None and name in AS_FRACTION else v
+
+
 def change(cur: Decimal | None, prev: Decimal | None, kind: Kind) -> Decimal | None:
     if cur is None or prev is None:
         return None
@@ -308,14 +326,7 @@ def glance(
             setattr(result, attr, missing_quarter_note(session, company.id, basis, at))
 
     def value(name: str, at: date) -> Decimal | None:
-        if name.startswith("="):
-            return derive(q, at).get(name)
-        hit = q.get(name, {}).get(at)
-        if hit is None and name == "pat":  # some filings tag only the continuing-operations line
-            hit = q.get("pat_continuing", {}).get(at)
-        if hit is None:
-            return None
-        return hit[1] * HUNDRED if name in AS_FRACTION else hit[1]
+        return quarter_value(q, name, at)
 
     for name, label, kind in LINES.get(taxonomy, LINES["indas"]):
         cur = value(name, end)

@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { api, type AlertTest, type JobRun, type Status } from "../api/client";
 import { Icon, type IconName } from "../components/Icon";
-import { Badge, ErrorNote, PageHeader, SegmentThumb, Skeleton } from "../components/ui";
+import { Badge, ErrorNote, PageHeader, Segmented, Skeleton } from "../components/ui";
 import { crore, filedAt, shortDate } from "../lib/format";
 import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
 import { setTheme, type ThemeChoice, useTheme } from "../lib/theme";
@@ -323,20 +323,7 @@ function Choice<T extends string>({
         <strong>{label}</strong>
         <p className="muted">{hint}</p>
       </div>
-      <div className="segmented" role="tablist" aria-label={label}>
-        <SegmentThumb />
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            role="tab"
-            aria-selected={value === o.value}
-            onClick={() => onChange(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <Segmented label={label} options={options} value={value} onChange={onChange} />
     </li>
   );
 }
@@ -346,7 +333,10 @@ const SAMPLE_CAP = "16391169600000"; // Reliance at the 16 Oct 2026 close
 function Display() {
   const prefs = usePrefs();
   const { choice } = useTheme();
-  const set = <K extends keyof Prefs>(key: K) => (v: Prefs[K]) => setPrefs({ [key]: v });
+  const set =
+    <K extends keyof Prefs>(key: K) =>
+    (v: Prefs[K]) =>
+      setPrefs({ [key]: v });
   return (
     <section className="card">
       <div className="card-header">

@@ -21,6 +21,7 @@ from analekh.glance import (
     is_financial,
     missing_quarter_note,
     quarter_label,
+    raw_value,
     suspect_filings,
 )
 from analekh.prices import latest_prices
@@ -242,8 +243,8 @@ def desk(
             for name in LOGICALS
         }
 
-        rev, rev_prev = _value(q, "revenue", end), _value(q, "revenue", year_ago)
-        pat, pat_prev = _value(q, "pat", end), _value(q, "pat", year_ago)
+        rev, rev_prev = raw_value(q, "revenue", end), raw_value(q, "revenue", year_ago)
+        pat, pat_prev = raw_value(q, "pat", end), raw_value(q, "pat", year_ago)
         margin = margin_prev = None
         if taxonomy == "indas" and not is_financial(c):
             margin, margin_prev = (
@@ -293,13 +294,6 @@ def desk(
     out.rows_total = len(rows)
     out.rows = rows[offset : offset + limit]
     return out
-
-
-def _value(q: dict, name: str, at: date) -> Decimal | None:
-    hit = q.get(name, {}).get(at)
-    if hit is None and name == "pat":  # some filings tag only the continuing-operations line
-        hit = q.get("pat_continuing", {}).get(at)
-    return hit[1] if hit else None
 
 
 def _solid_base(r: DeskRow) -> bool:

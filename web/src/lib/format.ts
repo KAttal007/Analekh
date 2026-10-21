@@ -10,16 +10,7 @@ export const MILLION = 1e6;
 /** ₹1,056 cr; one decimal below ₹1,000 crore, none above. In millions (₹10,560 mn) when the
  *  Amounts preference says so. */
 export function crore(raw: string | number | null | undefined, units?: Units): string {
-  if (raw == null || raw === "") return "–";
-  const inMillions = (units ?? readPrefs().units) === "million";
-  const v = Number(raw) / (inMillions ? MILLION : CRORE);
-  const digits = Math.abs(v) < 1000 ? 1 : 0;
-  // Millions are grouped in thousands (16,391,170 mn); lakh and crore the Indian way.
-  const text = Math.abs(v).toLocaleString(inMillions ? "en-US" : "en-IN", {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  });
-  return `${v < 0 ? "−" : ""}₹${text} ${inMillions ? "mn" : "cr"}`; // −₹0.3 cr, not ₹-0.3 cr
+  return money(raw, (units ?? readPrefs().units) === "million" ? IN_MILLION : IN_CRORE);
 }
 
 /** ₹1,211.20: a share price, always two decimals. */
@@ -53,16 +44,44 @@ export function scaleFor(values: (string | number | null | undefined)[], units?:
   return nums.length && Math.max(...nums) < LAKH_BELOW ? IN_LAKH : IN_CRORE;
 }
 
-/** ₹4.6 lakh / ₹231.4 cr / ₹1,056 cr / −₹0.3 cr, in the given unit. */
-export function money(raw: string | number | null | undefined, scale: Scale): string {
-  if (raw == null || raw === "") return "–";
+/** An amount in the scale's unit, grouped for reading: 73,188 / 231.4 / 4.6. One decimal below
+ *  1,000 (and always for lakhs); millions are grouped in thousands (16,391,170), the rest the
+ *  Indian way. The sign is returned apart so a caller can put a currency symbol after it. */
+function amountText(raw: string | number, scale: Scale): { negative: boolean; text: string } {
   const v = Number(raw) / scale.divisor;
-  const digits = scale === IN_LAKH || Math.abs(v) < 1000 ? 1 : 0;
-  const text = Math.abs(v).toLocaleString(scale === IN_MILLION ? "en-US" : "en-IN", {
+  const digits = scale.short === "lakh" || Math.abs(v) < 1000 ? 1 : 0;
+  const text = Math.abs(v).toLocaleString(scale.short === "mn" ? "en-US" : "en-IN", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
-  return `${v < 0 ? "−" : ""}₹${text} ${scale.short}`;
+  return { negative: v < 0, text };
+}
+
+/** ₹4.6 lakh / ₹231.4 cr / ₹1,056 cr / −₹0.3 cr, in the given unit. */
+export function money(raw: string | number | null | undefined, scale: Scale): string {
+  if (raw == null || raw === "") return "–";
+  const { negative, text } = amountText(raw, scale);
+  return `${negative ? "−" : ""}₹${text} ${scale.short}`; // −₹0.3 cr, not ₹-0.3 cr
+}
+
+/** 73,188 / 231.4 / −12.5: the amount alone, for a table whose header names the unit. */
+export function plain(raw: string | number | null | undefined, scale: Scale): string {
+  if (raw == null || raw === "") return "–";
+  const { negative, text } = amountText(raw, scale);
+  return `${negative ? "−" : ""}${text}`;
+}
+
+/** A results line as a figure: 25.7%, ₹38.37 (EPS, as filed) or an amount with its unit. */
+export function figure(
+  raw: string | number | null | undefined,
+  kind: string,
+  scale: Scale,
+): string {
+  if (raw == null || raw === "") return "–";
+  const v = Number(raw);
+  if (kind === "pct") return `${v.toFixed(1)}%`;
+  if (kind === "eps") return `${v < 0 ? "−" : ""}₹${Math.abs(v).toFixed(2)}`;
+  return money(raw, scale);
 }
 
 // Changes this large only come from a near-zero base (Agri-Tech: revenue of ₹4.6 lakh moved

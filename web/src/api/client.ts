@@ -13,6 +13,25 @@ export type Glance = Schemas["GlanceOut"];
 export type Desk = Schemas["DeskOut"];
 export type DeskRow = Schemas["DeskRowOut"];
 export type Price = Schemas["PriceOut"];
+// GET /calendar (hand-typed until `pnpm api-types` is next run against the API).
+export type CalendarKind = "results" | "meeting" | "concall";
+export type CalendarEvent = {
+  date: string;
+  kind: CalendarKind;
+  symbol: string;
+  name: string;
+  sector: string | null;
+  purpose: string | null;
+  watched: boolean;
+  source_url: string | null;
+  status: "scheduled" | "filed";
+};
+export type Calendar = {
+  start: string;
+  end: string;
+  events: CalendarEvent[];
+  unscheduled: { symbol: string; name: string; sector: string | null }[];
+};
 export type DeskSort = "filed" | "market_cap";
 export type DeskQuery = {
   quarter_end?: string;
@@ -114,6 +133,8 @@ export const api = {
       if (v !== undefined && v !== "") params.set(k, String(v));
     return call<Desk>(`/desk?${params}`);
   },
+  calendar: (start: string, end: string, watchlist: boolean) =>
+    call<Calendar>(`/calendar?start=${start}&end=${end}&watchlist=${watchlist}`),
   // Latest close from NSE's bhavcopy (end of day); null before the first load.
   price: (symbol: string) => call<Price | null>(`/companies/${symbol}/price`),
   // Every stored quarter's P&L lines, oldest first; the chart and the history table share it.

@@ -612,3 +612,43 @@ def test_analyse_fails_fast_when_the_job_queue_is_down(client, demo, monkeypatch
     r = client.post("/companies/DEMOFIN/analyse")
     assert r.status_code == 503 and "Background jobs aren't running" in r.json()["detail"]
     assert client.get("/system/jobs").json()["available"] is False
+
+
+def test_calendar_endpoint_scopes_to_the_watchlist(client, db):
+    from datetime import UTC, datetime
+
+    from analekh.config import get_settings
+    from analekh.db.models import FeedItem, Watchlist
+
+    user = get_settings().default_user_id
+    a = Company(nse_symbol="CEPAAA", name="Cep A Ltd", isin="INE000Y01011", sector="S")
+    b = Company(nse_symbol="CEPBBB", name="Cep B Ltd", isin="INE000Y01029", sector="S")
+    db.add_all([a, b])
+    db.flush()
+    db.add(Watchlist(user_id=user, company_id=b.id))
+    when = datetime.now(UTC).date().replace(day=1)  # any day: the window below covers it
+    for c, key in ((a, "ea"), (b, "eb")):
+        db.add(
+            FeedItem(
+                feed="board_meetings",
+                item_key=key,
+                title=c.name,
+                description=f"Financial Results |Meeting Date: {when.strftime('%d-%b-%Y')}",
+                pub_date=datetime.now(UTC),
+                company_id=c.id,
+            )
+        )
+    db.flush()
+    params = {"start": when.isoformat(), "end": when.isoformat()}
+    everyone = client.get("/calendar", params={**params, "watchlist": "false"}).json()
+    symbols = {
+        e["symbol"]: e["watched"] for e in everyone["events"] if e["symbol"].startswith("CEP")
+    }
+    assert symbols == {"CEPAAA": False, "CEPBBB": True}
+    mine = client.get("/calendar", params={**params, "watchlist": "true"}).json()
+    assert {e["symbol"] for e in mine["events"]} >= {"CEPBBB"}
+    assert "CEPAAA" not in {e["symbol"] for e in mine["events"]}
+    assert (
+        client.get("/calendar", params={"start": "2026-10-19", "end": "2024-01-01"}).status_code
+        == 422
+    )

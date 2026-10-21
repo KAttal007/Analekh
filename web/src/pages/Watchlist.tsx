@@ -1,27 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type WatchlistEntry } from "../api/client";
-import { Badge, EmptyState, Loading, MissingTip, PageHeader } from "../components/ui";
+import { ResultsCalendar } from "../components/ResultsCalendar";
 import {
-  changeTitle,
-  crore,
-  money,
-  price,
-  scaleFor,
-  shortDate,
-  signedPct,
-  tone,
-} from "../lib/format";
+  BasisCell,
+  BasisHeader,
+  MarketCapCell,
+  ProfitCell,
+  ResultColumns,
+  RevenueCell,
+  YoyCell,
+} from "../components/ResultCells";
+import { Badge, EmptyState, Loading, MissingTip, PageHeader } from "../components/ui";
+import { price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
 
 // The Watchlist (design doc 19.1): the companies under deep coverage, as a day-to-day view: the
 // latest close, the latest quarter's growth, and anything that needs the analyst's attention
 // (a blocked filing, change sets waiting for review). Same table and phone cards as the desk.
-
-const TOP_LINE: Record<string, string> = {
-  banking: "int.",
-  insurance: "prem.",
-  life_insurance: "prem.",
-};
 
 function link(w: WatchlistEntry) {
   const basis =
@@ -73,25 +68,12 @@ function Row({ w }: { w: WatchlistEntry }) {
           </>
         )}
       </td>
-      <td className="num d-mcap" data-label="Mkt cap">
-        {w.market_cap == null ? <span className="muted">–</span> : crore(w.market_cap)}
-      </td>
-      <td className="num d-rev" data-label="Revenue">
-        {money(w.revenue, scale)}
-        {TOP_LINE[w.taxonomy] && <span className="desk-tag">{TOP_LINE[w.taxonomy]}</span>}
-      </td>
-      <td className={`num d-revy ${tone(w.revenue_yoy)}`} title={changeTitle(w.revenue_yoy, "pct")}>
-        {w.revenue_yoy == null ? <span className="muted">–</span> : signedPct(w.revenue_yoy)}
-      </td>
-      <td className="num d-pat" data-label="Net profit">
-        {money(w.pat, scale)}
-      </td>
-      <td className={`num d-paty ${tone(w.pat_yoy)}`} title={changeTitle(w.pat_yoy, "pct")}>
-        {w.pat_yoy == null ? <span className="muted">–</span> : signedPct(w.pat_yoy)}
-      </td>
-      <td className="d-basis">
-        {w.consolidated != null && <span className="desk-basis">{w.consolidated ? "C" : "S"}</span>}
-      </td>
+      <MarketCapCell value={w.market_cap} missing={<span className="muted">–</span>} />
+      <RevenueCell value={w.revenue} taxonomy={w.taxonomy} scale={scale} />
+      <YoyCell value={w.revenue_yoy} of="revenue" missing={<span className="muted">–</span>} />
+      <ProfitCell value={w.pat} scale={scale} />
+      <YoyCell value={w.pat_yoy} of="profit" missing={<span className="muted">–</span>} />
+      <BasisCell consolidated={w.consolidated} />
     </tr>
   );
 }
@@ -133,16 +115,8 @@ export function Watchlist() {
                 <tr>
                   <th>Company</th>
                   <th className="num">Price</th>
-                  <th className="num d-mcap">Market cap</th>
-                  <th className="num">Revenue</th>
-                  <th className="num" title="Latest quarter on the same quarter a year earlier">
-                    YoY
-                  </th>
-                  <th className="num">Net profit</th>
-                  <th className="num">YoY</th>
-                  <th className="d-basis" title="C = consolidated, S = standalone">
-                    Basis
-                  </th>
+                  <ResultColumns />
+                  <BasisHeader />
                 </tr>
               </thead>
               <tbody>
@@ -159,6 +133,7 @@ export function Watchlist() {
           </p>
         </section>
       )}
+      {data.length > 0 && <ResultsCalendar watchlistOnly title="Upcoming for your watchlist" />}
     </div>
   );
 }

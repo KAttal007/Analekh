@@ -17,20 +17,18 @@ from sqlalchemy.orm import Session
 from analekh.db.models import Company
 from analekh.facts import files_consolidated
 from analekh.glance import (
-    AS_FRACTION,
-    HUNDRED,
     LINES,
     NOT_FOR_FINANCIALS,
     NOTES,
     ONLY_WHEN_NONZERO,
     Kind,
     _quarters,
-    derive,
     is_financial,
     quarter_label,
+    quarter_value,
 )
+from analekh.units import CRORE
 
-CRORE = Decimal(10_000_000)
 MAX_QUARTERS = 28  # the history stored reaches back to March 2023
 
 
@@ -66,21 +64,11 @@ def history(
     out.quarter_ends = ends
     out.quarter_labels = [quarter_label(e) for e in ends]
 
-    def value(name: str, at: date) -> Decimal | None:
-        if name.startswith("="):
-            return derive(q, at).get(name)
-        hit = q.get(name, {}).get(at)
-        if hit is None and name == "pat":  # some filings tag only the continuing-operations line
-            hit = q.get("pat_continuing", {}).get(at)
-        if hit is None:
-            return None
-        return hit[1] * HUNDRED if name in AS_FRACTION else hit[1]
-
     financial = is_financial(company)
     for name, label, kind in LINES.get(taxonomy, LINES["indas"]):
         if name in NOT_FOR_FINANCIALS and financial:
             continue
-        values = [value(name, e) for e in ends]
+        values = [quarter_value(q, name, e) for e in ends]
         if all(v is None for v in values):
             continue
         if name in ONLY_WHEN_NONZERO and all(not v for v in values):

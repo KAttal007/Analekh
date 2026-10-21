@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, type GlanceLine } from "../api/client";
-import { changeTitle, money, scaleFor, signedBps, signedPct, type Scale } from "../lib/format";
+import { changeTitle, figure, scaleFor, signedBps, signedPct } from "../lib/format";
 import { RevisionTag } from "./RevisionTag";
 import { Badge, InfoTip, MissingTip, Skeleton } from "./ui";
 
@@ -23,14 +23,6 @@ const fmtDate = (iso?: string | null) =>
         year: "numeric",
       })
     : "";
-
-function value(line: GlanceLine, scale: Scale): string {
-  if (line.value == null) return "–";
-  const v = Number(line.value);
-  if (line.kind === "pct") return `${v.toFixed(1)}%`;
-  if (line.kind === "eps") return `${v < 0 ? "−" : ""}₹${Math.abs(v).toFixed(2)}`;
-  return money(line.value, scale);
-}
 
 function Change({
   line,
@@ -127,7 +119,7 @@ export function QuarterRail({
                       {line.label}
                       {line.note && <InfoTip text={line.note} />}
                     </th>
-                    <td className="num">{value(line, scale)}</td>
+                    <td className="num">{figure(line.value, line.kind, scale)}</td>
                     <td className="num">
                       <Change line={line} which="qoq" missing={g.previous_note} />
                     </td>

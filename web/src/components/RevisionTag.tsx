@@ -1,22 +1,6 @@
 import type { Revision } from "../api/client";
-import {
-  type Scale,
-  filedAt,
-  longDate,
-  money,
-  scaleFor,
-  signedBps,
-  signedPct,
-} from "../lib/format";
+import { filedAt, longDate, figure, scaleFor, signedBps, signedPct } from "../lib/format";
 import { TagTip } from "./ui";
-
-function figure(raw: string | null | undefined, kind: string, scale: Scale): string {
-  if (raw == null) return "–";
-  const v = Number(raw);
-  if (kind === "pct") return `${v.toFixed(1)}%`;
-  if (kind === "eps") return `${v < 0 ? "−" : ""}₹${Math.abs(v).toFixed(2)}`;
-  return money(raw, scale);
-}
 
 /** What the popup says about a quarter filed more than once. */
 export function revisionText(rev: Revision, filed?: string | null): string {

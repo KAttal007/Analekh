@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Kpi, Price
 from analekh.genai.calc import CalcError, calc
+from analekh.universe.search import get as get_company
 
 
 def _tool(
@@ -146,7 +147,7 @@ class ToolExecutor:
         return handler(**args)
 
     def _company(self, symbol: str) -> Company:
-        c = self.session.scalar(select(Company).where(Company.nse_symbol == symbol.upper()))
+        c = get_company(self.session, symbol)
         if c is None:
             raise ValueError(f"unknown company {symbol}")
         return c

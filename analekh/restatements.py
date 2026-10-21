@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Filing
-from analekh.glance import AS_FRACTION, HUNDRED, LINES, Kind
+from analekh.glance import AS_FRACTION, HUNDRED, LINES, Kind, change
 from analekh.xbrl.elements import candidates
 from analekh.xbrl.parser import period_type
 
@@ -86,11 +86,7 @@ def _quarter_values(
 
 
 def _change(old: Decimal, new: Decimal, kind: Kind) -> Decimal | None:
-    if kind == "pct":
-        return ((new - old) * HUNDRED).quantize(Decimal("1"))
-    if old == 0:
-        return None
-    return ((new - old) / abs(old) * HUNDRED).quantize(Decimal("0.1"))
+    return change(new, old, kind)  # the same maths as the company page's QoQ / YoY
 
 
 def revisions(session: Session, company: Company, filings: list[Filing]) -> dict[int, Revision]:

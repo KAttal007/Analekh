@@ -9,7 +9,7 @@ import {
   ErrorNote,
   InfoTip,
   PageHeader,
-  SegmentThumb,
+  Segmented,
   SkeletonTable,
 } from "../components/ui";
 import { changeTitle, money, scaleFor, shortDate, signedPct, tone } from "../lib/format";
@@ -56,13 +56,7 @@ function Blank({ why }: { why: string }) {
   );
 }
 
-function CompsGrid({
-  table,
-  onRemove,
-}: {
-  table: CompsTable;
-  onRemove: (symbol: string) => void;
-}) {
+function CompsGrid({ table, onRemove }: { table: CompsTable; onRemove: (symbol: string) => void }) {
   const rows = table.rows;
   const scale = scaleFor(rows.flatMap((r) => [r.market_cap, r.ttm_revenue]));
   const stat = (key: string, kind: "pct" | "x" | "chg") => {
@@ -231,7 +225,13 @@ function Row({
       </td>
       <td className="num" data-label="P/E">
         {multiple(r.pe) ?? (
-          <Blank why={loss ? "Not meaningful: a loss over the last four quarters" : "Needs market cap and TTM profit"} />
+          <Blank
+            why={
+              loss
+                ? "Not meaningful: a loss over the last four quarters"
+                : "Needs market cap and TTM profit"
+            }
+          />
         )}
       </td>
       <td
@@ -266,7 +266,15 @@ function Row({
   );
 }
 
-function Suggestions({ first, have, onAdd }: { first: string; have: string[]; onAdd: (s: string) => void }) {
+function Suggestions({
+  first,
+  have,
+  onAdd,
+}: {
+  first: string;
+  have: string[];
+  onAdd: (s: string) => void;
+}) {
   const peers = useQuery({ queryKey: ["peers", first], queryFn: () => api.peers(first, 12) });
   const fresh = (peers.data ?? []).filter((p) => !have.includes(p.symbol)).slice(0, 8);
   if (peers.isLoading) return null;
@@ -534,21 +542,12 @@ export function Comps() {
             <div className="card-header">
               <h2>Comparison</h2>
               <div className="comps-tools">
-                <div className="segmented" role="tablist" aria-label="Basis">
-                  <SegmentThumb />
-                  {BASES.map((b) => (
-                    <button
-                      key={b.basis}
-                      type="button"
-                      role="tab"
-                      title={b.title}
-                      aria-selected={basis === b.basis}
-                      onClick={() => update({ basis: b.basis })}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  label="Basis"
+                  options={BASES.map((b) => ({ value: b.basis, label: b.label, title: b.title }))}
+                  value={basis}
+                  onChange={(b) => update({ basis: b })}
+                />
                 <button
                   type="button"
                   className="btn-sm"
@@ -589,7 +588,9 @@ export function Comps() {
                         <button
                           type="button"
                           className="link-btn"
-                          onClick={() => update({ c: symbols.filter((s) => !data.missing.includes(s)) })}
+                          onClick={() =>
+                            update({ c: symbols.filter((s) => !data.missing.includes(s)) })
+                          }
                         >
                           Remove {data.missing.length > 1 ? "them" : "it"}
                         </button>

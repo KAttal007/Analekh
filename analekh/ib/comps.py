@@ -24,9 +24,10 @@ from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Price
 from analekh.facts import files_consolidated
-from analekh.glance import HUNDRED, _quarters, change, derive, is_financial
+from analekh.glance import HUNDRED, _quarters, change, derive, is_financial, raw_value
+from analekh.units import CRORE
+from analekh.universe.search import get as get_company
 
-CRORE = Decimal(10_000_000)
 BASIS_LABEL = {True: "Consolidated", False: "Standalone", None: "n.a."}
 MAX_COMPANIES = 30  # per table: enough for any peer set, small enough to answer at once
 
@@ -146,13 +147,6 @@ def four_quarters(q: dict) -> list[date] | None:
     return ends
 
 
-def _value(q: dict, logical: str, end: date) -> Decimal | None:
-    hit = q.get(logical, {}).get(end)
-    if hit is None and logical == "pat":  # some filings tag only the continuing-operations line
-        hit = q.get("pat_continuing", {}).get(end)
-    return hit[1] if hit else None
-
-
 def _sum(values: list[Decimal | None]) -> Decimal | None:
     if any(v is None for v in values):
         return None
@@ -201,7 +195,7 @@ def gather(session: Session, symbol: str, consolidated: bool | None = None) -> C
     """Inputs for one company. ``consolidated`` sets the basis to try first; None tries
     consolidated when the company files it. The other basis is used, with a note, when the first
     has fewer than four back-to-back quarters."""
-    company = session.scalar(select(Company).where(Company.nse_symbol == symbol))
+    company = get_company(session, symbol)  # tolerant of case and stray spaces
     if company is None:
         raise LookupError(symbol)
     tax = company.results_taxonomy or "indas"
@@ -226,15 +220,15 @@ def gather(session: Session, symbol: str, consolidated: bool | None = None) -> C
             else "fewer than four back-to-back quarters of results on record"
         )
     else:
-        revenue = _sum([_value(q, "revenue", e) for e in ends])
-        pat = _sum([_value(q, "pat", e) for e in ends])
+        revenue = _sum([raw_value(q, "revenue", e) for e in ends])
+        pat = _sum([raw_value(q, "pat", e) for e in ends])
         if pat is None:
             notes.append("net profit missing for a quarter in the last four")
         if tax == "indas" and not is_financial(company):
             ebitda = _sum([derive(q, e)["=ebitda"] for e in ends])
         latest = ends[0]
         year_ago = date(latest.year - 1, latest.month, latest.day)
-        yoy = change(_value(q, "revenue", latest), _value(q, "revenue", year_ago), "inr")
+        yoy = change(raw_value(q, "revenue", latest), raw_value(q, "revenue", year_ago), "inr")
     book, book_at = book_value(session, company, basis)
     price = session.scalar(
         select(Price).where(Price.company_id == company.id).order_by(Price.trade_date.desc())
@@ -244,7 +238,7 @@ def gather(session: Session, symbol: str, consolidated: bool | None = None) -> C
     elif price.market_cap is None:
         notes.append("no market cap: no share count in its results filings")
     return CompInputs(
-        symbol,
+        company.nse_symbol,  # the canonical symbol, however the caller typed it
         company.name,
         price.market_cap if price else None,
         debt=None,
@@ -280,16 +274,13 @@ def build_table(
 ) -> tuple[list[CompRow], list[str]]:
     """Rows for the symbols Analekh knows, and the ones it doesn't (a saved list can outlive a
     delisting or a symbol change), so one stale symbol never breaks the table."""
-    from analekh.universe.search import get as get_company
-
     rows: list[CompRow] = []
     missing: list[str] = []
     for symbol in clean_symbols(symbols)[:MAX_COMPANIES]:
-        company = get_company(session, symbol)
-        if company is None:
+        try:
+            rows.append(compute(gather(session, symbol, consolidated)))
+        except LookupError:
             missing.append(symbol)
-            continue
-        rows.append(compute(gather(session, company.nse_symbol, consolidated)))
     return rows, missing
 
 

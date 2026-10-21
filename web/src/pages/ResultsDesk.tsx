@@ -2,18 +2,27 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, type Desk, type DeskQuery, type DeskRow, type DeskSort } from "../api/client";
-import { Badge, EmptyState, ErrorNote, MissingTip, SegmentThumb, Skeleton } from "../components/ui";
+import {
+  BasisCell,
+  BasisHeader,
+  MarketCapCell,
+  ProfitCell,
+  ResultColumns,
+  RevenueCell,
+  YoyCell,
+} from "../components/ResultCells";
+import { Badge, EmptyState, ErrorNote, MissingTip, Segmented, Skeleton } from "../components/ui";
 import {
   changeTitle,
   crore,
   filedAt,
-  money,
   scaleFor,
   shortDate,
   signedBps,
   signedPct,
   tone,
 } from "../lib/format";
+import { ResultsCalendar } from "../components/ResultsCalendar";
 import { usePrefs } from "../lib/prefs";
 
 const PAGE = 10;
@@ -27,13 +36,6 @@ const SORTS: { sort: DeskSort; label: string }[] = [
   { sort: "filed", label: "Newest filing first" },
   { sort: "market_cap", label: "Largest market cap first" },
 ];
-
-// What "revenue" is for each results format, shown beside the figure where it isn't revenue.
-const TOP_LINE_TAG: Record<string, { tag: string; title: string }> = {
-  banking: { tag: "int.", title: "Interest earned" },
-  insurance: { tag: "prem.", title: "Premium earned" },
-  life_insurance: { tag: "prem.", title: "Net premium income" },
-};
 
 function basisLink(r: DeskRow) {
   return `/companies/${r.symbol}?basis=${r.consolidated ? "consolidated" : "standalone"}`;
@@ -59,22 +61,14 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
           <tr>
             <th>Company</th>
             <th>Filed</th>
-            <th className="num d-mcap" title="At the latest close loaded from NSE's bhavcopy">
-              Market cap
-            </th>
-            <th className="num">Revenue</th>
-            <th className="num">YoY</th>
-            <th className="num">Net profit</th>
-            <th className="num">YoY</th>
+            <ResultColumns />
             <th
               className="num d-ebitda"
               title="EBITDA margin; change in basis points on a year ago"
             >
               EBITDA margin
             </th>
-            <th className="d-basis" title="C = consolidated, S = standalone">
-              Basis
-            </th>
+            <BasisHeader />
           </tr>
         </thead>
         <tbody>
@@ -101,12 +95,10 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               <td className="desk-filed d-filed" data-label="Filed">
                 {filedAt(r.filed_at)}
               </td>
-              <td
-                className="num d-mcap"
-                data-label="Mkt cap"
+              <MarketCapCell
+                value={r.market_cap}
                 title={r.price_date ? `At the ${shortDate(r.price_date)} close` : undefined}
-              >
-                {r.market_cap == null ? (
+                missing={
                   <MissingTip
                     text={
                       r.price_date
@@ -114,34 +106,16 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
                         : "No closing price loaded yet"
                     }
                   />
-                ) : (
-                  crore(r.market_cap)
-                )}
-              </td>
-              <td className="num d-rev" data-label="Revenue">
-                {money(r.revenue, scaleFor([r.revenue]))}
-                {TOP_LINE_TAG[r.taxonomy] && (
-                  <span className="desk-tag" title={TOP_LINE_TAG[r.taxonomy].title}>
-                    {TOP_LINE_TAG[r.taxonomy].tag}
-                  </span>
-                )}
-              </td>
-              <td
-                className={`num d-revy ${tone(r.revenue_yoy)}`}
-                title={changeTitle(r.revenue_yoy, "pct")}
-              >
-                {r.revenue_yoy == null ? (
-                  <MissingTip text={r.yoy_note} />
-                ) : (
-                  signedPct(r.revenue_yoy)
-                )}
-              </td>
-              <td className="num d-pat" data-label="Net profit">
-                {money(r.pat, scaleFor([r.revenue]))}
-              </td>
-              <td className={`num d-paty ${tone(r.pat_yoy)}`} title={changeTitle(r.pat_yoy, "pct")}>
-                {r.pat_yoy == null ? <MissingTip text={r.yoy_note} /> : signedPct(r.pat_yoy)}
-              </td>
+                }
+              />
+              <RevenueCell value={r.revenue} taxonomy={r.taxonomy} scale={scaleFor([r.revenue])} />
+              <YoyCell
+                value={r.revenue_yoy}
+                of="revenue"
+                missing={<MissingTip text={r.yoy_note} />}
+              />
+              <ProfitCell value={r.pat} scale={scaleFor([r.revenue])} />
+              <YoyCell value={r.pat_yoy} of="profit" missing={<MissingTip text={r.yoy_note} />} />
               <td className="num d-ebitda">
                 {r.ebitda_margin == null ? (
                   <span className="muted">–</span>
@@ -165,9 +139,7 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
                   </>
                 )}
               </td>
-              <td className="d-basis">
-                <span className="desk-basis">{r.consolidated ? "C" : "S"}</span>
-              </td>
+              <BasisCell consolidated={r.consolidated} />
             </tr>
           ))}
         </tbody>
@@ -218,20 +190,15 @@ function Movers({ d }: { d: Desk }) {
     <section className="card">
       <div className="card-header">
         <h2>Movers, year on year</h2>
-        <div className="segmented" role="tablist" aria-label="Movers by">
-          <SegmentThumb />
-          {(["rev", "pat"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={metric === m}
-              onClick={() => setMetric(m)}
-            >
-              {m === "rev" ? "Revenue" : "Profit"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Movers by"
+          options={[
+            { value: "rev", label: "Revenue" },
+            { value: "pat", label: "Profit" },
+          ]}
+          value={metric}
+          onChange={setMetric}
+        />
       </div>
       <div className="card-body movers desk-scroll">
         {empty ? (
@@ -395,20 +362,12 @@ export function ResultsDesk() {
                 </option>
               ))}
             </select>
-            <div className="segmented" role="tablist" aria-label="Filed within">
-              <SegmentThumb />
-              {PERIODS.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  role="tab"
-                  aria-selected={(query.days ?? 0) === p.days}
-                  onClick={() => set("days", p.days ? String(p.days) : null)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="Filed within"
+              options={PERIODS.map((p) => ({ value: String(p.days), label: p.label }))}
+              value={String(query.days ?? 0)}
+              onChange={(days) => set("days", days === "0" ? null : days)}
+            />
           </div>
           {!first ? (
             <div className="card-body">
@@ -473,6 +432,10 @@ export function ResultsDesk() {
           {first && <Sectors d={first} onPick={(s) => set("sector", s)} />}
         </aside>
       </div>
+
+      {/* Follows the "Watchlist only" switch above; the Watchlist screen shows the same
+          calendar, always limited to its companies. */}
+      <ResultsCalendar watchlistOnly={!!query.watchlist} />
     </div>
   );
 }
