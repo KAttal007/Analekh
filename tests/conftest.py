@@ -2,10 +2,30 @@ import os
 from collections.abc import Iterator
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, make_url, text
 from sqlalchemy.orm import Session
 
-TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://app:app@localhost:5432/analekh")
+# A database of its own: tests run in rolled-back transactions, but against the working database
+# (10M facts after the full sweep) every unscoped query scans real data: 6 minutes instead of 50 s.
+TEST_DB = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql+psycopg://app:app@localhost:5432/analekh_test"
+)
+
+
+def _ensure_database(url: str) -> None:
+    """Create the test database on first use (from the server's postgres database)."""
+    target = make_url(url)
+    admin = create_engine(target.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    try:
+        with admin.connect() as conn:
+            exists = conn.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": target.database},
+            )
+            if not exists:
+                conn.execute(text(f'CREATE DATABASE "{target.database}"'))
+    finally:
+        admin.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +50,7 @@ def engine():
 
     eng = create_engine(TEST_DB)
     try:
+        _ensure_database(TEST_DB)
         with eng.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))

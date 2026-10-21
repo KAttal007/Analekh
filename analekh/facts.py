@@ -17,8 +17,13 @@ from analekh.workbook.mapping import Mapping, RowMap, apply_transform
 def files_consolidated(session: Session, company_id: int) -> bool:
     """Default basis for a company's figures: consolidated when it files consolidated results,
     else standalone (many companies file standalone only, e.g. Tata Elxsi)."""
+    # is_latest lets Postgres use ix_facts_latest (company first); without it the planner bets on
+    # a scan of the whole table, about 1 s, and scans all of it for a standalone-only company.
+    # Same answer: every consolidated line has a latest row.
     found = session.scalar(
-        select(Fact.id).where(Fact.company_id == company_id, Fact.consolidated).limit(1)
+        select(Fact.id)
+        .where(Fact.company_id == company_id, Fact.is_latest, Fact.consolidated)
+        .limit(1)
     )
     return found is not None
 

@@ -1,6 +1,8 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    # The facts table is ~4.4 GB; the 128 MB default made the first view of each company hit disk.
+    command: postgres -c shared_buffers=1GB -c effective_cache_size=3GB
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
@@ -50,7 +52,7 @@ services:
 
   beat:
     build: .
-    command: celery -A analekh.jobs beat -l info
+    command: celery -A analekh.jobs beat -l info -s /tmp/celerybeat-schedule
     env_file: .env
     depends_on: [redis]
 

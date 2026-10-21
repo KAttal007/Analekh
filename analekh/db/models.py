@@ -118,7 +118,23 @@ class FeedItem(Base):
 
 class Filing(Base):
     __tablename__ = "filings"
-    __table_args__ = (Index("ix_filings_company_period", "company_id", text("period_end DESC")),)
+    __table_args__ = (
+        Index("ix_filings_company_period", "company_id", text("period_end DESC")),
+        # The results desk and Home page: who reported a quarter, the newest filing.
+        Index(
+            "ix_filings_results_quarter",
+            "period_end",
+            "company_id",
+            postgresql_where=text("kind = 'results_xbrl' AND period_type = 'Q'"),
+        ),
+        Index("ix_filings_filed_at", "filed_at"),
+        # V11's "suspect" filings, read on every glance and desk call (the table is wide).
+        Index(
+            "ix_filings_scale_suspect",
+            "company_id",
+            postgresql_where=text("(meta -> 'scale') ->> 'status' = 'suspect'"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))

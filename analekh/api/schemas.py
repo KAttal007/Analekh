@@ -169,6 +169,7 @@ class DeskOut(BaseModel):
     turned_profitable: list[DeskRowOut]
     turned_loss: list[DeskRowOut]
     sectors: list[SectorProgressOut]
+    all_sectors: list[str] = []  # every sector in scope, for the filter
 
 
 class PriceOut(BaseModel):

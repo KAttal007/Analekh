@@ -7,6 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 
 from analekh import coverage
 from analekh.api import schemas
@@ -17,6 +18,7 @@ from analekh.universe.search import DEFAULT_LIMIT, search
 from analekh.xbrl.elements import candidates
 
 router = APIRouter(tags=["companies"])
+SLIM_META = {"links", "blocks_auto_apply", "scale"}  # company page + V11 audit trail
 
 
 @router.get("/companies/index", response_model=list[schemas.CompanyIndexEntry])
@@ -78,27 +80,34 @@ def unwatch(symbol: str, db: DB, user: User) -> None:
 
 @router.get("/watchlist", response_model=list[schemas.WatchlistEntryOut])
 def watchlist(db: DB, user: User) -> list[schemas.WatchlistEntryOut]:
-    from analekh.glance import glance
+    from analekh.glance import glance, suspect_filings
     from analekh.prices import latest_prices
 
     entries = list(coverage.entries(db, user))
-    prices = latest_prices(db, [w.company_id for w in entries])
+    ids = [w.company_id for w in entries]
+    prices = latest_prices(db, ids)
+    suspect = suspect_filings(db, ids)
+    # One query each for the newest results filing and the open change sets, not one per company.
+    newest = (
+        select(Filing.company_id, Filing.period_end, Filing.meta)
+        .ext(distinct_on(Filing.company_id))
+        .where(Filing.company_id.in_(ids), Filing.kind == "results_xbrl")
+        .order_by(Filing.company_id, Filing.period_end.desc().nulls_last())
+    )
+    last_by_company = {r.company_id: r for r in db.execute(newest)}
+    pending_by_company = dict(
+        db.execute(
+            select(Model.company_id, func.count(ChangeSet.id))
+            .join(ChangeSet, ChangeSet.model_id == Model.id)
+            .where(Model.company_id.in_(ids), ChangeSet.status == "proposed")
+            .group_by(Model.company_id)
+        ).all()
+    )
     out = []
     for w in entries:
-        last = db.scalar(
-            select(Filing)
-            .where(Filing.company_id == w.company_id, Filing.kind == "results_xbrl")
-            .order_by(Filing.period_end.desc().nulls_last())
-        )
-        pending = (
-            db.scalar(
-                select(func.count(ChangeSet.id))
-                .join(Model)
-                .where(Model.company_id == w.company_id, ChangeSet.status == "proposed")
-            )
-            or 0
-        )
-        g = glance(db, w.company)
+        last = last_by_company.get(w.company_id)
+        pending = pending_by_company.get(w.company_id, 0)
+        g = glance(db, w.company, suspect=suspect)
         lines = {line.key: line for line in g.lines}
         price = prices.get(w.company_id)
         out.append(
@@ -144,10 +153,17 @@ def analyse(symbol: str, db: DB) -> schemas.JobOut:
 
 @router.get("/companies/{symbol}/filings", response_model=list[schemas.FilingOut])
 def filings(
-    symbol: str, db: DB, kind: str | None = None, start: date | None = None, end: date | None = None
+    symbol: str,
+    db: DB,
+    kind: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    full: bool = False,
 ) -> list[schemas.FilingOut]:
     """Filings, newest period first; a quarter filed more than once says which filing is in
-    use, what it replaced and which headline numbers changed."""
+    use, what it replaced and which headline numbers changed. ``meta`` holds only what the
+    company page shows (file links, whether validation blocks it) unless ``full`` is set: the
+    whole validation report is about 2 KB a filing."""
     from dataclasses import asdict
 
     from analekh.restatements import revisions
@@ -165,6 +181,8 @@ def filings(
     out = []
     for f in rows:
         item = schemas.FilingOut.model_validate(f)
+        if not full:
+            item.meta = {k: v for k, v in item.meta.items() if k in SLIM_META}
         if f.id in revised:
             item.revision = schemas.RevisionOut.model_validate(asdict(revised[f.id]))
         out.append(item)

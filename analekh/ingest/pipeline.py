@@ -303,13 +303,16 @@ def _fact_key(element: str, start, end, dims: str, context: str | None) -> tuple
 
 
 def rewrite_amounts(session: Session, filing: Filing, parsed: ParsedFiling, factor) -> int:
-    """Set the filing's stored rupee amounts to the values as filed times factor (1 restores
-    them). Always from the file, so it can never apply a factor twice. Returns rows changed."""
+    """Set the filing's stored rupee amounts, and their precision, to the values as filed times
+    factor (1 restores them). Always from the file, so it can never apply a factor twice.
+    Returns rows changed."""
     from decimal import Decimal
+
+    from analekh.validate.rules import scaled_decimals
 
     multiplier = Decimal(factor) if factor is not None else Decimal(1)
     filed = {
-        _fact_key(f.element, f.period_start, f.period_end, f.dims_hash, f.context_ref): f.value
+        _fact_key(f.element, f.period_start, f.period_end, f.dims_hash, f.context_ref): f
         for f in parsed.facts
         if f.unit in MONETARY_UNITS
     }
@@ -322,9 +325,10 @@ def rewrite_amounts(session: Session, filing: Filing, parsed: ParsedFiling, fact
         )
         if raw is None:
             continue
-        value = raw * multiplier
-        if row.value != value:
-            row.value = value
+        value = raw.value * multiplier
+        decimals = scaled_decimals(raw.decimals, multiplier)
+        if row.value != value or row.decimals != decimals:
+            row.value, row.decimals = value, decimals
             changed += 1
     return changed
 
@@ -367,7 +371,7 @@ def revalidate_company(session: Session, store: ObjectStore, company: Company) -
         scale = scale_meta(report)
         before = ((filing.meta or {}).get("scale") or {}).get("factor")
         after = scale.get("factor") if scale else None
-        if before != after:
+        if before != after or after is not None:  # idempotent: from the file, every time
             rewrite_amounts(session, filing, parsed[filing.id], after)
             session.flush()  # the next filing's checks read the corrected amounts
         meta = {k: v for k, v in (filing.meta or {}).items() if k != "scale"}

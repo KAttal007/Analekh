@@ -608,7 +608,7 @@ def test_watchlist_rows_carry_growth_and_price(client, demo, db):
 def test_analyse_fails_fast_when_the_job_queue_is_down(client, demo, monkeypatch):
     from analekh.jobs import health
 
-    monkeypatch.setattr(health, "queue_available", lambda timeout=0.4: False)
+    monkeypatch.setattr(health, "queue_available", lambda timeout=0.4, **_: False)
     r = client.post("/companies/DEMOFIN/analyse")
     assert r.status_code == 503 and "Background jobs aren't running" in r.json()["detail"]
     assert client.get("/system/jobs").json()["available"] is False

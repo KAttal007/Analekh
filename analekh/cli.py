@@ -312,7 +312,7 @@ def recompute_latest(
 def revalidate(
     symbols: list[str] = typer.Argument(None, help="Tickers; default: every company with results."),
 ) -> None:
-    """Re-run format detection and V1-V10 on stored results files (no downloads)."""
+    """Re-run format detection and V1-V11 on stored results files (no downloads)."""
     from sqlalchemy import exists, select
 
     from analekh.db.models import Company, Filing

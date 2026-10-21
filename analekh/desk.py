@@ -93,6 +93,8 @@ class Desk:
     turned_profitable: list[DeskRow] = field(default_factory=list)
     turned_loss: list[DeskRow] = field(default_factory=list)
     sectors: list[SectorProgress] = field(default_factory=list)
+    # Sectors that reported the quarter, whatever the filter: the desk's sector dropdown.
+    all_sectors: list[str] = field(default_factory=list)
 
 
 def _quarter_start(end: date) -> date:
@@ -140,6 +142,22 @@ def desk(
     )
     if end is None:
         return out
+    out.all_sectors = sorted(
+        s
+        for s in session.scalars(
+            select(Company.sector)
+            .distinct()
+            .join(Filing, Filing.company_id == Company.id)
+            .where(
+                Filing.kind == "results_xbrl",
+                Filing.period_type == "Q",
+                Filing.period_end == end,
+                Company.is_active,
+                Company.sector.is_not(None),
+            )
+        )
+        if s
+    )
 
     company_q = select(Company).where(Company.is_active)
     if sector:

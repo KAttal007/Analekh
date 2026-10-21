@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Filing
@@ -197,20 +197,25 @@ def _latest_revision(
 
 def suspect_filings(session: Session, company_ids: list[int]) -> set[int]:
     """Filings whose amounts V11 suspects are in the wrong unit and could not correct: their
-    figures stay off growth, margins and comps until someone checks the PDF."""
+    figures stay off growth, margins and comps until someone checks the PDF. Returns every such
+    filing, not only the given companies' (callers look filings up by id); an empty list of
+    companies means nothing to look up, so nothing is read."""
     if not company_ids:
         return set()
-    return set(
-        session.scalars(
-            select(Filing.id).where(
-                Filing.company_id.in_(company_ids),
-                Filing.meta["scale"]["status"].astext == "suspect",
-            )
-        )
-    )
+    # Written as the partial index ix_filings_scale_suspect spells it, or Postgres can't use the
+    # index (the ORM's meta['scale'] subscript renders differently). All of them is a few dozen
+    # rows, so the list of companies is not needed to narrow it.
+    q = select(Filing.id).where(text("(filings.meta -> 'scale') ->> 'status' = 'suspect'"))
+    return set(session.scalars(q))
 
 
-def _quarters(session: Session, company_id: int, consolidated: bool, taxonomy: str) -> dict:
+def _quarters(
+    session: Session,
+    company_id: int,
+    consolidated: bool,
+    taxonomy: str,
+    suspect: set[int] | None = None,
+) -> dict:
     """{logical: {period_end: (period_start, value)}} for quarter-length, undimensioned facts,
     leaving out filings V11 suspects of the wrong unit."""
     wanted = {name for lines in LINES.values() for name, _, _ in lines if not name.startswith("=")}
@@ -229,7 +234,8 @@ def _quarters(session: Session, company_id: int, consolidated: bool, taxonomy: s
     )
     out: dict[str, dict[date, tuple[date, Decimal]]] = {}
     rank: dict[tuple[str, date], int] = {}
-    suspect = suspect_filings(session, [company_id])
+    if suspect is None:
+        suspect = suspect_filings(session, [company_id])
     for f in facts:
         if f.value is None or f.period_start is None or f.filing_id in suspect:
             continue
@@ -275,11 +281,17 @@ def change(cur: Decimal | None, prev: Decimal | None, kind: Kind) -> Decimal | N
     return ((cur - prev) / abs(prev) * HUNDRED).quantize(Decimal("0.1"))
 
 
-def glance(session: Session, company: Company, consolidated: bool | None = None) -> Glance:
+def glance(
+    session: Session,
+    company: Company,
+    consolidated: bool | None = None,
+    suspect: set[int] | None = None,
+) -> Glance:
+    """``suspect``: the suspect filings, when the caller already has them for many companies."""
     basis = files_consolidated(session, company.id) if consolidated is None else consolidated
     taxonomy = company.results_taxonomy or "indas"
     result = Glance(consolidated=basis, taxonomy=taxonomy)
-    q = _quarters(session, company.id, basis, taxonomy)
+    q = _quarters(session, company.id, basis, taxonomy, suspect)
     ends = q.get("revenue") or q.get("pat") or {}
     if not ends:
         return result

@@ -147,7 +147,9 @@ export interface paths {
         /**
          * Filings
          * @description Filings, newest period first; a quarter filed more than once says which filing is in
-         *     use, what it replaced and which headline numbers changed.
+         *     use, what it replaced and which headline numbers changed. ``meta`` holds only what the
+         *     company page shows (file links, whether validation blocks it) unless ``full`` is set: the
+         *     whole validation report is about 2 KB a filing.
          */
         get: operations["filings_companies__symbol__filings_get"];
         put?: never;
@@ -1262,6 +1264,11 @@ export interface components {
             turned_loss: components["schemas"]["DeskRowOut"][];
             /** Sectors */
             sectors: components["schemas"]["SectorProgressOut"][];
+            /**
+             * All Sectors
+             * @default []
+             */
+            all_sectors: string[];
         };
         /** DeskRowOut */
         DeskRowOut: {
@@ -2136,6 +2143,7 @@ export interface operations {
                 kind?: string | null;
                 start?: string | null;
                 end?: string | null;
+                full?: boolean;
             };
             header?: never;
             path: {

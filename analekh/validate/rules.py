@@ -418,7 +418,9 @@ def v10_kpi_conflict(ctx: ValidationContext) -> RuleResult:
 # amounts are corrected (rule 5 still holds: the factor is exact and recorded, and the stored file
 # keeps the values as filed). One signal alone, or a disagreement: flagged as a suspect and
 # blocked, never changed. Matching its own history: passes, whatever the other basis says (then
-# the other filing is the odd one). Per-share values and ratios are not amounts: left as filed.
+# the other filing is the odd one). Off its history but level with the other basis: corrected if
+# the other basis is off its own history by the same power (both slipped), passed if the other
+# basis is in line with its own (a real change). Per-share values and ratios are not amounts.
 SCALE_POWERS = range(2, 8)  # 100 to 1 crore
 SCALE_SLACK = 0.3  # log10 distance from an exact power: within a factor of 2 either way
 SCALE_MIN_BASE = Decimal(10_000_000)  # Rs 1 crore: below it, ratios of tiny figures are noise
@@ -436,12 +438,24 @@ def _power(ratio: Decimal) -> int | None:
     return k if abs(k) in SCALE_POWERS and abs(lg - k) <= SCALE_SLACK else None
 
 
+def scaled_decimals(decimals: int | None, factor: Decimal) -> int | None:
+    """The XBRL precision that goes with an amount multiplied by factor (a power of ten):
+    Metro's crore figures read as lakh carried decimals -3 (Rs 1,000); times 100 they are
+    precise to Rs 1 lakh, -5, as its correct standalone filing says."""
+    if decimals is None or factor == 1:
+        return decimals
+    return decimals - round(math.log10(float(factor)))
+
+
 def rescaled(filing: ParsedFiling, factor: Decimal) -> ParsedFiling:
-    """The filing with its rupee amounts multiplied by factor; everything else as filed."""
+    """The filing with its rupee amounts (and their precision) multiplied by factor; everything
+    else as filed."""
     return replace(
         filing,
         facts=[
-            replace(f, value=f.value * factor) if f.unit in MONETARY_UNITS else f
+            replace(f, value=f.value * factor, decimals=scaled_decimals(f.decimals, factor))
+            if f.unit in MONETARY_UNITS
+            else f
             for f in filing.facts
         ],
     )
@@ -461,6 +475,17 @@ def _quarters(facts: list[HistoryFact], names: tuple[str, ...]) -> dict[date, De
         if out:
             return out
     return out
+
+
+def _typical(own: dict[date, Decimal], end: date) -> Decimal | None:
+    """Median of the nearest other quarters within 400 days, when there are enough and it is
+    large enough to compare against."""
+    near = sorted((e for e in own if e != end), key=lambda e: abs((e - end).days))
+    near = [e for e in near if abs((e - end).days) <= 400][:SCALE_NEIGHBOURS]
+    if len(near) < SCALE_MIN_NEIGHBOURS:
+        return None
+    typical = statistics.median(own[e] for e in near)
+    return typical if typical >= SCALE_MIN_BASE else None
 
 
 def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
@@ -485,18 +510,50 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
             k_basis = k
 
     k_hist = None
-    own = _quarters(ctx.history, names)
-    near = sorted((e for e in own if e != q.period_end), key=lambda e: abs((e - q.period_end).days))
-    near = [e for e in near if abs((e - q.period_end).days) <= 400][:SCALE_NEIGHBOURS]
-    if len(near) >= SCALE_MIN_NEIGHBOURS:
-        typical = statistics.median(own[e] for e in near)
-        details["neighbours"] = {"median": typical, "quarters": [e.isoformat() for e in near]}
-        if typical >= SCALE_MIN_BASE:
-            k_hist = _power(q.value / typical)
-            if k_hist is None:
+    typical = _typical(_quarters(ctx.history, names), q.period_end)
+    if typical is not None:
+        details["neighbours"] = {"median": typical}
+        k_hist = _power(q.value / typical)
+        if k_hist is None:
+            return RuleResult(
+                "V11", "pass", "block", "Amounts in line with past quarters", details
+            ), None
+
+    # Out of line with its own history, but level with the other basis: either both filings
+    # slipped the same way (the other basis is off ITS history by the same power: two histories
+    # agree, so both are corrected) or the quarter really was different (the other basis is in
+    # line with its own history: a lumpy quarter, a demerger). Seen in the full sweep of
+    # 21 October 2026 (Eveready, MTNL both 100x small; Mahindra Lifespace a real jump).
+    # Or, where the two bases normally run level (their histories within a factor of five; never
+    # a holding company, whose standalone runs far below), this filing alone is off by the same
+    # power against both its own past and an in-line other basis: corrected, in either direction.
+    if k_hist is not None and other is not None and other >= SCALE_MIN_BASE and k_basis is None:
+        lg = abs(math.log10(float(q.value / other)))
+        other_typical = _typical(_quarters(ctx.other_basis, names), q.period_end)
+        if other_typical is not None:
+            details["other_basis"]["neighbours_median"] = other_typical
+        if (
+            lg > 1 - SCALE_SLACK
+            and other_typical is not None
+            and typical is not None
+            and _power(other / other_typical) is None
+            and _power(q.value / other) == k_hist
+            and abs(math.log10(float(typical / other_typical))) <= 1 - SCALE_SLACK
+        ):
+            k_basis = k_hist
+        elif lg <= 1 - SCALE_SLACK and other_typical is not None:
+            k_other = _power(other / other_typical)
+            if k_other is None:
                 return RuleResult(
-                    "V11", "pass", "block", "Amounts in line with past quarters", details
+                    "V11",
+                    "pass",
+                    "block",
+                    "A real change: the other basis reports the same quarter and is in line"
+                    " with its own past quarters",
+                    details,
                 ), None
+            if k_other == k_hist:
+                k_basis = k_hist  # both bases slipped together: corrected below
 
     if k_basis is not None and k_hist == k_basis:
         factor = Decimal(10) ** -k_basis

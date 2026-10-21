@@ -331,13 +331,6 @@ export function ResultsDesk() {
     queryFn: () => api.desk({ ...query, limit: PAGE, offset: (page - 1) * PAGE }),
     placeholderData: keepPreviousData, // the old page stays up while the next one loads
   });
-  // The full list of sectors for the filter, whatever the current filter is.
-  const allSectors = useQuery({
-    queryKey: ["desk-sectors", query.quarter_end],
-    queryFn: () => api.desk({ quarter_end: query.quarter_end, limit: 1 }),
-    select: (d) => d.sectors.map((s) => s.sector).sort(),
-  });
-
   if (desk.isError) return <ErrorNote error={desk.error} />;
   const first = desk.data;
   const rows = first?.rows ?? [];
@@ -369,7 +362,7 @@ export function ResultsDesk() {
             onChange={(e) => set("sector", e.target.value || null)}
           >
             <option value="">All sectors</option>
-            {(allSectors.data ?? []).map((s) => (
+            {(first?.all_sectors ?? []).map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -456,12 +449,21 @@ export function ResultsDesk() {
             </>
           ) : (
             <div className="card-body">
-              <EmptyState icon="file" title="No results in this view">
-                Nothing filed {query.days ? `in the last ${query.days} day(s)` : "this quarter"}
-                {query.sector ? ` in ${query.sector}` : ""}
-                {query.watchlist ? " on your watchlist" : ""}. Try a longer period or another
-                quarter.
-              </EmptyState>
+              {first.rows_total > 0 ? (
+                <EmptyState icon="file" title={`Page ${page} is past the end`}>
+                  This view has {first.rows_total.toLocaleString("en-IN")} results.{" "}
+                  <button type="button" className="link-btn" onClick={() => set("page", null)}>
+                    Go to the first page
+                  </button>
+                </EmptyState>
+              ) : (
+                <EmptyState icon="file" title="No results in this view">
+                  Nothing filed {query.days ? `in the last ${query.days} day(s)` : "this quarter"}
+                  {query.sector ? ` in ${query.sector}` : ""}
+                  {query.watchlist ? " on your watchlist" : ""}. Try a longer period or another
+                  quarter.
+                </EmptyState>
+              )}
             </div>
           )}
         </section>

@@ -102,6 +102,46 @@ def test_real_jumps_and_holding_companies_pass():
     assert report.results[-1].status == "pass" and report.scale is None
 
 
+def test_both_bases_slipped_together_are_corrected():
+    # Eveready-like: consolidated and standalone both 100 times small, each against its own
+    # history; the two histories agree on the factor.
+    parsed = with_real_eps_unit(parse_instance(quarter_file(651.14, "Consolidated", divide=100)))
+    standalone = history([(s, e, v - 10) for s, e, v in NEIGHBOURS] + [(*Q2, 6)])
+    report = validate(
+        ValidationContext(parsed, history=history(NEIGHBOURS), other_basis=standalone)
+    )
+    assert report.results[-1].details["status"] == "corrected" and report.scale == Decimal(100)
+
+
+def test_the_twin_of_a_corrected_filing_is_corrected_too():
+    # Rane Madras-like, second pass: consolidated is corrected already; the standalone filing is
+    # still 100 times small against its own past AND the consolidated, and the two bases normally
+    # run level. Standalone below consolidated counts here, unlike for a holding company.
+    parsed = with_real_eps_unit(parse_instance(quarter_file(612, "Standalone", divide=100)))
+    own = history([(s, e, v - 20) for s, e, v in NEIGHBOURS])
+    consolidated = history(NEIGHBOURS + [(*Q2, 651)])
+    report = validate(ValidationContext(parsed, history=own, other_basis=consolidated))
+    assert report.results[-1].details["status"] == "corrected" and report.scale == Decimal(100)
+    # A holding company's standalone (history far below consolidated) is never corrected so.
+    holdco = parse_instance(quarter_file(0.06, "Standalone"))
+    report = validate(
+        ValidationContext(
+            holdco, history=history([(s, e, 6) for s, e, _ in NEIGHBOURS]), other_basis=consolidated
+        )
+    )
+    assert report.scale is None
+
+
+def test_a_real_jump_reported_on_both_bases_passes():
+    # Mahindra Lifespace-like: the standalone quarter jumps 10x-100x past its own small history
+    # (a lumpy project handover) and matches consolidated, which is in line with its own.
+    parsed = parse_instance(quarter_file(318, "Standalone"))
+    own = history([(s, e, 3) for s, e, _ in NEIGHBOURS])
+    consolidated = history([(s, e, 280) for s, e, _ in NEIGHBOURS] + [(*Q2, 270)])
+    report = validate(ValidationContext(parsed, history=own, other_basis=consolidated))
+    assert report.results[-1].status == "pass" and report.scale is None
+
+
 def _company(db, symbol):
     c = Company(nse_symbol=symbol, name=f"{symbol.title()} Limited", isin=f"INE{symbol[:5]}0101")
     db.add(c)
@@ -127,11 +167,21 @@ def test_ingest_stores_corrected_amounts_and_revalidating_never_doubles_them(db,
             )
         )
 
+    def precision() -> set[int | None]:
+        return set(
+            db.scalars(
+                select(Fact.decimals).where(Fact.filing_id == bad.filing.id, Fact.unit == "INR")
+            )
+        )
+
     assert revenue() > 600 * CR
+    filed = {f.decimals for f in parse_instance(quarter_file(1, "Consolidated")).facts}
     for _ in range(2):  # twice: the factor is applied to the values as filed, never on top
         revalidate_company(db, store, co)
         db.refresh(bad.filing)
         assert revenue() > 600 * CR and revenue() < 700 * CR
+        # Precision moves with the amounts (times 100: two places coarser), never twice.
+        assert precision() == {d - 2 if d is not None else None for d in filed}
     # The standalone filing for the same quarter is untouched.
     standalone = db.scalar(
         select(Filing).where(Filing.company_id == co.id, Filing.consolidated.is_(False))

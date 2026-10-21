@@ -47,7 +47,7 @@ def job(task: Any, *args: Any) -> schemas.JobOut:
     otherwise retry the broker and leave the request hanging)."""
     from analekh.jobs.health import NOT_RUNNING, queue_available
 
-    if not queue_available():
+    if not queue_available(fresh=True):
         raise HTTPException(503, NOT_RUNNING)
     result = task.delay(*args)
     return schemas.JobOut(job_id=result.id, status=result.status)
