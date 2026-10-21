@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, type Filing } from "../api/client";
 import { CompanySearch, type Suggestion } from "../components/CompanySearch";
@@ -152,6 +153,12 @@ export function Reports() {
   }
   const ends = [...byEnd.keys()].sort().reverse();
   const pickedEnd = quarter && byEnd.has(quarter) ? quarter : (ends[0] ?? null);
+  const [active, setActive] = useState(0);
+  const [wordActive, setWordActive] = useState(0);
+  const slides = SECTIONS[kind].slides;
+  const cur = Math.min(active, slides.length - 1);
+  const sections = SECTIONS[kind].word;
+  const wcur = Math.min(wordActive, sections.length - 1);
   const readyCount = INPUT_ROWS.filter((r) => states[r.key] === "ready").length;
 
   return (
@@ -319,14 +326,45 @@ export function Reports() {
               {kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}
             </span>
           </div>
-          <ol className="report-outline">
-            {SECTIONS[kind].word.map((s) => (
-              <li key={s}>
-                {s}
+          <div className="slide-deck">
+            <div className="slide-main" aria-live="polite">
+              <div className="doc-page" data-layout={wcur % 3}>
+                <span className="doc-kicker">
+                  {kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}
+                </span>
+                <span className="doc-heading">{sections[wcur]}</span>
                 <span className="pulse-bar" aria-hidden="true" />
-              </li>
-            ))}
-          </ol>
+                <span className="pulse-bar" aria-hidden="true" />
+                <span className="pulse-bar short" aria-hidden="true" />
+                <div className="doc-body">
+                  <div className="doc-table" aria-hidden="true">
+                    {[0, 1, 2].map((i) => (
+                      <span key={i} className="pulse-bar" />
+                    ))}
+                  </div>
+                  <span className="pulse-bar" aria-hidden="true" />
+                </div>
+                <span className="slide-source">
+                  Section {wcur + 1} of {sections.length}
+                </span>
+              </div>
+            </div>
+            <ol className="slide-list">
+              {sections.map((sec, i) => (
+                <li key={sec}>
+                  <button
+                    type="button"
+                    className="slide-item"
+                    aria-pressed={i === wcur}
+                    onClick={() => setWordActive(i)}
+                  >
+                    <span className="slide-item-no">{i + 1}</span>
+                    {sec}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
 
         <section className="card">
@@ -334,15 +372,46 @@ export function Reports() {
             <h2>PowerPoint</h2>
             <span className="muted">Dense IB style, {SECTIONS[kind].slides.length} slides</span>
           </div>
-          <div className="slide-strip">
-            {SECTIONS[kind].slides.map((s, i) => (
-              <div className="slide-thumb" key={s}>
-                <span className="slide-no">{i + 1}</span>
-                <span className="slide-title">{s}</span>
-                <span className="pulse-bar" aria-hidden="true" />
-                <span className="pulse-bar short" aria-hidden="true" />
+          <div className="slide-deck">
+            <div className="slide-main" aria-live="polite">
+              <div className="slide-page" data-layout={cur % 3}>
+                <div className="slide-page-head">
+                  <span className="slide-page-title">{slides[cur]}</span>
+                  <span className="slide-no">
+                    {cur + 1} / {slides.length}
+                  </span>
+                </div>
+                <span className="pulse-bar wide" aria-hidden="true" />
+                <div className="slide-page-body">
+                  <div className="wf-chart" aria-hidden="true">
+                    {[55, 70, 48, 82, 64, 90].map((h, i) => (
+                      <span key={i} style={{ height: `${h}%` }} />
+                    ))}
+                  </div>
+                  <div className="wf-table" aria-hidden="true">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <span key={i} className="pulse-bar" />
+                    ))}
+                  </div>
+                </div>
+                <span className="slide-source">Source: company filings, your model</span>
               </div>
-            ))}
+            </div>
+            <ol className="slide-list">
+              {slides.map((s, i) => (
+                <li key={s}>
+                  <button
+                    type="button"
+                    className="slide-item"
+                    aria-pressed={i === cur}
+                    onClick={() => setActive(i)}
+                  >
+                    <span className="slide-item-no">{i + 1}</span>
+                    {s}
+                  </button>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
       </div>
