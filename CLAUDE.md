@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository.
 
 Analekh (`analekh/`): any NSE-listed company in; validated XBRL facts, a built or updated Excel
 model (analyst-approved) and grounded research drafts out. Section numbers in comments (e.g.
-"design doc 12.3") refer to *Analekh Technical Design Document v0.0.4*
+"design doc 12.3") refer to *Analekh Technical Design Document v0.0.5*
 (`docs/design/technical-design.md`; the `.docx` and the architecture PDF are generated from it and
 `architecture.html` with `scripts/design_docx.py` and `scripts/diagram_panels.py`; earlier versions
 are kept as the record). Record every departure from it in `docs/design/deviations.md`.
@@ -106,7 +106,11 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 5. **XBRL wins** over AI-extracted values (V10). Contexts are resolved by dates, never by id.
 6. **No raw exchange files, user models, keys or downloaded filings in git.**
 7. **Macros are never executed**; `.xlsm` files are read with VBA kept but never run.
-8. No ratings or target prices in outputs.
+8. **Ratings and target prices come from the analyst, never from Analekh.** A report may carry
+   the recommendation and target price read from the analyst's own Excel model, or leave a
+   marked blank for the analyst to fill in; the AI never proposes one (owner's amendment,
+   2026-10-21; design doc 23). Drafts must read as the analyst's own work: no em-dashes or other
+   marks of generated text.
 
 ## Where the skeleton stops
 

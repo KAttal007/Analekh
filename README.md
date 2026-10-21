@@ -9,7 +9,7 @@
   <img alt="PostgreSQL 16 + pgvector" src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
-  <img alt="v0.0.4" src="https://img.shields.io/badge/version-v0.0.4-informational">
+  <img alt="v0.0.5" src="https://img.shields.io/badge/version-v0.0.5-informational">
   <img alt="Phase 1 in progress" src="https://img.shields.io/badge/status-Phase%201%20in%20progress-orange">
 </p>
 
@@ -18,10 +18,10 @@ numbers, builds a model from your own template (or updates the model you already
 to Excel only after you approve, and drafts the results flash, earnings note, initiation, slides
 and comps with every number traced to its source.
 
-> **Design document:** *Analekh Technical Design Document v0.0.4*
+> **Design document:** *Analekh Technical Design Document v0.0.5*
 > ([docs/design/technical-design.md](docs/design/technical-design.md); formatted copy
-> `docs/design/Analekh - Technical Design v0.0.4.docx`, diagrams of every workflow
-> `docs/design/Analekh - Architecture v0.0.4.pdf`). Section numbers in code comments (e.g.
+> `docs/design/Analekh - Technical Design v0.0.5.docx`, diagrams of every workflow
+> `docs/design/Analekh - Architecture v0.0.5.pdf`). Section numbers in code comments (e.g.
 > "design doc 12.3") refer to it; departures since are logged in
 > [docs/design/deviations.md](docs/design/deviations.md).
 >
@@ -69,26 +69,29 @@ flowchart LR
 
 ## Status
 
-**v0.0.4, status on 18 October 2026.** The data layer runs on real NSE data:
+**v0.0.5, status on 21 October 2026.** The data layer runs on real NSE data:
 
 | | |
 |---|---|
 | Companies in the universe | 3,186 (2,606 main board + 580 SME) |
-| Companies with results stored | **2,748** (both backfills finished) |
-| Results filings / values | **54,242 filings, 10.1 million values**, both bases |
+| Companies with results stored | **2,756** (both backfills finished) |
+| Results filings / values | **54,350 filings, 10.1 million values**, both bases |
 | History | From **March 2023** (NSE's older files are incomplete); 1,567 companies have 14 or more quarters |
-| Blocked by a check | **None** (the last 14 were a naming gap for exceptional items, fixed 18 October) |
-| September 2026 quarter (Q2 FY27) | 109 companies reported by 17 October (watcher paused since) |
-| Daily prices | NSE's bhavcopy after each close; 16 October loaded (3,044 companies, 2,596 with market cap); only the latest day is kept |
-| Sectors | **NSE's own taxonomy** for 1,430 companies (22 sectors), LSEG groups for 1,587 (mapping to NSE names awaits the owner), none for 169 |
-| Storage | About 10.4 GB (PostgreSQL 5.9 GB, raw XBRL 4.5 GB) |
+| Unit check (V11) | 28 filings tagged in the wrong unit corrected; **44 suspects** blocked until checked against their PDFs (the only blocked filings) |
+| September 2026 quarter (Q2 FY27) | 169 companies reported by 21 October |
+| Daily prices | NSE's bhavcopy after each close; 21 October loaded (3,065 companies); only the latest day is kept |
+| Scheduler | Celery beat, worker and Redis in Docker: results watcher by season, prices, feeds |
+| Sectors | **NSE's own taxonomy** for 1,430 companies (22 sectors), a sector of some source for 3,017 (LSEG-to-NSE mapping awaits the owner), none for 169 |
+| Storage | About 5.4 GB (PostgreSQL 4.6 GB, raw files 0.8 GB with XBRL compressed) |
 
 Results come from NSE's integrated-filing lookup (the results feed stopped on 24 August 2026)
 and, for 2023-2024, its financial-results list. Banks, NBFCs, general insurers (reinsurers
-included) and life insurers are read in their own formats and tie out. Home is a Results desk;
-company pages show the latest quarter with QoQ and YoY changes; refiled quarters use the newest
-filing and are tagged. The engines for later phases have working cores with synthetic tests;
-gaps are marked `PHASE n` and `# verify` in the code.
+included) and life insurers are read in their own formats and tie out. Home is a Results desk
+with a results calendar; company pages show the latest quarter with QoQ and YoY changes and a
+results history whose quarter headings link each filing; refiled quarters use the newest
+filing and are tagged. The Reports screen sets up a quarterly update or an initiating coverage
+note (drafting comes next). The engines for later phases have working cores with synthetic
+tests; gaps are marked `PHASE n` and `# verify` in the code.
 
 ### What stops the next phases
 
@@ -96,27 +99,29 @@ The full picture is in design doc 26.1. In short:
 
 | Phase | Waiting on |
 |---|---|
-| 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test` |
-| 1 → v0.2.0 | The 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the scheduler on a server (the results watcher runs from a Windows scheduled task on the laptop for now; the feed watcher not at all) |
+| 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test`; the 44 V11 suspects against their PDFs |
+| 1 → v0.2.0 | The 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the Ind-AS profit tag for about 2,400 filings (owner's decision); the scheduler on a server (it runs in Docker on the laptop for now) |
 | 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; debt and cash for EV-based valuation |
 | 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
+| 4 | Report drafting (Word and PowerPoint writers, style check, rating from the analyst's model); a valid API key to test it end to end |
 | 5 | Hosting in an Indian region with a login (Oracle and Azure for Students fell through; design doc 22.7) |
 
 ### Next up
 
-1. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
+1. **Report drafting** (design doc 6.8, 17): the quarterly update and initiating coverage
+   writers for Word and PowerPoint, with the grounding and style checks and the rating read from
+   the analyst's model; then the **Q&A screen**.
+2. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
    home machine with Cloudflare Tunnel; one honest NSE request from it first; then the stack, the
    data (dump, not re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler
    moved off the laptop.
-2. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
+3. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
    completes Phase 0 (v0.1.0).
-3. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
-4. **Results history table** on the company page with an Excel export.
-5. **Results calendar** from the Board Meetings feed; **peer view** of growth and margins.
-6. **Sector editing screen** (owner's values outrank NSE's), including NSE basic industries read
-   off the quote page for covered companies.
+4. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
+5. **Peer view** of growth and margins; red flags and alerts from the feeds.
+6. **Sector editing screen** (owner's values outrank NSE's).
 
-Decisions waiting on the owner: the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
+Decisions waiting on the owner: the Ind-AS profit tag (about 2,400 filings); the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
 bank presentation and calculations (owner's walkthrough); hosting (provider, domain, login); the logo;
 investor presentations through NSE's announcements list; the 250 BSE-only filers (manual import
 or a tooltip); the Anthropic API key.
@@ -155,13 +160,16 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Results desk on Home (`GET /desk`) | ✅ | Reporters ten per page, YoY revenue, profit and EBITDA margin, movers, sector progress; filters in the URL |
 | Company page: basis switch, Latest quarter column (`GET /companies/{symbol}/glance`), lakh amounts | ✅ | QoQ and YoY with margins in bps; notes and tags open on hover or tap; dash with a reason when a comparison quarter was never filed |
 | Revised results: newest filed value wins; Restated / Revised / Superseded tags | ✅ | `analekh recompute-latest` switched 108 values; NSE's revision flag stored on new filings |
-| Watchlist and coverage levels | 🟡 | |
-| Feed watcher, polite fetcher, linking, storage | 🟡 | Polled once on 2026-10-14 (118 items, dated, 97 linked); not yet running on a schedule. The results feed is frozen since 24 August; results now come as integrated filings |
+| Watchlist and coverage levels | ✅ | Desk-style watchlist: price, market cap, latest quarter, YoY, basis and status badges, coming results |
+| Feed watcher, polite fetcher, linking, storage | ✅ | Polled by Celery beat since 2026-10-21 (announcements every 5 minutes, event feeds every 30). XBRL stored gzipped. The results feed is frozen since 24 August; results now come as integrated filings |
+| Results calendar (`GET /calendar`) | ✅ | From the Board Meetings feed; results told apart from other meetings; past days show who filed; on the desk and the watchlist |
+| Company page results history (`GET /companies/{symbol}/history`, `.xlsx`) | ✅ | 12 quarters in the company's lines; quarter headings link the filing in use (iXBRL), with details and a status mark; replaces the filings box; raw XBRL not linked |
+| Scheduler (Celery beat, worker, Redis in Docker) | ✅ | Since 2026-10-21; the Windows scheduled tasks are disabled |
 | Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. 2,537 companies stored; integrated filings start with the March 2025 quarter; SME companies through `index=sme` |
 | Results history (`analekh results-backfill --history [--sector …]`, NSE's financial-results list; rule 1 amended 2026-10-15) | ✅ | From March 2023: NSE's older `_WEB` files lack the main contexts and are skipped (`pipeline.IncompleteXbrl`; owner's call, no rebuilding by id). Full run S-Z still going; Banking Services stored for the owner's walkthrough |
-| Results watcher (`analekh results-watch`, beat `watch-results`) | ✅ | ONE request to the latest-results list per run, by season: every 2 hours from 09:00 to 23:00 IST in SEBI's results windows, once a day at 21:00 otherwise (`analekh/seasons.py`; `--force` to ask now). Windows scheduled task "Analekh results watch" until the scheduler is hosted; log `out/results-watch.log` |
+| Results watcher (`analekh results-watch`, beat `watch-results`) | ✅ | ONE request to the latest-results list per run, by season: every 2 hours from 09:00 to 23:00 IST in SEBI's results windows, once a day at 21:00 otherwise (`analekh/seasons.py`; `--force` to ask now). Celery beat in Docker since 2026-10-21 |
 | Broken and missing XBRL files | ✅ | A 404, or a file cut off partway (fetched once more), is skipped and noted; the company's other filings are kept (Laurus Labs) |
-| XBRL parser, validation V1-V9 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. Tata Elxsi's 7 filings pass V1-V9 (V4 skips without a balance sheet) |
+| XBRL parser, validation V1-V11 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. V11 corrects amounts tagged in the wrong unit when two signals agree (28 corrected, 44 suspects); `analekh revalidate` reapplies it offline |
 | Sectors: NSE's taxonomy (`analekh universe sectors`) | ✅ | Owner's choice 2026-10-16. 11 NSE Indices lists (found among all 116) cover every indexed company: 1,430 with NSE's exact sector (22 current names; stale pre-2022 labels ignored). Precedence user > NSE > LSEG |
 | Sectors: LSEG groups from an Excel Stocks workbook (`--stocks-file`) | ✅ | Kept in `companies.sector_lseg` (migration 0004); shown for the 1,587 companies in no index until the LSEG-to-NSE mapping is approved. Runbook: [docs/sectors-from-excel-stocks.md](docs/sectors-from-excel-stocks.md) |
 | NSE basic industries (58 industries, 200 basic industries) | ⛔ | Only in NSE's quote data, which refuses automated requests (403, honest or browser headers); needs NSE's permission or a licence, or the owner's own entries |
@@ -194,7 +202,9 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Tools (incl. model reader), calc, grounding check | 🟡 | |
 | Report loop (flash, note, initiation), Q&A, Word/PowerPoint writers | 🟡 | Prompt tuning on 10 companies |
 | Reports as Celery jobs, files in object storage | 🔲 | Run inline in the API today |
-| Web Reports and Q&A screens | 🔲 | Placeholders |
+| Web Reports screen | 🟡 | Set-up built on real data (company, Quarterly update or Initiating coverage, basis, quarter, input readiness, output outline; in the URL); drafting, style check and recent reports to build |
+| Quarterly update and initiating coverage writers (Word, dense IB PowerPoint, no marks of generated text, rating from the analyst's model) | 🔲 | Design doc 6.8, 17 |
+| Web Q&A screen | 🔲 | Placeholder; after Reports |
 
 #### Phase 5 · Discovery, IB, polish
 
@@ -214,8 +224,8 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
 | Hosting in India | ⛔ | Oracle Cloud charged the card without creating an account; Azure for Students couldn't verify the student ID. Next: GitHub Education route or a home server with Cloudflare Tunnel; first test: does NSE serve the server's address? |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
-| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, migrations | ✅ | Migrations at `0005`; 118 Python and 15 web tests run locally, none skipped. A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
-| Design documents | ✅ | v0.0.4 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
+| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0007`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
+| Design documents | ✅ | v0.0.5 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |
@@ -226,6 +236,22 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 Newest first. One line per notable change: what moved, and what it unblocks.
 
+- **2026-10-21** v0.0.5: design document, deviations log and architecture diagrams brought up to
+  date (V11, scheduler and feeds in Docker, results calendar, results history, Reports, the
+  owner's amendment on ratings). Code version 0.0.5.
+- **2026-10-21** Reports screen: set up a quarterly update or an initiating coverage note
+  (Word and a dense IB-style PowerPoint) for a company, basis (standalone by default,
+  consolidated or both) and quarter, all in the URL; see which inputs are ready and what each
+  output will contain. Drafting comes next. Rule 8 amended by the owner: a report may carry the
+  recommendation from the analyst's own model; Analekh never makes one up.
+- **2026-10-21** Company page: the filings box is folded into the results history. Each quarter's
+  heading links its filing on NSE (iXBRL, the newest after a refiling), opens its details and
+  shows one status mark; other filings fold out under the table. Raw XBRL is no longer linked.
+  The top search bar gives way to the page's own company picker on Reports and Comps.
+- **2026-10-21** Scheduler in Docker (Celery beat, worker, Redis); the feed watcher runs, and the
+  Board Meetings feed now drives a results calendar on the desk and watchlist. V11 unit check
+  (28 filings corrected, 44 suspects), results history with Excel export, desk-style watchlist,
+  Analyse that says when the queue is down, and a faster first company view (about 0.25 s).
 - **2026-10-18** Results watcher by season: every 2 hours from 09:00 to 23:00 IST in SEBI's
   results windows, once a day at 21:00 otherwise, about 60% fewer requests. No filing is blocked
   any more: the last 14 tagged exceptional items as `ExceptionalItems` (one also had an
@@ -421,14 +447,14 @@ uv run alembic upgrade head
 uv run analekh universe load
 uv run analekh search "tata mo"          # --limit N for more rows
 uv run analekh refresh TATAELXSI         # one company's results from NSE's integrated filings
-uv run analekh results-watch             # new results (ONE request to NSE; scheduled every 2 hours)
+uv run analekh results-watch             # new results (ONE request to NSE; scheduled by season)
 uv run analekh results-backfill --history --sector "Oil Gas & Consumable Fuels"   # 2023-2024 history
 uv run analekh universe sectors          # NSE sectors from NSE Indices' published lists
 ```
 
-> **`.env` hosts:** `.env.example` uses the container names (`postgres`, `redis`, `minio`),
-> which only resolve inside Docker. When Python runs on the host, set `DATABASE_URL`,
-> `REDIS_URL` and `MINIO_ENDPOINT` to `localhost`.
+> **`.env` hosts:** `.env.example` uses `127.0.0.1` for Python on the host (not `localhost`:
+> on Windows it tries IPv6 first and stalled after a Docker restart). `docker-compose.yml` gives
+> the containers the service names (`postgres`, `redis`, `minio`) itself.
 
 ### Excel bridge (on the analyst's machine)
 
@@ -509,4 +535,6 @@ From design doc 23. These are not optional.
 - Raw exchange files, user models and keys are **never committed** (`.gitignore` and the
   pre-commit hooks cover `data/`, `import/`, `out/`, `*.xlsx`, `.env`).
 - Get written confirmation from NSE, or license a feed, before any public or commercial use.
-- No buy/sell/hold ratings or target prices in anything shared.
+- Analekh never generates a buy/sell/hold rating or a target price. A report carries one only
+  when it is read from the analyst's own model or filled in by the analyst (owner's amendment,
+  2026-10-21).

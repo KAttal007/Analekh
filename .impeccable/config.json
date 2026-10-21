@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-21T15:03:20.955Z",
+        "reason": "Owner's standing choice recorded in PRODUCT.md (Capabilities and Constraints: keep Inter, AG Grid, ECharts); the web app and design docs use the bundled Inter on purpose"
+      }
+    ]
+  }
+}

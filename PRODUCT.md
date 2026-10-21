@@ -16,7 +16,7 @@ Any NSE-listed company in; validated XBRL facts, a built or updated Excel model 
 
 ## Positioning
 
-Figures are read from the filings themselves and checked before they reach the analyst; nothing writes to a model without approval; generated text only contains numbers from tool results. No ratings or target prices.
+Figures are read from the filings themselves and checked before they reach the analyst; nothing writes to a model without approval; generated text only contains numbers from tool results. Analekh never makes up a rating or target price: a report carries one only from the analyst's own model or hand (owner's amendment, 2026-10-21).
 
 ## Operating Context
 

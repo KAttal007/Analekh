@@ -60,7 +60,7 @@ wheels = [
 
 [[package]]
 name = "analekh"
-version = "0.0.4"
+version = "0.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

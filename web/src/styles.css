@@ -535,6 +535,13 @@ kbd {
   max-width: 1400px;
   padding: var(--s5);
 }
+/* Every screen takes the Results desk's width on large screens (1840 px from 1500 px); the
+   company page widens earlier, from 1280 px, for its side column. */
+@media (min-width: 1500px) {
+  .content {
+    max-width: 1840px;
+  }
+}
 
 .theme-switch {
   position: relative;
@@ -1254,14 +1261,8 @@ tbody tr:hover td {
   min-width: 0;
 }
 .company-main > .area-chart,
-.company-main > .area-history,
-.company-main > .area-filings {
+.company-main > .area-history {
   order: 3;
-}
-.filings-scroll {
-  max-height: 460px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .area-stats {
   /* Four tiles in one row even beside the quarter column; icons give way when it's tight. */
@@ -1471,9 +1472,6 @@ table.glance tbody tr:last-child > * {
 /* Side by side only when the results table still has room for all its columns beside the
    380 px side column; below that the movers and sectors follow the table. */
 @media (min-width: 1500px) {
-  .content:has(.desk) {
-    max-width: 1840px; /* the side column sits at the right, as on the company page */
-  }
   .desk-grid {
     grid-template-columns: minmax(0, 1fr) 380px;
     align-items: start;
@@ -2465,11 +2463,9 @@ table.glance tbody tr:last-child > * {
 
 /* ---------- Settings (design doc 19.1) ---------- */
 
-.settings > .card {
-  max-width: 1200px;
-}
 .settings-stats {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  /* auto-fit: the four tiles share the full width instead of leaving empty columns. */
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   align-items: stretch;
 }
 .settings-stat {
@@ -2605,6 +2601,179 @@ table.glance tbody tr:last-child > * {
   margin-left: 4px;
   vertical-align: middle;
 }
+.history-table thead th {
+  vertical-align: top;
+}
+/* A quarter's heading in rows: the label; its tools (a link to the filing, the details button);
+   one status word when there is one. Rows keep the column as wide as its numbers. */
+.hq-label {
+  display: block;
+}
+.hq {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 2px -4px 0 0; /* the buttons' own padding lines the icons up with the numbers */
+}
+.hq-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r1);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.hq-btn:hover,
+.hq-btn:focus-visible,
+.hq-btn[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.hq-mark {
+  display: block;
+  margin-top: 2px;
+}
+.hq-mark .badge {
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 16px;
+}
+@media (pointer: coarse) {
+  .hq-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Popover (ui.tsx): a panel opened by a click, which can hold links. */
+.popover-panel {
+  position: fixed;
+  z-index: 60;
+  width: min(320px, calc(100vw - 16px));
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+}
+.pop-title {
+  margin-bottom: var(--s1);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pop-title .muted {
+  font-weight: 400;
+}
+.pop-line + .pop-line {
+  margin-top: 2px;
+}
+.pop-note {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+  white-space: pre-line; /* one changed line per row */
+}
+.pop-note-error {
+  color: var(--negative);
+}
+.pop-section {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+}
+.pop-sub {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.pop-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pop-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+/* Filings with no column in the history table, folded under it. */
+.other-filings {
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.other-filings summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s2) var(--s3);
+  cursor: pointer;
+  list-style: none;
+}
+.other-filings summary::-webkit-details-marker {
+  display: none;
+}
+.other-filings summary svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--fast) var(--ease);
+}
+.other-filings[open] summary svg {
+  transform: rotate(90deg);
+}
+.other-filings summary:hover {
+  background: var(--surface-2);
+}
+.other-list {
+  margin: 0;
+  padding: 0 var(--s3) var(--s2);
+  list-style: none;
+}
+.other-list li {
+  display: grid;
+  grid-template-columns: 110px 80px 1fr auto auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.other-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+@media (max-width: 640px) {
+  .other-filings summary .muted {
+    display: none;
+  }
+  .other-list li {
+    grid-template-columns: 1fr auto;
+    gap: 2px var(--s2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .other-filings summary svg {
+    transition: none;
+  }
+}
 .action-note {
   margin: 0;
   font-size: 12px;
@@ -2621,6 +2790,151 @@ table.glance tbody tr:last-child > * {
   }
   .history-table .history-line {
     min-width: 150px;
+  }
+}
+
+/* ---------- Reports (Reports.tsx) ---------- */
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--s4);
+  align-items: start;
+}
+.reports-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.reports-hint {
+  font-size: 12px;
+}
+.reports-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+}
+.report-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface-2);
+}
+.report-pick .btn-sm {
+  margin-left: auto;
+}
+.report-inputs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.report-inputs li {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+.report-inputs li:last-child {
+  border-bottom: none;
+}
+.report-inputs svg {
+  color: var(--muted);
+}
+.report-outline {
+  margin: 0;
+  padding: var(--s4) var(--s4) var(--s4) calc(var(--s4) + 22px);
+  display: grid;
+  gap: var(--s3);
+  color: var(--text-2);
+}
+.report-outline li {
+  display: grid;
+  gap: 4px;
+}
+.slide-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s3);
+  padding: var(--s4);
+}
+.slide-thumb {
+  position: relative;
+  display: grid;
+  gap: var(--s2);
+  aspect-ratio: 16 / 9;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface-2);
+  align-content: start;
+  overflow: hidden;
+}
+.slide-no {
+  position: absolute;
+  top: var(--s2);
+  right: var(--s3);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.slide-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  padding-right: var(--s5);
+}
+/* Work in progress: a soft pulse for what is not built yet, and a dot on its badge. */
+.pulse-bar {
+  display: block;
+  height: 6px;
+  width: 80%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
+  background-size: 200% 100%;
+}
+.pulse-bar.short {
+  width: 50%;
+}
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-fade 1.6s ease-in-out infinite;
+}
+@keyframes pulse-fade {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.pulse-bar {
+  animation: pulse-sweep 1.8s linear infinite;
+}
+@keyframes pulse-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .pulse-bar {
+    animation: none;
   }
 }
 

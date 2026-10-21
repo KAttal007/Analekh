@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analekh Architecture</title>
 <!--
-  Source of "Analekh - Architecture v0.0.4.pdf" (design doc v0.0.4). Twelve A4 landscape pages, one
+  Source of "Analekh - Architecture v0.0.5.pdf" (design doc v0.0.5). Twelve A4 landscape pages, one
   diagram each; scripts/diagram_panels.py captures the .panel elements in this order as the Word
   document's figures 1-12.
   Render: msedge --headless --no-pdf-header-footer --print-to-pdf="<out>.pdf" architecture.html
@@ -102,16 +102,17 @@
 
 <!-- 1. Components and data flow -->
 <section class="page">
-  <div class="kicker">System design v0.0.4 · 18 October 2026 · Phase 0, Phase 1 under way</div>
+  <div class="kicker">System design v0.0.5 · 21 October 2026 · Phase 0, Phase 1 under way</div>
   <h1>Analekh Architecture</h1>
   <p class="tagline">The analyst’s record, kept for you.</p>
   <p class="lead">
     Every NSE-listed company is preloaded. Its results are fetched from NSE’s integrated filings and, back
     to March 2023, its financial-results list, then parsed and validated on both bases for every filer.
-    Closing prices come once a day from NSE’s bhavcopy. For a company you follow, the system will find and
-    update your Excel model after you approve each change, or build a new model from your sector template
-    and draft an initiation. Core numbers come from XBRL; the AI writes the analysis and pulls every figure
-    from the database.
+    Closing prices come once a day from NSE’s bhavcopy, and board meetings from NSE’s feeds fill a results
+    calendar. For a company you follow, the system will find and update your Excel model after you approve
+    each change, or build a new model from your sector template, and draft a quarterly update or an
+    initiating coverage note in Word and PowerPoint. Core numbers come from XBRL; the AI writes the
+    analysis and pulls every figure from the database.
   </p>
   <h2>Components and data flow</h2>
   <div class="panel"><svg id="flow" viewBox="0 0 1240 548" role="img" aria-label="Components and data flow"></svg></div>
@@ -128,8 +129,9 @@
     Results come from NSE’s integrated-filing lookup (per company, and one request every 2 hours without a
     ticker for the latest filings) and its financial-results list for 2023–2024. When a quarter is refiled,
     the most recently filed values are used and the older ones kept as history. Sectors follow NSE’s own
-    taxonomy first. Prices: one bhavcopy per trading day; only the latest close is kept. Only the relevant
-    PDF pages will reach Claude, and nothing is written to Excel until the analyst approves.
+    taxonomy first. Prices: one bhavcopy per trading day; only the latest close is kept. Celery beat runs
+    every job in Docker. Only the relevant PDF pages will reach Claude, and nothing is written to Excel
+    until the analyst approves.
   </p>
 </section>
 
@@ -182,10 +184,12 @@
   <div class="panel"><svg id="reading" viewBox="0 0 1240 500" role="img" aria-label="Reading results in the web app"></svg></div>
   <p class="note">
     <b>Welcome, then the desk.</b> The first visit of a browser session to the home page shows the welcome
-    screen with live counts; a scroll, swipe or tap unlocks it into the Results desk. Search runs in the
-    browser over the whole universe. Data stays fresh in the browser for five minutes, so moving between
-    tabs shows it at once. Motion is only on what you click (the sliding tab highlight and switch thumbs);
-    figures and screens appear immediately.
+    screen with live counts; a scroll, swipe or tap unlocks it into the Results desk and its results
+    calendar. Search runs in the browser over the whole universe. On a company page, the results history
+    shares one request with the tiles and the chart; each quarter’s heading links its filing on NSE
+    (iXBRL, the newest after a refiling) and opens its details. Data stays fresh in the browser for five
+    minutes, so moving between tabs shows it at once. Motion is only on what you click; figures appear
+    immediately.
   </p>
 </section>
 
@@ -202,16 +206,18 @@
       and only then is a new model version saved. The original workbook is never overwritten.
     </p>
     <div>
-      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.4</h2>
+      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.5</h2>
       <ul class="changes">
-        <li><b>History:</b> NSE’s financial-results list (owner-approved) adds 2023–2024; about 15 quarters
-          per company.</li>
-        <li><b>Prices:</b> NSE’s bhavcopy once a day; market cap from the filing’s share count; only the
-          latest close kept.</li>
-        <li><b>Sectors:</b> NSE’s own taxonomy first; LSEG groups kept apart.</li>
-        <li><b>Watcher:</b> every 2 hours now; a SEBI-season schedule proposed, backed by NSE’s timings.</li>
-        <li><b>Web app:</b> welcome screen, prices and market cap, gliding tabs and switches.</li>
-        <li><b>Future scope:</b> a live earnings-call listener, ahead of the filed recording.</li>
+        <li><b>Unit check (V11):</b> amounts tagged in the wrong unit corrected when two signals agree;
+          28 corrected, 44 suspects held for a PDF check.</li>
+        <li><b>Scheduler:</b> Celery beat in Docker; the watcher follows SEBI’s seasons; the feed watcher
+          runs.</li>
+        <li><b>Results calendar:</b> from board meeting intimations, on the desk and the watchlist.</li>
+        <li><b>Company page:</b> results history whose quarter headings link each filing; the filings box
+          and raw XBRL links are gone.</li>
+        <li><b>Reports:</b> set up a quarterly update or an initiating coverage note (Word and dense
+          PowerPoint); drafting next.</li>
+        <li><b>Ratings:</b> read from the analyst’s own model, never generated (owner’s amendment).</li>
       </ul>
     </div>
   </div>
@@ -243,41 +249,45 @@
 
 <!-- 9. Documents and drafts -->
 <section class="page">
-  <h2>Workflow 8 · Documents, KPIs and grounded drafts <span class="tag plan">planned · phases 3–4 · live calls: future scope</span></h2>
+  <h2>Workflow 8 · Documents, KPIs and reports <span class="tag">reports set-up built</span> <span class="tag plan">drafting · phases 3–4 · live calls: future scope</span></h2>
   <div class="panel"><svg id="docs" viewBox="0 0 1240 556" role="img" aria-label="Documents, KPIs and grounded drafts, and the future live call listener"></svg></div>
   <p class="note">
     <b>Only selected pages reach Claude, and every number is checked.</b> For watchlist or on-demand
     companies, PDFs are read locally, pages classified and only the relevant ones sent for extraction
-    against a JSON schema, each value with its page and quote. XBRL wins over any AI value. Drafts are
-    written in a tool loop over the database and the model; a grounding check blocks any number that did
-    not come from a tool result or a calculation. Future scope: a listener that joins the earnings call as
-    it happens and transcribes it live, until the filed recording replaces it (section 26.3).
+    against a JSON schema, each value with its page and quote. XBRL wins over any AI value. The analyst
+    sets up a quarterly update or an initiating coverage note on the Reports screen (company, basis,
+    quarter; built). Drafts are written in a tool loop over the database, the comps and the model; a
+    grounding check blocks any number that did not come from a tool result or a calculation, and a style
+    check blocks em-dashes and other marks of generated text. The rating comes from the analyst’s model or
+    the analyst, never from Analekh. Future scope: a listener that transcribes the earnings call live.
   </p>
 </section>
 
 <!-- 10. Events and alerts -->
 <section class="page">
-  <h2>Workflow 9 · Events, results calendar and alerts <span class="tag plan">planned · phases 1 and 5</span></h2>
+  <h2>Workflow 9 · Events, results calendar and alerts <span class="tag">feeds · calendar built</span> <span class="tag plan">red flags · alerts · phase 5</span></h2>
   <div class="panel"><svg id="events" viewBox="0 0 1240 500" role="img" aria-label="Events, results calendar and alerts"></svg></div>
   <p class="note">
-    <b>NSE’s published event feeds.</b> Companies must announce a results board meeting at least two working
-    days ahead (SEBI LODR 29), so the Board Meetings feed can show who reports this week and tell the
-    results watcher which days matter. Watchlist companies get alerts when they file results or when a red
-    flag appears (pledges, insider trades, related-party deals, auditor changes).
+    <b>NSE’s published event feeds.</b> The feed watcher runs from Celery beat and keeps every item.
+    Companies must announce a results board meeting at least two working days ahead (SEBI LODR 29), so the
+    Board Meetings feed now builds the results calendar on the desk and the watchlist; a past day shows who
+    actually filed. Next: telling the results watcher which days matter, and alerts for watchlist companies
+    when they file results or when a red flag appears (pledges, insider trades, related-party deals,
+    auditor changes).
   </p>
 </section>
 
 <!-- 11. Schedule -->
 <section class="page">
-  <h2>When each job runs <span class="tag">built</span> <span class="tag plan">season schedule proposed</span></h2>
+  <h2>When each job runs <span class="tag">built · celery beat in docker</span></h2>
   <div class="panel"><svg id="schedule" viewBox="0 0 1240 500" role="img" aria-label="Job schedule"></svg></div>
   <p class="note">
     <b>Results arrive in four seasons.</b> SEBI requires quarterly results within 45 days of the quarter
     (60 for the year end). NSE showed integrated filings a median of one second after the company filed
     (299 filings, 24 companies), so any delay is the watcher’s interval. Since 2023, every first filing of
-    those companies fell between day 8 and day 59, inside the proposed windows; under 1% were filed between
-    midnight and 09:00. The proposed schedule polls every 2 hours from 09:00 to 23:00 in season and once a
-    day at 21:00 otherwise: about 60% fewer requests.
+    those companies fell between day 8 and day 59, inside the windows; under 1% were filed between
+    midnight and 09:00. The watcher polls every 2 hours from 09:00 to 23:00 in season and once a day at
+    21:00 otherwise: about 60% fewer requests than every 2 hours all year.
   </p>
 </section>
 
@@ -457,8 +467,8 @@ function graph(id) {
   box(svg, { x: sx, y: 414, w: sw, h: 42, title: "NSE bhavcopy", sub: ["1 file per trading day"], kind: "source" });
 
   const [ix, iw] = col.ing;
-  box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["results 2 h · prices 19:00"] });
-  box(svg, { x: ix, y: 100, w: iw, h: 42, title: "Feed Watcher", sub: ["all filers, keep history"], kind: "plan" });
+  box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["beat · seasons · prices"] });
+  box(svg, { x: ix, y: 100, w: iw, h: 42, title: "Feed Watcher", sub: ["all filers, keep history"] });
   box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Results Fetcher", sub: ["per company + 2-hourly", "hash once · allow-list"] });
   box(svg, { x: ix, y: 248, w: iw, h: 42, title: "Universe Loader", sub: ["all NSE cos · weekly"] });
   box(svg, { x: ix, y: 322, w: iw, h: 54, title: "Sector Import", sub: ["user > NSE > LSEG", "per-company source"] });
@@ -468,7 +478,7 @@ function graph(id) {
   box(svg, { x: px, y: 40, w: pw, h: 42, title: "Raw Filing Store", sub: ["MinIO · XBRL + PDF"] });
   box(svg, { x: px, y: 100, w: pw, h: 42, title: "XBRL Parser", sub: ["5 formats · no AI"] });
   box(svg, { x: px, y: 160, w: pw, h: 54, title: "Document Pipeline", sub: ["watchlist / on demand", "page classifier → Claude"], kind: "plan" });
-  box(svg, { x: px, y: 232, w: pw, h: 54, title: "Validation", sub: ["V1–V10 per format", "newest filed value wins"] });
+  box(svg, { x: px, y: 232, w: pw, h: 54, title: "Validation", sub: ["V1–V11 per format", "newest filed value wins"] });
 
   const [cx, cw] = col.core;
   box(svg, { x: cx, y: 40, w: cw, h: 422, title: "Core Database", sub: ["Postgres + pgvector"], kind: "core" });
@@ -482,15 +492,15 @@ function graph(id) {
 
   const [ex, ew] = col.eng;
   box(svg, { x: ex, y: 40, w: ew, h: 66, title: "Model Sync Engine", sub: ["workbook reader + mapping", "dependency scan", "roll-forward → change set"], kind: "amberPlan" });
-  box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["flash, variance bridge", "call digest, red flags", "initiation draft, Q&A"], kind: "plan" });
+  box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["update · initiation", "flash, call digest", "red flags, Q&A"], kind: "plan" });
   box(svg, { x: ex, y: 212, w: ew, h: 66, title: "Coverage Builder", sub: ["template → new model", "sourced history", "proposed assumptions"], kind: "amberPlan" });
   box(svg, { x: ex, y: 298, w: ew, h: 54, title: "IB Output Engine", sub: ["comps · market cap", "company profile slide"], kind: "plan" });
-  box(svg, { x: ex, y: 372, w: ew, h: 66, title: "Results views", sub: ["desk · movers · sectors", "quarter glance · tags", "price · market cap"] });
+  box(svg, { x: ex, y: 372, w: ew, h: 66, title: "Results views", sub: ["desk · calendar · movers", "glance · history · tags", "price · market cap"] });
 
   const [ux, uw] = col.ui;
   box(svg, { x: ux, y: 40, w: uw, h: 54, title: "Excel", sub: ["links your models", "xlwings → Office.js"], kind: "plan" });
-  box(svg, { x: ux, y: 112, w: uw, h: 66, title: "Web App", sub: ["welcome · desk", "search · company", "review screens"] });
-  box(svg, { x: ux, y: 196, w: uw, h: 42, title: "Word + PPT", sub: ["notes, initiation"], kind: "plan" });
+  box(svg, { x: ux, y: 112, w: uw, h: 66, title: "Web App", sub: ["desk · calendar", "company · comps", "reports set-up"] });
+  box(svg, { x: ux, y: 196, w: uw, h: 42, title: "Word + PPT", sub: ["update, initiation"], kind: "plan" });
   box(svg, { x: ux, y: 268, w: uw, h: 42, title: "Alerts", sub: ["email / Telegram"], kind: "plan" });
 
   // Claude API
@@ -503,8 +513,8 @@ function graph(id) {
   // Sources -> ingestion
   arrow(svg, { d: "M188,59 C212,59 204,172 226,172", label: "lookup", at: [207, 150] });
   arrow(svg, { d: "M188,105 C210,105 206,182 226,182" });
-  arrow(svg, { d: "M188,151 C206,151 206,123 226,123", kind: "plan" });
-  arrow(svg, { d: "M188,197 C208,197 208,129 226,129", kind: "plan", label: "poll", at: [207, 214] });
+  arrow(svg, { d: "M188,151 C206,151 206,123 226,123" });
+  arrow(svg, { d: "M188,197 C208,197 208,129 226,129", label: "poll", at: [207, 214] });
   arrow(svg, { d: "M188,243 C208,243 208,200 226,200", kind: "plan" });
   arrow(svg, { d: "M188,289 C206,289 206,271 226,271", label: "weekly", at: [207, 304] });
   arrow(svg, { d: "M188,335 C206,335 206,343 226,343" });
@@ -681,34 +691,37 @@ function graph(id) {
   heading(g.svg, 20, 1200, "BROWSER", 16);
   g.node("visit", { x: 20, y: 34, w: 170, h: 58, title: "Visitor", sub: ["opens Analekh"] });
   g.node("welcome", { x: 220, y: 34, w: 220, h: 58, title: "Welcome screen", sub: ["once per session", "scroll / swipe / tap"] });
-  g.node("desk", { x: 470, y: 34, w: 220, h: 58, title: "Results desk", sub: ["10 per page · filters in URL", "sort by filing or size"] });
-  g.node("company", { x: 720, y: 34, w: 230, h: 58, title: "Company page", sub: ["basis switch · tiles · chart", "latest quarter · filings"] });
-  g.node("search", { x: 980, y: 34, w: 240, h: 58, title: "Search box", sub: ["ranks in the browser", "typo fallback on the server"] });
+  g.node("desk", { x: 470, y: 34, w: 220, h: 58, title: "Results desk", sub: ["10 per page · filters in URL", "results calendar"] });
+  g.node("company", { x: 720, y: 34, w: 230, h: 58, title: "Company page", sub: ["basis · tiles · chart", "latest quarter · history"] });
+  g.node("search", { x: 980, y: 34, w: 240, h: 58, title: "Search box", sub: ["ranks in the browser", "gives way to page pickers"] });
   g.link("visit.r", "welcome.l", { label: "home page", at: [205, 54] });
   g.link("welcome.r", "desk.l", { label: "unlock", at: [455, 54] });
   g.link("desk.r", "company.l", { label: "row", at: [705, 54] });
   g.link("search.l", "company.r", { label: "pick", at: [965, 80] });
   g.node("cache", { x: 20, y: 140, w: 170, h: 70, title: "Browser cache", sub: ["fresh 5 minutes", "tabs show data at once"], kind: "note" });
+  // Beside the company page's own arrow down to the API (which runs at x 754).
+  g.node("filingLink", { x: 784, y: 136, w: 166, h: 70, title: "Quarter heading", sub: ["link → filing (iXBRL)", "details · PDF · changes", "one status mark"], kind: "note" });
+  g.link("company.b@0.8", "filingLink.t", { d: "M904,92 V133" });
 
   heading(g.svg, 20, 1200, "API (FASTAPI)", 236);
   g.node("e1", { x: 220, y: 254, w: 220, h: 58, title: "GET /desk?limit=1", sub: ["live counts"] });
-  g.node("e2", { x: 470, y: 254, w: 220, h: 58, title: "GET /desk", sub: ["quarter · sector · days", "watchlist · sort · page"] });
-  g.node("e3", { x: 720, y: 254, w: 230, h: 70, title: "Company endpoints", sub: ["/companies/{s} · /filings", "/facts · /glance", "/price"] });
+  g.node("e2", { x: 470, y: 254, w: 220, h: 58, title: "GET /desk · /calendar", sub: ["quarter · sector · days", "watchlist · sort · page"] });
+  g.node("e3", { x: 720, y: 254, w: 230, h: 70, title: "Company endpoints", sub: ["/companies/{s} · /filings", "/glance · /history", "/price"] });
   g.node("e4", { x: 980, y: 254, w: 240, h: 58, title: "GET /companies/index", sub: ["once · then 304"] });
   g.link("welcome.b", "e1.t");
   g.link("desk.b", "e2.t");
-  g.link("company.b", "e3.t");
+  g.link("company.b@0.15", "e3.t@0.15");
   g.link("search.b", "e4.t");
 
   heading(g.svg, 20, 1200, "READ MODELS (PYTHON)", 350);
-  g.node("m1", { x: 220, y: 368, w: 470, h: 50, title: "desk.py", sub: ["reporters, YoY, movers, sector medians, market cap"] });
-  g.node("m2", { x: 720, y: 368, w: 230, h: 50, title: "glance.py · prices.py", sub: ["QoQ / YoY · last close"] });
+  g.node("m1", { x: 220, y: 368, w: 470, h: 50, title: "desk.py · schedule.py", sub: ["reporters, YoY, movers, sectors · board meetings by day"] });
+  g.node("m2", { x: 720, y: 368, w: 230, h: 50, title: "glance.py · history.py", sub: ["QoQ / YoY · 12 quarters"] });
   g.node("m3", { x: 980, y: 368, w: 240, h: 50, title: "restatements.py", sub: ["revision status, changes"] });
   g.link("e1.b", "m1.t@0.2");
   g.link("e2.b", "m1.t@0.75");
   g.link("e3.b", "m2.t");
   g.link("e3.b@0.85", "m3.t", { mid: 346 });
-  g.node("db", { x: 220, y: 446, w: 1000, h: 40, title: "PostgreSQL · companies · filings · facts (latest) · prices", sub: [], kind: "core" });
+  g.node("db", { x: 220, y: 446, w: 1000, h: 40, title: "PostgreSQL · companies · filings · facts (latest) · prices · feed_items", sub: [], kind: "core" });
   g.link("m1.b", "db.t@0.235");
   g.link("m2.b", "db.t@0.615");
   g.link("m3.b", "db.t@0.88");
@@ -810,7 +823,7 @@ sequence("coverage",
 (function docs() {
   const g = graph("docs");
   heading(g.svg, 20, 560, "DOCUMENTS → KPIs", 16);
-  heading(g.svg, 640, 580, "DRAFTS AND Q&A", 16);
+  heading(g.svg, 640, 580, "REPORTS AND Q&A", 16);
   g.node("ann", { x: 20, y: 34, w: 170, h: 52, title: "Announcements", sub: ["RSS → PDFs"], kind: "source" });
   g.node("ir", { x: 200, y: 34, w: 170, h: 52, title: "IR pages · import", sub: ["presentations, ARs"], kind: "source" });
   g.node("rec", { x: 380, y: 34, w: 200, h: 52, title: "Call recordings", sub: ["Whisper, locally"], kind: "source" });
@@ -829,19 +842,19 @@ sequence("coverage",
   g.link("claude1.b", "v10.t", { kind: "plan" });
   g.link("v10.l", "kpis.r", { kind: "plan" });
 
-  g.node("req", { x: 660, y: 34, w: 250, h: 52, title: "Report or question", sub: ["flash · note · initiation · Q&A"], kind: "plan" });
-  g.node("tools", { x: 660, y: 120, w: 250, h: 90, title: "Tools", sub: ["facts · kpis · prices", "model reader · filings", "calc (all arithmetic)"], kind: "plan" });
+  g.node("req", { x: 660, y: 34, w: 250, h: 52, title: "Reports set-up · Q&A", sub: ["update · initiation · basis"] });
+  g.node("tools", { x: 660, y: 120, w: 250, h: 90, title: "Tools", sub: ["facts · kpis · prices · comps", "model reader (incl. rating)", "filings · calc (arithmetic)"], kind: "plan" });
   g.node("claude2", { x: 950, y: 120, w: 270, h: 90, title: "Claude writes", sub: ["tool loop over the data", "structured sections", "refusal fallbacks"], kind: "aiPlan" });
   g.link("req.b", "tools.t", { kind: "plan" });
   g.link("tools.r@0.3", "claude2.l@0.3", { kind: "claude", label: "results", at: [930, 140] });
   g.link("claude2.l@0.7", "tools.r@0.7", { kind: "claude", label: "tool calls", at: [930, 192] });
-  g.node("ground", { x: 950, y: 250, w: 270, h: 70, title: "Grounding check", sub: ["every number from a tool", "result or calc · else blocked"], kind: "amberPlan" });
-  g.node("out", { x: 660, y: 250, w: 250, h: 70, title: "Word · PowerPoint · web", sub: ["citations on every figure", "no ratings or targets"], kind: "plan" });
+  g.node("ground", { x: 950, y: 250, w: 270, h: 70, title: "Grounding + style check", sub: ["numbers from tools or calc", "no em-dashes · else blocked"], kind: "amberPlan" });
+  g.node("out", { x: 660, y: 250, w: 250, h: 70, title: "Word · dense PowerPoint", sub: ["citations on every figure", "rating from your model"], kind: "plan" });
   g.link("claude2.b", "ground.t", { kind: "plan" });
   g.link("ground.l", "out.r", { kind: "plan", label: "passes", at: [930, 278] });
   g.link("kpis.b", "tools.l@0.7", { kind: "plan", d: "M150,356 V378 H620 V183 H657", label: "KPIs, chunks", at: [400, 372] });
-  g.text(20, 400, "Built so far: page classifier, extraction schema and batch parameters, transcript parser, local call transcription, tools, calc, grounding check and the report loop, with synthetic tests.");
-  g.text(20, 416, "Waiting on: a valid Anthropic API key, a presentation and transcript source, and the embeddings provider (hosted or local).");
+  g.text(20, 400, "Built: the Reports set-up on real data; page classifier, extraction schema, transcript parser, local call transcription, tools, calc, grounding check and the report loop (synthetic tests).");
+  g.text(20, 416, "Next: the Word and PowerPoint writers and the style check. Waiting on: a valid API key, a presentation and transcript source, the embeddings provider.");
 
   // Future scope (section 26.3): the live earnings-call listener, ahead of the filed recording.
   heading(g.svg, 20, 1200, "FUTURE SCOPE (AFTER V1) · LIVE EARNINGS-CALL LISTENER", 444);
@@ -862,23 +875,23 @@ sequence("coverage",
   const g = graph("events");
   heading(g.svg, 20, 1200, "NSE PUBLISHED FEEDS", 16);
   const feeds = [["bm", "Board Meetings"], ["ca", "Corporate actions"], ["it", "Insider trading"], ["rpt", "Related-party deals"], ["an", "Announcements"]];
-  feeds.forEach(([k, t], i) => g.node(k, { x: 20 + i * 244, y: 34, w: 224, h: 44, title: t, sub: ["RSS · 5–60 min"], kind: "source" }));
-  g.node("watcher", { x: 340, y: 130, w: 560, h: 58, title: "Feed watcher", sub: ["polls at the stated TTL · dedupes · keeps every item · links to the company"], kind: "plan" });
-  feeds.forEach(([k], i) => g.link(`${k}.b`, `watcher.t@${[0.05, 0.27, 0.5, 0.73, 0.95][i]}`, { kind: "plan", mid: 108 }));
+  feeds.forEach(([k, t], i) => g.node(k, { x: 20 + i * 244, y: 34, w: 224, h: 44, title: t, sub: ["RSS · 5–30 min"], kind: "source" }));
+  g.node("watcher", { x: 340, y: 130, w: 560, h: 58, title: "Feed watcher (Celery beat)", sub: ["polls every 5–30 min · dedupes · keeps every item · links to the company"] });
+  feeds.forEach(([k], i) => g.link(`${k}.b`, `watcher.t@${[0.05, 0.27, 0.5, 0.73, 0.95][i]}`, { mid: 108 }));
   g.node("items", { x: 340, y: 230, w: 560, h: 44, title: "feed_items (permanent history)", sub: [], kind: "core" });
-  g.link("watcher.b", "items.t", { kind: "plan" });
+  g.link("watcher.b", "items.t");
 
-  g.node("cal", { x: 20, y: 320, w: 280, h: 70, title: "Results calendar", sub: ["board meetings ≥ 2 working", "days ahead (SEBI LODR 29)", "who reports this week"], kind: "plan" });
+  g.node("cal", { x: 20, y: 320, w: 280, h: 70, title: "Results calendar", sub: ["board meetings ≥ 2 working", "days ahead (SEBI LODR 29)", "past days: who filed"] });
   g.node("days", { x: 330, y: 320, w: 280, h: 70, title: "Watcher days", sub: ["poll the results lookup", "on announced days"], kind: "plan" });
   g.node("flags", { x: 640, y: 320, w: 280, h: 70, title: "Red flags", sub: ["pledges · insider trades", "RPTs · auditor changes"], kind: "plan" });
   g.node("filed", { x: 950, y: 320, w: 270, h: 70, title: "Results filed", sub: ["from workflow 1", "(built)"] });
-  g.link("items.b@0.1", "cal.t", { kind: "plan", mid: 298 });
+  g.link("items.b@0.1", "cal.t", { mid: 298 });
   g.link("items.b@0.4", "days.t", { kind: "plan", mid: 298 });
   g.link("items.b@0.75", "flags.t", { kind: "plan", mid: 298 });
 
-  g.node("desk", { x: 20, y: 430, w: 280, h: 52, title: "Results desk", sub: ["“reporting this week”"], kind: "plan" });
+  g.node("desk", { x: 20, y: 430, w: 280, h: 52, title: "Desk and watchlist", sub: ["GET /calendar · day, week, month"] });
   g.node("alerts", { x: 640, y: 430, w: 580, h: 52, title: "Alerts for watchlist companies", sub: ["email or Telegram · per-company settings"], kind: "plan" });
-  g.link("cal.b", "desk.t", { kind: "plan" });
+  g.link("cal.b", "desk.t");
   g.link("flags.b", "alerts.t@0.2", { kind: "plan" });
   g.link("filed.b", "alerts.t@0.8", { kind: "plan" });
   g.text(330, 425, "The results feed (Financial_Results.xml)");
@@ -907,11 +920,11 @@ sequence("coverage",
     el(svg, "text", { x: a + 4, y: 56, "font-family": MONO, "font-size": 8.5, fill: C.amber }, `due ${due}`);
   });
   const lanes = [
-    ["Results watcher (now)", "every 2 h, all year", "solid", "all"],
-    ["Results watcher (proposed)", "2-hourly 09–23 in season · 21:00 off", "plan", "season"],
+    ["Results watcher", "2-hourly 09–23 in season · 21:00 off", "solid", "season"],
     ["Daily prices", "weekdays 19:00, until stored", "solid", "weekdays"],
     ["Universe refresh", "weekly, Monday 06:00", "solid", "weekly"],
-    ["Feed watcher", "every 5–60 min (planned)", "plan", "all"],
+    ["Feed watcher", "every 5–30 min, all year", "solid", "all"],
+    ["Backfills", "by hand · no nightly run", "plan", "none"],
   ];
   lanes.forEach(([t, s, kind, pattern], i) => {
     const y = 76 + i * 50;
@@ -925,6 +938,9 @@ sequence("coverage",
         ...(dash ? { "stroke-dasharray": dash } : {}) });
       if (pattern === "weekly") for (let w = 0; w < 52; w++)
         el(svg, "line", { x1: x0 + w * mw * 12 / 52 + 4, y1: y + 6, x2: x0 + w * mw * 12 / 52 + 4, y2: y + 14, stroke: C.ink });
+    } else if (pattern === "none") {
+      el(svg, "rect", { x: x0, y: y + 8, width: 12 * mw, height: 4, fill: "#fff", stroke: color,
+        "stroke-dasharray": "2 3" });
     } else {
       el(svg, "rect", { x: x0, y: y + 8, width: 12 * mw, height: 4, fill: "#e8ebe7", stroke: color,
         "stroke-dasharray": "2 3" });
@@ -935,7 +951,7 @@ sequence("coverage",
     }
   });
   el(svg, "text", { x: 16, y: 352, "font-family": MONO, "font-size": 8.8, fill: C.muted },
-    "Requests a year for the results watcher: about 4,400 now (12 a day) → about 1,650 proposed. The windows run from day 5 to two days past each deadline.");
+    "Requests a year for the results watcher: about 1,650 by season (it was about 4,400 at every 2 hours). Windows: day 5 to two days past each deadline.");
 
   // Time of day (share of filings, 24 established companies, 2019–2026)
   const hist = [[9, 0.7], [10, 2.7], [11, 4.0], [12, 4.8], [13, 3.1], [14, 5.3], [15, 6.0], [16, 8.6], [17, 10.4], [18, 15.8], [19, 16.0], [20, 10.5], [21, 5.5], [22, 3.3], [23, 2.3]];
@@ -959,10 +975,10 @@ sequence("coverage",
   heading(g.svg, 640, 580, "PLANNED · A SERVER IN INDIA", 16);
   // Today
   g.node("lap", { x: 20, y: 34, w: 560, h: 300, title: "Laptop (Windows)", sub: [], kind: "note" });
-  g.node("docker", { x: 40, y: 64, w: 250, h: 74, title: "Docker Desktop", sub: ["postgres 16 + pgvector (5.9 GB)", "minio · raw XBRL (4.5 GB)", "data disk on drive E:"], kind: "core" });
+  g.node("docker", { x: 40, y: 64, w: 250, h: 74, title: "Docker Desktop · data", sub: ["postgres 16 + pgvector (4.6 GB)", "minio · raw files (0.8 GB)", "data disk on drive E:"], kind: "core" });
   g.node("apiL", { x: 310, y: 64, w: 250, h: 58, title: "API · uvicorn :8000", sub: ["FastAPI, started by hand"] });
   g.node("webL", { x: 310, y: 140, w: 250, h: 58, title: "Web · Vite :5173", sub: ["pnpm dev"] });
-  g.node("tasks", { x: 40, y: 160, w: 250, h: 74, title: "Windows scheduled tasks", sub: ["results watch · every 2 h", "prices · weekdays 19:00", "(stand-ins for Celery beat)"] });
+  g.node("tasks", { x: 40, y: 160, w: 250, h: 74, title: "Docker · beat, worker, redis", sub: ["results watch by season", "prices · weekdays 19:00", "feeds · every 5–30 min"] });
   g.node("dog", { x: 310, y: 216, w: 250, h: 58, title: "Backfill watchdog", sub: ["resumes after NSE pauses"] });
   g.node("nseL", { x: 40, y: 360, w: 540, h: 46, title: "NSE (www.nseindia.com, nsearchives) · honest Analekh requests", sub: [], kind: "source" });
   g.link("tasks.b", "nseL.t@0.23", { label: "home IP: served", at: [180, 348] });

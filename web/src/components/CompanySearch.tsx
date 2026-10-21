@@ -1,4 +1,9 @@
-import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type CompanyIndexEntry } from "../api/client";
@@ -20,16 +25,20 @@ export type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | 
 // loaded yet, or when nothing matches locally (its fuzzy search catches typos).
 // With `onPick` it picks instead of navigating (adding a peer to comps): no "/" shortcut, no
 // company-page prefetch, and companies in `exclude` are left out of the list.
+// `shortcut`: answers to "/" (default: only the main search does). A page whose own picker stands
+// in for the top bar (Reports, Comps) sets it, so "/" still lands in the one search on screen.
 export function CompanySearch({
   onPick,
   placeholder = "Search any NSE company by name or ticker",
   label = "Search companies",
   exclude = [],
+  shortcut = !onPick,
 }: {
   onPick?: (hit: Suggestion) => void;
   placeholder?: string;
   label?: string;
   exclude?: string[];
+  shortcut?: boolean;
 } = {}) {
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
@@ -42,7 +51,7 @@ export function CompanySearch({
 
   // "/" jumps to the search box from anywhere, unless the user is already typing somewhere.
   useEffect(() => {
-    if (onPick) return; // only the main search answers to "/"
+    if (!shortcut) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const typing = t?.closest("input, textarea, select, [contenteditable='true']");
@@ -53,7 +62,7 @@ export function CompanySearch({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onPick]);
+  }, [shortcut]);
 
   useEffect(() => {
     const t = setTimeout(() => setTerm(q.trim()), DEBOUNCE_MS);
@@ -155,7 +164,7 @@ export function CompanySearch({
         // load the company page's code before it's needed
         onFocus={onPick ? undefined : () => void loadCompanyPage()}
       />
-      {!q && !onPick && <kbd aria-hidden="true">/</kbd>}
+      {!q && shortcut && <kbd aria-hidden="true">/</kbd>}
       {typed.length >= 1 && hits.length > 0 && (
         <ul
           ref={listRef}

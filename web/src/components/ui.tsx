@@ -1,4 +1,11 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
@@ -215,6 +222,7 @@ export function TagTip({ label, tone, text }: { label: string; tone?: Tone; text
         aria-label={`${label}: ${text}`}
         onFocus={show}
         onBlur={hide}
+        onKeyDown={(e) => e.key === "Escape" && hide()}
       >
         <Badge tone={tone}>{label}</Badge>
       </button>
@@ -235,6 +243,110 @@ export function TagTip({ label, tone, text }: { label: string; tone?: Tone; text
           document.body,
         )}
     </span>
+  );
+}
+
+/** A button that opens a small panel on click, tap or Enter; the panel can hold links. Esc, a
+ *  click elsewhere, scrolling or resizing closes it, and Esc puts focus back on the button. The
+ *  panel is placed against the window like TagTip's note, so a scroll box never cuts it off;
+ *  focus moves into it on open and Tab out of it closes it, so keyboard order still works. */
+export function Popover({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState<{ left: number; top: number; above: boolean } | null>(null);
+  const close = (refocus: boolean) => {
+    setAt(null);
+    if (refocus) button.current?.focus();
+  };
+  const open = () => {
+    const r = button.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = Math.min(320, window.innerWidth - 16);
+    const above = window.innerHeight - r.bottom < 240 && r.top > 240;
+    setAt({
+      left: Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)),
+      top: above ? r.top - 6 : r.bottom + 6,
+      above,
+    });
+  };
+  useEffect(() => {
+    if (!at) return;
+    panel.current?.querySelector<HTMLElement>("a, button")?.focus();
+    const away = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!panel.current?.contains(t) && !button.current?.contains(t)) close(false);
+    };
+    const scrolled = (e: Event) => {
+      if (!panel.current?.contains(e.target as Node)) close(false);
+    };
+    const resized = () => close(false);
+    document.addEventListener("pointerdown", away);
+    window.addEventListener("scroll", scrolled, true);
+    window.addEventListener("resize", resized);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      window.removeEventListener("scroll", scrolled, true);
+      window.removeEventListener("resize", resized);
+    };
+  }, [at]);
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === "Tab") {
+      // Leaving the panel: back to the button, and the browser carries on from there.
+      const items = panel.current?.querySelectorAll<HTMLElement>("a, button") ?? [];
+      const last = items[items.length - 1];
+      const first = items[0];
+      if (
+        (!e.shiftKey && document.activeElement === last) ||
+        (e.shiftKey && document.activeElement === first)
+      ) {
+        close(true);
+        if (e.shiftKey) e.preventDefault();
+      }
+    }
+  };
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className={`popover-btn${className ? ` ${className}` : ""}`}
+        aria-label={label}
+        aria-expanded={at !== null}
+        aria-haspopup="dialog"
+        onClick={() => (at ? close(false) : open())}
+      >
+        <Icon name="info" size={13} />
+      </button>
+      {at &&
+        createPortal(
+          <div
+            ref={panel}
+            role="dialog"
+            aria-label={label}
+            className="popover-panel"
+            onKeyDown={onKey}
+            style={{
+              left: at.left,
+              top: at.top,
+              transform: at.above ? "translateY(-100%)" : undefined,
+            }}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

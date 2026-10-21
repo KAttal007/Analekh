@@ -1,3 +1,11 @@
+# Inside Docker the services reach each other by name. .env is also read by runs on the host
+# (uvicorn, the CLI), where those names don't resolve, so .env holds 127.0.0.1 addresses and the
+# containers get these instead (`environment` outranks `env_file`).
+x-container-network: &container-network
+  DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/analekh
+  REDIS_URL: redis://redis:6379/0
+  MINIO_ENDPOINT: minio:9000
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -33,6 +41,7 @@ services:
     build: .
     command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
     env_file: .env
+    environment: *container-network
     ports: ["8000:8000"]
     volumes: ["./import:/app/import"]
     depends_on:
@@ -44,6 +53,7 @@ services:
     build: .
     command: celery -A analekh.jobs worker -l info
     env_file: .env
+    environment: *container-network
     volumes: ["./import:/app/import"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -54,6 +64,7 @@ services:
     build: .
     command: celery -A analekh.jobs beat -l info -s /tmp/celerybeat-schedule
     env_file: .env
+    environment: *container-network
     depends_on: [redis]
 
   web:

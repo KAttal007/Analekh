@@ -1,16 +1,29 @@
 # Deviations from the Technical Design
 
-The current design is **v0.0.4** ([technical-design.md](technical-design.md); the formatted
-copy is `Analekh - Technical Design v0.0.4.docx`, the diagrams `Analekh - Architecture v0.0.4.pdf`).
+The current design is **v0.0.5** ([technical-design.md](technical-design.md); the formatted
+copy is `Analekh - Technical Design v0.0.5.docx`, the diagrams `Analekh - Architecture v0.0.5.pdf`).
 Record here every place the build departs from it, with the section number, what changed, why
 and when, and fold the list into the next version of the document.
 
 Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed, not decided
 
-## Since v0.0.4
+## Since v0.0.5
+
+Nothing yet.
+
+## Folded into v0.0.5 (21 October 2026)
+
+Everything below was a departure from v0.0.4 and is now part of v0.0.5, along with V11 and the
+nightly backfill's removal (10a below), the scheduler in Docker, the results calendar, the
+company page's results history, the Reports screen and the owner's amendment on ratings.
+Section numbers are v0.0.4's.
 
 | Design says | Now | Why | Date |
 |---|---|---|---|
+| Windows scheduled tasks stand in for Celery beat (9.6, 22.1) | Redis, the worker and beat run in Docker (`docker compose up -d redis worker beat`); beat writes its schedule to `/tmp` (the container user cannot write `/app`). The feed watcher runs with it. Containers get the service names from `docker-compose.yml`; `.env` holds 127.0.0.1 for runs on the host. | One scheduler on the laptop until hosting; `localhost` on Windows tried IPv6 first and stalled after a Docker restart. | 2026-10-21 |
+| Company page: a filings box linking each period to iXBRL, PDF and XBRL (19.1) | No filings box. Each results-history column heading links the newest filing of that quarter (iXBRL), opens its details (filed on, PDF, what changed, earlier filings) and shows one status mark; filings without a column fold out under the table. Raw XBRL is not linked. | Owner, 2026-10-21: the history table already lists the quarters, so two boxes doubled the reading; raw XBRL means nothing to a reader. | 2026-10-21 |
+| Shared outputs carry no ratings or target prices (23; CLAUDE.md rule 8) | A report may carry the recommendation and target price from the analyst's own Excel model, or leave them for the analyst; Analekh never generates one. | Owner's amendment, 2026-10-21. | 2026-10-21 |
+| Reports: flash, digest, notes, initiation drafts (17, 19.1) | Two reports, a quarterly update and an initiating coverage note, each as a Word note and an IB-style PowerPoint, set up on a Reports screen (basis: standalone by default, consolidated or both). Drafts must carry no em-dashes or other marks of generated text. Set-up built; drafting not yet. | Owner, 2026-10-21. | 2026-10-21 |
 | Raw Filing Store: immutable object storage keyed by hash (6, 9.3) | Results XBRL is stored gzipped (`ingest/storage.py`: `pack` on write, `unpack` on read, S3 `Content-Encoding: gzip`); reads return the original bytes, so keys and `file_sha256` still match. PDFs and Excel files are stored as-is. Files stored before the change were rewritten once by `scripts/compress_raw_files.py`, which checks each against its key's hash before and after. | The 53,600 files took 4.5 GB; a sample compressed 12 times. Only re-parsing (`revalidate`) reads them, and unpacking adds about 0.1 ms per file. | 2026-10-18 |
 | Results watcher by season, proposed (9.6) | Built: `analekh/seasons.py` decides each run. In a season (day 5 after a quarter end to two days past SEBI's deadline) every run from 09:00 to 23:00 IST asks NSE; outside one only the 21:00 run does. Cron `0 9-23/2 * * *`; the Windows task runs 09:00 to 23:00 every 2 hours. `analekh results-watch --force` asks regardless. | Owner asked for it on 2026-10-18; about 60% fewer requests, and on the evidence in 3.1 nothing missed. | 2026-10-18 |
 | Ind-AS exceptional items are `ExceptionalItemsBeforeTax` (10.1, 10.2, Appendix A) | Either `ExceptionalItemsBeforeTax` or `ExceptionalItems` (about 2,400 Ind-AS filings use the second). V2 also adds extraordinary items (`ExtraordinaryItems`, between exceptional items and PBT) for Ind-AS filers only; banks' extraordinary items are net of tax and stay out. | All 14 V2-blocked filings (L&T, KIMS, MT Educare, Chandan, Alletec, Fidel, Felix) were off by exactly that line. After revalidating the 517 affected companies, no filing is blocked; the company page now also shows those companies' exceptional items and derives EBITDA with them. | 2026-10-18 |
@@ -203,7 +216,7 @@ The spike ran on 2026-10-13 (`out/phase0/20261013-115051`, not in git).
 
 Still open from Phase 0: a hand-check of 10 values per file against the results PDF.
 
-### 10a. Values stored as corrected, not as filed (V11, 21 October 2026)
+### 10a. Values stored as corrected, not as filed (V11, 21 October 2026; folded into v0.0.5)
 
 | Design doc says | Done instead | Why |
 |---|---|---|

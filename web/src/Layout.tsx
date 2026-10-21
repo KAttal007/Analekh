@@ -26,12 +26,15 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Outputs",
     items: [
-      { to: "/reports", label: "Reports", icon: "file", soon: true },
+      { to: "/reports", label: "Reports", icon: "file" },
       { to: "/qa", label: "Q&A", icon: "chat", soon: true },
       { to: "/comps", label: "Comps", icon: "bars" },
     ],
   },
 ];
+// Screens without the top search bar: those with their own company picker (Reports, Comps), and
+// those that are not about one company (Models, which gets its own search; Templates; Settings).
+const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/templates", "/settings"]);
 const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders" };
 
 const THEMES: { choice: ThemeChoice; icon: IconName; label: string }[] = [
@@ -202,9 +205,13 @@ export function Layout() {
         </nav>
       </aside>
       <div className="workspace">
-        <header className="topbar">
-          <CompanySearch />
-        </header>
+        {/* No top search bar where a page has its own company picker (two searches that do
+            different things confuse; "/" reaches the picker) or is not about one company. */}
+        {!NO_SEARCH_BAR.has(pathname) && (
+          <header className="topbar">
+            <CompanySearch />
+          </header>
+        )}
         {/* Screens and their figures appear at once: motion is for what you click (the sliding
             tab highlight, switches), never for the data (owner's choice, 2026-10-17). */}
         <main className="content">

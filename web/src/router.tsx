@@ -21,6 +21,7 @@ const Models = lazy(() => import("./pages/Models").then((m) => ({ default: m.Mod
 const Templates = lazy(() => import("./pages/Templates").then((m) => ({ default: m.Templates })));
 const Comps = lazy(() => import("./pages/Comps").then((m) => ({ default: m.Comps })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
@@ -44,7 +45,7 @@ export const router = createBrowserRouter([
       { path: "models", element: page(<Models />) },
       { path: "models/:id/assumptions", element: page(<AssumptionReview />) },
       { path: "templates", element: page(<Templates />) },
-      { path: "reports", element: <Placeholder title="Reports" phase={4} /> },
+      { path: "reports", element: page(<Reports />) },
       { path: "qa", element: <Placeholder title="Q&A" phase={4} /> },
       { path: "comps", element: page(<Comps />) },
       { path: "settings", element: page(<Settings />) },

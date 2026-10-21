@@ -6,7 +6,6 @@ import { api, type CompanyDetail, type HistoryLine, type WatchlistEntry } from "
 import { Icon } from "../components/Icon";
 import { QuarterRail } from "../components/QuarterRail";
 import { ResultsHistory } from "../components/ResultsHistory";
-import { RevisionTag } from "../components/RevisionTag";
 import {
   Avatar,
   Badge,
@@ -15,7 +14,6 @@ import {
   Loading,
   PageHeader,
   Segmented,
-  StatusBadge,
 } from "../components/ui";
 import { companyQuery } from "../lib/preload";
 import { crore, money, price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
@@ -41,25 +39,6 @@ const CHART_LABEL: Record<string, string> = {
   net_margin: "Net margin",
 };
 const HISTORY_QUARTERS = 12;
-
-// Source files for a filing, readable first: NSE's iXBRL web page, the results PDF, raw XBRL.
-const LINK_KINDS = [
-  ["ixbrl", "iXBRL"],
-  ["pdf", "PDF"],
-  ["xbrl", "XBRL"],
-] as const;
-
-type FilingLink = { kind: string; label: string; url: string };
-
-const filingLinks = (f: { meta?: Record<string, unknown>; source_url?: string | null }) => {
-  const stored = (f.meta?.links ?? {}) as Record<string, unknown>;
-  const urls: Record<string, unknown> = { xbrl: f.source_url, ...stored };
-  return LINK_KINDS.flatMap(([kind, label]): FilingLink[] => {
-    const url = urls[kind];
-    // Only web links: backfilled files carry "import:<name>", and nothing else is trusted.
-    return typeof url === "string" && url.startsWith("https://") ? [{ kind, label, url }] : [];
-  });
-};
 
 type Basis = "consolidated" | "standalone";
 const BASES: { basis: Basis; label: string }[] = [
@@ -493,101 +472,16 @@ export function CompanyPage() {
           </div>
         </div>
 
-        {h && h.lines.length > 0 && (
+        {/* The filings live in the history table now: each quarter's heading links to its
+            filing, and filings without a column are listed under it. */}
+        {h && (h.lines.length > 0 || rows.length > 0) && (
           <ResultsHistory
             history={h}
+            filings={rows}
             scale={scale}
             excelUrl={api.historyXlsxUrl(symbol, basis === "consolidated", HISTORY_QUARTERS)}
           />
         )}
-
-        <div className="card area-filings">
-          <div className="card-header">
-            <h2>Filings</h2>
-            <span className="muted">
-              {rows.length} {basis} received
-            </span>
-          </div>
-          {rows.length ? (
-            // About ten filings in view, older ones scroll inside the box (history runs to 28
-            // quarters); the column headings stay put.
-            <div className="table-wrap filings-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Period end</th>
-                    <th className="hide-sm">Kind</th>
-                    <th className="hide-sm">Status</th>
-                    <th>Checks</th>
-                    <th>Files</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((f) => {
-                    const links = filingLinks(f);
-                    const main = links[0];
-                    return (
-                      <tr key={f.id}>
-                        <td>
-                          {main ? (
-                            <a
-                              href={main.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`Open the ${main.label} filing on NSE`}
-                            >
-                              {f.period_end ?? "-"}
-                            </a>
-                          ) : (
-                            (f.period_end ?? "-")
-                          )}
-                          {f.revision && (
-                            <>
-                              {" "}
-                              <RevisionTag rev={f.revision} filed={f.filed_at} />
-                            </>
-                          )}
-                        </td>
-                        <td className="hide-sm">{f.kind}</td>
-                        <td className="hide-sm">
-                          <StatusBadge status={f.status} />
-                        </td>
-                        <td>
-                          {f.meta?.blocks_auto_apply ? (
-                            <Badge tone="error">blocked</Badge>
-                          ) : (
-                            <Badge tone="ok">passed</Badge>
-                          )}
-                        </td>
-                        <td className="file-links">
-                          {links.length
-                            ? links.map((l) => (
-                                <a
-                                  key={l.kind}
-                                  href={l.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {l.label}
-                                </a>
-                              ))
-                            : "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="card-body">
-              <EmptyState icon="file" title="No filings received yet">
-                Results filings appear here as NSE publishes them in its results feed. Watch this
-                company to collect and validate them automatically.
-              </EmptyState>
-            </div>
-          )}
-        </div>
       </div>
 
       <QuarterRail

@@ -31,15 +31,20 @@ export function revisionText(rev: Revision, filed?: string | null): string {
   return `${head}\nChanged:\n${lines.join("\n")}`;
 }
 
+/** The badge word for a filing's revision status, or null for an original still in use. */
+export function revisionLabel(rev: Revision): string | null {
+  if (rev.status === "original") return rev.superseded_by ? "Superseded" : null;
+  return rev.status === "refiled" ? "Refiled" : rev.changes?.length ? "Restated" : "Revised";
+}
+
 /** "Revised" / "Superseded" badge with the details in a popup. */
 export function RevisionTag({ rev, filed }: { rev: Revision; filed?: string | null }) {
-  if (rev.status === "original") {
-    return rev.superseded_by ? <TagTip label="Superseded" text={revisionText(rev, filed)} /> : null;
-  }
+  const label = revisionLabel(rev);
+  if (!label) return null;
   return (
     <TagTip
-      label={rev.status === "refiled" ? "Refiled" : rev.changes?.length ? "Restated" : "Revised"}
-      tone="warn"
+      label={label}
+      tone={rev.status === "original" ? undefined : "warn"}
       text={revisionText(rev, filed)}
     />
   );

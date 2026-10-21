@@ -24,7 +24,7 @@ from docx.oxml.ns import qn
 from docx.shared import Emu
 
 TEMPLATE, MARKDOWN, OUT, FIGS = sys.argv[1:5]
-OLD, NEW = "0.0.3", "0.0.4"  # the template's version, this document's
+OLD, NEW = "0.0.4", "0.0.5"  # the template's version, this document's
 
 d = docx.Document(TEMPLATE)
 body = d.element.body

@@ -96,6 +96,9 @@ const PATHS = {
       <path d="M16 2v4M8 2v4M3 10h18" />
     </>
   ),
+  external: (
+    <path d="M14 3h7v7M10 14 21 3M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+  ),
   database: (
     <>
       <ellipse cx="12" cy="5" rx="9" ry="3" />

@@ -131,7 +131,7 @@ export function QuarterRail({
               </tbody>
             </table>
             <p className="rail-foot">
-              From the filed XBRL. QoQ against {fmtDate(g.previous_end)}, YoY against{" "}
+              From the company's filed results. QoQ against {fmtDate(g.previous_end)}, YoY against{" "}
               {fmtDate(g.year_ago_end)}; margins change in basis points (100 bps = 1%).
             </p>
           </>

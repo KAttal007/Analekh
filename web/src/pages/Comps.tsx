@@ -486,6 +486,7 @@ export function Comps() {
                   placeholder="Add a company by name or ticker"
                   label="Add a company"
                   exclude={symbols}
+                  shortcut
                 />
               ) : (
                 <p className="comps-hint muted">A comparison holds up to {MAX} companies.</p>
