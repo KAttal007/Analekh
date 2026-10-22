@@ -8,7 +8,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from analekh.db.models import ApiToken, User
@@ -58,3 +58,14 @@ def revoke_api_token(db: Session, user: User, token_id: int) -> bool:
     row.revoked_at = datetime.now(UTC)
     db.flush()
     return True
+
+
+def revoke_all_api_tokens(db: Session, user_id: str) -> int:
+    """Revoke every live token of one user (sign out everywhere). Returns how many."""
+    result = db.execute(
+        update(ApiToken)
+        .where(ApiToken.user_id == user_id, ApiToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+    db.flush()
+    return int(result.rowcount or 0)  # type: ignore[attr-defined]

@@ -9,7 +9,14 @@ Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed
 
 ## Since v0.0.5
 
-Nothing yet.
+| Design says | Now | Why | Date |
+|---|---|---|---|
+| One user, no sign-in; every request acts as `default_user_id` (19.1, 20, 23) | ✅ Sign-in for every route except `/auth/login`, the reset flow and the signed-out Welcome data (`/public/*`). Email and password (argon2id, 15 to 128 characters) in a POST body only; HttpOnly, SameSite=Strict session cookie (Secure outside `ENV=dev`) plus an `X-Analekh-CSRF` header on every change; sessions end after 9 hours idle or 24 hours in all. Wrong password and unknown email get the same reply. Three failures pause the account 15 minutes, five block it until a password reset; failures are also counted per client address. "Sign out everywhere" in Settings ends every session and revokes bridge tokens. `analekh create-admin EMAIL NAME [--adopt-local]` makes the first admin and moves pre-sign-in data to them. `AUTH_ENABLED=false` (dev only) turns it off. | Owner, 2026-10-22: Analekh will hold several analysts' models and firm data; the spec is `docs/superpowers/specs/2026-10-22-auth-roles-locks-design.md` (stage 1). Pause raised from 5 to 15 minutes and the unknown-email hint dropped on the owner's decision of 2026-10-22. | 2026-10-22 |
+| No roles (23) | ✅ Two roles, admin and analyst. Only admins manage users, upload, activate or retire templates and change the upload limit; they have their own area (`/admin`: Users, Templates, Settings). Changes are written to `audit_log`. | Owner, 2026-10-22. | 2026-10-22 |
+| Uploads have no stated size limit (19.1) | ✅ One limit for every upload, set by an admin (default 25 MB, between 1 MB and a 100 MB ceiling), applied to new uploads only; a body larger than the ceiling is refused with 413 as it arrives. | One shared guard instead of per-route checks; the edge cap stops a large body before it is spooled to disk. | 2026-10-22 |
+| Password reset not designed | ✅ A 6-digit code by email (stored hashed, 10 minutes, single use, 5 tries, one mail per 2 minutes); the reply is the same for known and unknown addresses and the mail is sent after it. Needs `SMTP_URL`. | No reset links in mail: a code cannot be clicked from a phishing copy. | 2026-10-22 |
+| Excel bridge calls the API unauthenticated (14) | ✅ Revocable bearer tokens made in Settings (`ANALEKH_TOKEN`), shown once and stored hashed; sent only in the `Authorization` header. | Every route now needs a signed-in user. | 2026-10-22 |
+| 💬 Before hosting | Failed-sign-in counts per address are kept in memory per API process and use the socket address. With several processes or a reverse proxy they need Redis and trusted-proxy handling (`X-Forwarded-For` only from known proxies). | Owner, 2026-10-22: defer until hosting is decided. | 2026-10-22 |
 
 ## Folded into v0.0.5 (21 October 2026)
 

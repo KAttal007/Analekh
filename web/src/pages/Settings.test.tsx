@@ -45,6 +45,26 @@ test("a new bridge token is shown once, with its name", async () => {
   expect(screen.queryByText("secret-token-value")).toBeNull();
 });
 
+test("sign out everywhere asks first, then posts once", async () => {
+  const calls = mockApi({
+    ...base(),
+    "POST /api/auth/logout-everywhere": () => ({ status: 204 }),
+  });
+  renderAt(<Settings />);
+  await screen.findByText("Office laptop");
+  fireEvent.click(screen.getByRole("button", { name: "Sign out everywhere" }));
+  expect(calls.some((c) => c.url === "/api/auth/logout-everywhere")).toBe(false);
+  expect(screen.getByText(/revokes your Excel bridge tokens/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign out everywhere" }));
+  const buttons = screen.getAllByRole("button", { name: "Sign out everywhere" });
+  fireEvent.click(buttons[buttons.length - 1]);
+  await waitFor(() =>
+    expect(calls.filter((c) => c.url === "/api/auth/logout-everywhere")).toHaveLength(1),
+  );
+  expect(calls.some((c) => c.url === "/api/auth/logout")).toBe(false);
+});
+
 test("a token can be revoked", async () => {
   const calls = mockApi({ ...base(), "DELETE /api/auth/tokens/7": () => ({ status: 204 }) });
   renderAt(<Settings />);

@@ -65,9 +65,12 @@ class Settings(BaseSettings):
     # Failed sign-ins per account: pause at the Nth, block (until a password reset) at the Mth.
     login_pause_after: int = 3
     login_block_after: int = 5
-    login_pause_minutes: int = 5
+    # Long enough that guessing pays nothing (owner, 2026-10-22: raised from 5); short enough that
+    # a colleague paused by someone else's typos is not shut out for long.
+    login_pause_minutes: int = 15
     # Failed sign-ins per client address (any accounts): past the limit, that address gets a 429
-    # until its oldest failure leaves the window. Kept in memory, per API process.
+    # until its oldest failure leaves the window. Kept in memory, per API process: before hosting
+    # with several processes or behind a proxy, move it to Redis and read trusted proxy headers.
     login_ip_max_failures: int = 30
     login_ip_window_minutes: int = 15
     login_ip_max_tracked: int = 10_000
@@ -82,6 +85,11 @@ class Settings(BaseSettings):
     max_upload_default_bytes: int = 25 * 1024 * 1024
     min_upload_bytes: int = 1024 * 1024
     max_upload_ceiling_bytes: int = 100 * 1024 * 1024
+    # Any request body larger than the ceiling plus this (multipart framing) is refused with 413
+    # as it arrives, before the framework spools it to disk.
+    request_body_overhead_bytes: int = 1024 * 1024
+    # Sign-in sessions past their idle or hard limit are deleted by this job (cron, IST).
+    session_purge_cron: str = "30 3 * * *"
 
     # Public (signed-out) endpoints: one cached answer per range, shared by every visitor.
     public_cache_seconds: int = 60

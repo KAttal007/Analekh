@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from analekh.alerts.mail import send_mail
 from analekh.auth import service
-from analekh.auth.passwords import normalize_email
+from analekh.auth.passwords import check_password_length, normalize_email
 from analekh.config import get_settings
 from analekh.db.models import PasswordReset, User
 
@@ -79,7 +79,10 @@ def confirm_reset(
     db: Session, email: str, code: str, new_password: str, now: datetime | None = None
 ) -> bool:
     """Check the code and set the new password (which ends every session and clears any block).
-    A wrong code counts an attempt; an expired or exhausted code is deleted."""
+    A wrong code counts an attempt; an expired or exhausted code is deleted. A new password of the
+    wrong length raises PasswordTooShort / PasswordTooLong before the code is looked at, so it
+    spends no attempt."""
+    check_password_length(new_password)
     user = _user(db, email)
     row = db.get(PasswordReset, user.id) if user is not None else None
     if user is None or row is None:

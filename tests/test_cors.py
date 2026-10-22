@@ -18,8 +18,13 @@ def _preflight(origin: str):
     )
 
 
-def test_defaults_name_127_0_0_1_not_localhost():
-    """On Windows `localhost` tries IPv6 first and stalls; the defaults use the IPv4 address."""
+def test_defaults_name_127_0_0_1_not_localhost(monkeypatch):
+    """On Windows `localhost` tries IPv6 first and stalls; the defaults use the IPv4 address.
+    The environment is cleared first: CI sets DATABASE_URL etc. to its service hostnames, and
+    those override the defaults this test is about."""
+    names = ("database_url", "redis_url", "minio_endpoint", "analekh_api", "cors_origins")
+    for name in names:
+        monkeypatch.delenv(name.upper(), raising=False)
     cfg = Settings(_env_file=None)
     for value in (cfg.database_url, cfg.redis_url, cfg.minio_endpoint, cfg.analekh_api):
         assert "localhost" not in value

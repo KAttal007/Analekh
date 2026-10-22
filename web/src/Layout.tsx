@@ -158,7 +158,7 @@ function SignOut() {
       <span className="signed-in-name" title={me.email}>
         {me.name}
       </span>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
         Sign out
       </button>
     </div>

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 
 from analekh import __version__
+from analekh.api.body_limit import BodySizeLimit
 from analekh.api.deps import auth_is_off, check_auth_switch, get_user
 from analekh.api.routers import (
     auth,
@@ -71,6 +72,7 @@ app = FastAPI(
     description="The analyst's record, kept for you.",
     lifespan=lifespan,
 )
+app.add_middleware(BodySizeLimit)  # oversized bodies refused before they are spooled
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # e.g. the company index: ~300 KB -> ~60 KB
 app.add_middleware(
     CORSMiddleware,

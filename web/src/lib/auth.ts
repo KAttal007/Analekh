@@ -54,12 +54,13 @@ export function useMe() {
   });
 }
 
-/** Ends the session on the server, then clears everything this page holds from it. */
+/** Ends the session on the server, then clears everything this page holds from it.
+ * `everywhere` also ends every other session of this user and revokes their bridge tokens. */
 export function useSignOut() {
   const client = useQueryClient();
-  return async () => {
+  return async (everywhere = false) => {
     try {
-      await api.logout();
+      await (everywhere ? api.logoutEverywhere() : api.logout());
     } finally {
       client.clear(); // nothing from this session stays in the page
       client.setQueryData(ME_KEY, null);

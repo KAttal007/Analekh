@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev-certs": "office-addin-dev-certs install",
+    "dev-server": "vite",
     "start": "office-addin-debugging start manifest.xml desktop",
     "stop": "office-addin-debugging stop manifest.xml",
     "validate": "office-addin-manifest validate manifest.xml",

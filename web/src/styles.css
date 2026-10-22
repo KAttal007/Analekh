@@ -654,6 +654,8 @@ kbd {
   .app,
   .app.collapsed {
     grid-template-columns: minmax(0, 1fr);
+    /* the bar keeps its own height; a short page's spare height goes to the content */
+    grid-template-rows: auto 1fr;
   }
   .sidebar {
     position: relative; /* still the highlight's frame when it stops being sticky */
@@ -2514,6 +2516,16 @@ table.glance tbody tr:last-child > * {
   margin: 2px 0 0;
   font-size: 12px;
 }
+.settings-actions {
+  display: flex;
+  gap: var(--s2);
+}
+.btn-danger,
+.btn.btn-danger:hover {
+  background: var(--negative-soft);
+  border-color: color-mix(in srgb, var(--negative) 40%, transparent);
+  color: var(--negative);
+}
 .settings-alerts .settings-rows {
   padding: 0;
 }
@@ -3761,6 +3773,33 @@ table.glance tbody tr:last-child > * {
 }
 .admin-content {
   max-width: none; /* the admin screens use the full width */
+}
+@media (max-width: 860px) {
+  /* The admin links are words, not icons: keep them, in one row with the way back. */
+  .admin .nav {
+    align-items: center;
+    gap: var(--s1);
+  }
+  .admin .nav-label {
+    display: inline;
+  }
+  .admin-back {
+    margin: 0 0 0 var(--s2);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 640px) {
+  .admin .admin-tag {
+    display: none;
+  }
+  .admin .nav a {
+    padding: 0 8px;
+  }
+  .admin-bar input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 }
 .admin-bar {
   display: flex;

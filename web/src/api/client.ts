@@ -13,74 +13,21 @@ export type Glance = Schemas["GlanceOut"];
 export type Desk = Schemas["DeskOut"];
 export type DeskRow = Schemas["DeskRowOut"];
 export type Price = Schemas["PriceOut"];
-// GET /calendar (hand-typed until `pnpm api-types` is next run against the API).
-export type CalendarKind = "results" | "meeting" | "concall";
-export type CalendarEvent = {
-  date: string;
-  kind: CalendarKind;
-  symbol: string;
-  name: string;
-  sector: string | null;
-  purpose: string | null;
-  watched: boolean;
-  source_url: string | null;
-  status: "scheduled" | "filed";
-  revised?: boolean;
-};
-export type Calendar = {
-  start: string;
-  end: string;
-  events: CalendarEvent[];
-  unscheduled: { symbol: string; name: string; sector: string | null }[];
-};
-// Sign-in, and the signed-out data for the sign-in screen (hand-typed until `pnpm api-types`).
-export type Me = { id: string; name: string; email: string; role: "admin" | "analyst" };
-export type PublicWelcome = {
-  companies_in_scope: number;
-  filings_total: number;
-  reported: number;
-  quarter_label: string | null;
-  latest_filed_at: string | null;
-};
-export type PublicEvent = {
-  date: string;
-  kind: CalendarKind;
-  symbol: string;
-  name: string;
-  sector: string | null;
-  purpose: string | null;
-  source_url: string | null;
-  status: "scheduled" | "filed";
-  revised: boolean;
-};
-export type PublicCalendar = { start: string; end: string; events: PublicEvent[] };
-// Administration (hand-typed until `pnpm api-types` is next run against the API).
-export type AdminUserRow = {
-  id: string;
-  email: string;
-  name: string;
-  role: "admin" | "analyst";
-  auth_kind: string;
-  is_active: boolean;
-  blocked: boolean;
-  created_at: string | null;
-};
-export type NewUser = {
-  name: string;
-  email: string;
-  role: "admin" | "analyst";
-  password?: string;
-};
-export type UserChange = { name?: string; role?: "admin" | "analyst"; is_active?: boolean };
-export type UploadLimit = {
-  bytes: number;
-  ceiling_bytes: number;
-  min_bytes: number;
-  updated_by: string | null;
-  updated_at: string | null;
-};
-export type ApiToken = { id: number; name: string; created_at: string };
-export type ApiTokenCreated = ApiToken & { token: string };
+export type CalendarEvent = Schemas["CalendarEventOut"];
+export type CalendarKind = CalendarEvent["kind"];
+export type Calendar = Schemas["CalendarOut"];
+// Sign-in, and the signed-out data for the sign-in screen
+export type Me = Schemas["MeOut"];
+export type PublicWelcome = Schemas["WelcomeOut"];
+export type PublicEvent = Schemas["PublicEventOut"];
+export type PublicCalendar = Schemas["PublicCalendarOut"];
+// Administration
+export type AdminUserRow = Schemas["UserOut"];
+export type NewUser = Schemas["UserIn"];
+export type UserChange = Schemas["UserPatch"];
+export type UploadLimit = Schemas["UploadLimitOut"];
+export type ApiToken = Schemas["TokenOut"];
+export type ApiTokenCreated = Schemas["TokenCreated"];
 export type DeskSort = "filed" | "market_cap";
 export type DeskQuery = {
   quarter_end?: string;
@@ -202,6 +149,7 @@ export const api = {
   // Sign-in (credentials only ever travel in a POST body, never in a URL)
   login: (email: string, password: string) => post<Me>("/auth/login", { email, password }),
   logout: () => post<void>("/auth/logout"),
+  logoutEverywhere: () => post<void>("/auth/logout-everywhere"),
   me: () => call<Me>("/auth/me"),
   requestReset: (email: string) => post<{ detail: string }>("/auth/reset/request", { email }),
   confirmReset: (email: string, code: string, newPassword: string) =>

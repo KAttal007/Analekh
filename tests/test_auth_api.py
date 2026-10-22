@@ -71,12 +71,13 @@ def test_login_never_reads_query_string(raw, user):
     assert "set-cookie" not in res.headers
 
 
-def test_unknown_email_says_enter_registered_email(raw, user):
+def test_wrong_password_message_identical_for_unknown_email(raw, user):
+    """The reply never tells anyone whether an address has an account (owner, 2026-10-22)."""
     wrong = _login(raw, password="not the password")
     unknown = _login(raw, email="nobody@firm.in")
     assert wrong.status_code == unknown.status_code == 401
-    assert wrong.json() == {"detail": WRONG}
-    assert unknown.json() == {"detail": "Enter your registered email."}
+    assert wrong.json() == unknown.json() == {"detail": WRONG}
+    assert wrong.headers["cache-control"] == unknown.headers["cache-control"]
     assert "set-cookie" not in unknown.headers
 
 
@@ -101,7 +102,7 @@ def test_three_failed_logins_over_http_pause_the_account(raw, user, db):
 def test_five_failed_logins_block_with_reset_message(raw, user, db):
     for _ in range(5):
         _login(raw, password="wrong one")
-        user.paused_until = None  # skip the 5-minute pause so the next failure counts
+        user.paused_until = None  # skip the pause so the next failure counts
     db.flush()
     res = _login(raw)
     assert res.status_code == 403

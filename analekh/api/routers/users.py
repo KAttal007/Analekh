@@ -1,7 +1,6 @@
 """User administration (admin only; plan task 6). Passwords and hashes never appear in a reply."""
 
-from datetime import datetime
-from typing import Literal
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -10,23 +9,27 @@ from sqlalchemy import func, select
 from analekh.api.deps import DB, AdminUser
 from analekh.auth import service
 from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD, PasswordTooLong, PasswordTooShort
+from analekh.auth.service import Role
 from analekh.db.models import AuditEntry, User
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 MAX_NAME = 120
-Role = Literal["admin", "analyst"]
 
 
 class UserOut(BaseModel):
     id: str
     email: str
     name: str
-    role: str
+    role: Role
     auth_kind: str
     is_active: bool
     blocked: bool
     created_at: datetime | None = None
+    # Sign-ins are refused until then (after repeated wrong passwords); null when not paused.
+    paused_until: datetime | None = None
+    # Latest activity in any session (to the minute); null when never signed in or purged.
+    last_seen_at: datetime | None = None
 
 
 class UserIn(BaseModel):
@@ -46,16 +49,19 @@ class PasswordIn(BaseModel):
     new_password: str = Field(max_length=MAX_PASSWORD)
 
 
-def _out(u: User) -> UserOut:
+def _out(u: User, seen: dict[str, datetime] | None = None) -> UserOut:
+    paused = u.paused_until
     return UserOut(
         id=u.id,
         email=u.email,
         name=u.name,
-        role=u.role,
+        role=service.role_of(u),
         auth_kind=u.auth_kind,
         is_active=u.is_active,
         blocked=u.blocked,
         created_at=u.created_at,
+        paused_until=paused if paused is not None and paused > datetime.now(UTC) else None,
+        last_seen_at=(seen or {}).get(u.id),
     )
 
 
@@ -81,7 +87,8 @@ def _active_admins(db: DB) -> int:
 
 @router.get("", response_model=list[UserOut])
 def list_users(db: DB, _: AdminUser) -> list[UserOut]:
-    return [_out(u) for u in db.scalars(select(User).order_by(User.name, User.email))]
+    seen = service.last_seen(db)
+    return [_out(u, seen) for u in db.scalars(select(User).order_by(User.name, User.email))]
 
 
 @router.post("", response_model=UserOut, status_code=201)

@@ -345,6 +345,15 @@ def fetch_prices(day: str | None = None) -> dict:
 
 
 @app.task
+def purge_sessions() -> dict:
+    """Delete sign-in sessions past their idle or hard limit (auth design, section 5)."""
+    from analekh.auth.service import purge_expired_sessions
+
+    with session_scope() as s:
+        return {"deleted": purge_expired_sessions(s)}
+
+
+@app.task
 def watch_results(force: bool = False) -> dict:
     """New results filings for every company, from one request to NSE's latest list. Runs only
     when the season schedule says so (analekh.seasons): every 2 hours from 09:00 to 23:00 IST in

@@ -10,15 +10,16 @@ from pydantic import BaseModel, Field
 
 from analekh.api.deps import DB, SESSION_COOKIE, CurrentUser
 from analekh.auth import ip_limit, reset, service
-from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD
+from analekh.auth import tokens as api_tokens
+from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD, PasswordTooLong, PasswordTooShort
 from analekh.config import get_settings
+from analekh.db.models import AuditEntry
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # The sign-in page must not be cached or leak its address in a Referer header.
 NO_STORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 BAD_CREDENTIALS = "Email or password is incorrect."
-UNKNOWN_EMAIL = "Enter your registered email."
 
 
 class LoginIn(BaseModel):
@@ -30,7 +31,7 @@ class MeOut(BaseModel):
     id: str
     name: str
     email: str
-    role: str
+    role: service.Role
 
 
 def _cookie_secure() -> bool:
@@ -51,14 +52,12 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
         )
     result = service.login(db, body.email, body.password)
     db.commit()
-    if result.reason in ("bad_credentials", "unknown_email"):
+    if result.reason == "bad_credentials":  # unknown emails too: counted, and the same reply
         ip_limit.record_failure(ip)
-    if result.reason == "bad_credentials":
         return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
-    if result.reason == "unknown_email":
-        return JSONResponse({"detail": UNKNOWN_EMAIL}, status_code=401, headers=NO_STORE)
+    cfg = get_settings()
     if result.reason == "paused":
-        wait = result.retry_after_seconds or 300
+        wait = result.retry_after_seconds or cfg.login_pause_minutes * 60
         minutes = max(1, -(-wait // 60))  # round up to whole minutes
         headers = {**NO_STORE, "Retry-After": str(wait)}
         return JSONResponse(
@@ -73,7 +72,6 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
             headers=NO_STORE,
         )
     assert result.user is not None and result.token is not None
-    cfg = get_settings()
     for name, value in NO_STORE.items():
         response.headers[name] = value
     response.set_cookie(
@@ -86,7 +84,15 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
         path="/",
     )
     u = result.user
-    return MeOut(id=u.id, name=u.name, email=u.email, role=u.role)
+    return MeOut(id=u.id, name=u.name, email=u.email, role=service.role_of(u))
+
+
+def _signed_out() -> Response:
+    out = Response(status_code=204, headers=NO_STORE)
+    out.delete_cookie(
+        SESSION_COOKIE, path="/", httponly=True, secure=_cookie_secure(), samesite="strict"
+    )
+    return out
 
 
 @router.post("/logout", status_code=204)
@@ -95,16 +101,25 @@ def logout(request: Request, db: DB, _: CurrentUser) -> Response:
     if token:
         service.logout(db, token)
         db.commit()
-    out = Response(status_code=204, headers=NO_STORE)
-    out.delete_cookie(
-        SESSION_COOKIE, path="/", httponly=True, secure=_cookie_secure(), samesite="strict"
-    )
-    return out
+    return _signed_out()
+
+
+@router.post("/logout-everywhere", status_code=204)
+def logout_everywhere(db: DB, current: CurrentUser) -> Response:
+    """End every session of this user, in every browser, and revoke their Excel bridge and
+    add-in tokens (a lost laptop, a shared machine)."""
+    service.revoke_user_sessions(db, current.id)
+    api_tokens.revoke_all_api_tokens(db, current.id)
+    db.add(AuditEntry(user_id=current.id, action="user.logout_everywhere", detail={}))
+    db.commit()
+    return _signed_out()
 
 
 @router.get("/me", response_model=MeOut)
 def me(current: CurrentUser) -> MeOut:
-    return MeOut(id=current.id, name=current.name, email=current.email, role=current.role)
+    return MeOut(
+        id=current.id, name=current.name, email=current.email, role=service.role_of(current)
+    )
 
 
 class ResetRequestIn(BaseModel):
@@ -144,15 +159,10 @@ def reset_request(body: ResetRequestIn, db: DB, background: BackgroundTasks) -> 
 def reset_confirm(body: ResetConfirmIn, db: DB) -> Response:
     """Set a new password with the emailed code. Committed after a FAILED attempt too, so the
     attempt count persists."""
-    minimum = get_settings().password_min_length
-    if len(body.new_password) < minimum:
-        # Checked before the code, so a short password does not use up an attempt.
-        return JSONResponse(
-            {"detail": f"Password must be at least {minimum} characters."},
-            status_code=400,
-            headers=NO_STORE,
-        )
-    ok = reset.confirm_reset(db, body.email, body.code, body.new_password)
+    try:
+        ok = reset.confirm_reset(db, body.email, body.code, body.new_password)
+    except (PasswordTooShort, PasswordTooLong) as exc:  # checked first: no attempt spent
+        return JSONResponse({"detail": str(exc)}, status_code=400, headers=NO_STORE)
     db.commit()
     if not ok:
         return JSONResponse(

@@ -28,15 +28,20 @@ class PasswordTooShort(ValueError):
     pass
 
 
-def hash_password(plain: str) -> str:
+def check_password_length(plain: str) -> None:
+    """Raise PasswordTooShort or PasswordTooLong; cheap, so callers check before spending
+    anything (a reset code attempt, a hash)."""
     from analekh.config import get_settings
 
-    if len(plain) < get_settings().password_min_length:
-        raise PasswordTooShort(
-            f"password must be at least {get_settings().password_min_length} characters"
-        )
+    minimum = get_settings().password_min_length
+    if len(plain) < minimum:
+        raise PasswordTooShort(f"Password must be at least {minimum} characters.")
     if len(plain) > MAX_PASSWORD:
-        raise PasswordTooLong(f"password is longer than {MAX_PASSWORD} characters")
+        raise PasswordTooLong(f"Password must be at most {MAX_PASSWORD} characters.")
+
+
+def hash_password(plain: str) -> str:
+    check_password_length(plain)
     return _hasher.hash(plain)
 
 

@@ -17,10 +17,15 @@ from analekh.auth.service import (
     set_password,
     user_for_token,
 )
+from analekh.config import get_settings
 from analekh.db.models import AuthSession, User
 
 T0 = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
 GOOD = "correct horse battery"
+
+
+def _pause() -> timedelta:
+    return timedelta(minutes=get_settings().login_pause_minutes)
 
 
 def _make(db, email="kaushal@firm.in", **kw):
@@ -36,24 +41,28 @@ def test_good_login_returns_token_and_stores_only_its_hash(db):
     assert res.token not in stored
 
 
-def test_third_failure_pauses_five_minutes(db):
+def test_third_failure_pauses_the_account(db):
     _make(db)
     for _ in range(3):
         assert login(db, "kaushal@firm.in", "wrong", now=T0).reason == "bad_credentials"
     res = login(db, "kaushal@firm.in", GOOD, now=T0)
-    assert not res.ok and res.reason == "paused" and res.retry_after_seconds == 300
+    assert (
+        not res.ok
+        and res.reason == "paused"
+        and res.retry_after_seconds == _pause().total_seconds()
+    )
     assert res.token is None
-    later = login(db, "kaushal@firm.in", GOOD, now=T0 + timedelta(minutes=5, seconds=1))
+    later = login(db, "kaushal@firm.in", GOOD, now=T0 + _pause() + timedelta(seconds=1))
     assert later.ok
 
 
 def test_two_more_failures_after_the_pause_block_the_account(db):
-    """Hard limit of 5: 3 failures, a 5-minute pause, then 2 more wrong tries lock the account.
+    """Hard limit of 5: 3 failures, a pause, then 2 more wrong tries lock the account.
     The 4th failure does not start a second pause."""
     _make(db)
     for _ in range(3):
         login(db, "kaushal@firm.in", "wrong", now=T0)
-    after = T0 + timedelta(minutes=5, seconds=1)
+    after = T0 + _pause() + timedelta(seconds=1)
     fourth = login(db, "kaushal@firm.in", "wrong", now=after)
     assert fourth.reason == "bad_credentials"
     # no new pause after the 4th: the right password is not held back
@@ -75,7 +84,7 @@ def test_failures_during_the_pause_do_not_count_or_extend_it(db):
         )
     user = db.scalar(select(User).where(User.email == "kaushal@firm.in"))
     assert user.failed_count == 3 and user.blocked is False
-    assert login(db, "kaushal@firm.in", GOOD, now=T0 + timedelta(minutes=5, seconds=1)).ok
+    assert login(db, "kaushal@firm.in", GOOD, now=T0 + _pause() + timedelta(seconds=1)).ok
 
 
 def test_fifth_failure_blocks_until_set_password(db):
@@ -83,7 +92,7 @@ def test_fifth_failure_blocks_until_set_password(db):
     t = T0
     for _ in range(5):
         login(db, "kaushal@firm.in", "wrong", now=t)
-        t += timedelta(minutes=6)
+        t += _pause() + timedelta(minutes=1)
     res = login(db, "kaushal@firm.in", GOOD, now=t)
     assert res.reason == "blocked" and not res.ok and res.token is None
     set_password(db, user, "a brand new password")
@@ -172,12 +181,11 @@ def test_injection_password_and_email_are_plain_bad_credentials(db):
     assert db.scalar(select(func.count()).select_from(User)) == 1
 
 
-def test_unknown_email_is_reported_as_unknown(db):
+def test_unknown_email_gets_the_wrong_password_reply(db):
     _make(db)
     unknown = login(db, "nobody@firm.in", "whatever", now=T0)
     wrong = login(db, "kaushal@firm.in", "whatever", now=T0)
-    assert unknown == service.LoginResult(False, None, None, "unknown_email", None)
-    assert wrong.reason == "bad_credentials"
+    assert unknown == wrong == service.LoginResult(False, None, None, "bad_credentials", None)
 
 
 def test_over_long_password_is_bad_credentials_not_counted_as_error(db):

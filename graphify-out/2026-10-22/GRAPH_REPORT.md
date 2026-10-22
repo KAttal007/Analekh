@@ -6,108 +6,96 @@
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 10, .example 1, .ini 1)
 
 ## Summary
-- 2726 nodes · 8245 edges · 137 communities (100 shown, 37 thin omitted)
-- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 719 edges (avg confidence: 0.92)
+- 2733 nodes · 8270 edges · 122 communities (88 shown, 34 thin omitted)
+- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 712 edges (avg confidence: 0.92)
 - Token cost: 406,493 input · 0 output
 
 ## Community Hubs (Navigation)
+- extract.py
 - CompanyPage.tsx (1)
-- @tanstack/react-query
-- CI and Compose Deploy
-- routers/models.py
-- changeset.py
-- Company
 - get_settings()
-- test_auth_reset.py (1) (1)
-- design_docx.py (1) (1) (1)
-- Design Doc Core Components
 - Mapping
-- Reports.tsx (2)
-- Polite HTTP Client (1) (1) (1) (1) (1)
-- Object Storage (1)
-- router.tsx
-- API Schemas (1) (1) (1) (1) (1) (1)
-- NSE Integrated Filings
+- @tanstack/react-query
+- io (1)
 - Companies API (1) (1) (1)
-- tasks.py
-- Filing
-- Office Add-in Task Pane (1) (1)
-- login
-- reader.py (1)
-- passwords.py (1) (1)
-- test_public_load.py
-- test_upload_limit.py
-- test_api.py (1) (1) (1)
-- rules.py
 - ib/comps.py
+- changeset.py
+- CI and Compose Deploy
+- API Schemas (1) (1) (1) (1) (1) (1)
+- Golden Set Runner (1) (1)
+- ValidationContext
+- routers/models.py
+- analekh/cli.py
+- Design Doc Core Components
+- test_universe.py
+- NSE Integrated Filings
+- test_auth_reset.py (1) (1)
+- rules.py
+- login
+- Polite HTTP Client (1) (1) (1) (1) (1)
+- test_api.py
+- users.py
+- reader.py (1)
+- Office Add-in Task Pane (1) (1)
+- test_upload_limit.py
+- tasks.py
+- dataclasses
+- Reports.tsx (2)
+- User
+- db/models.py
+- test_api_tokens.py
+- bhavcopy.py
+- router.tsx
 - db/models.py (1)
 - sqlalchemy
-- ValidationContext
-- test_api_tokens.py
-- Golden Set Runner (1) (1)
+- io (2)
 - api
-- test_ingest.py
-- Results Calendar UI
-- db/models.py
-- bhavcopy.py
-- Results History UI
-- test_login_ip_limit.py
-- test_docs.py
-- test_builder.py (1)
-- Latest Results Paging
-- test_modelsync.py (1) (1) (1)
-- analekh/cli.py (1) (1) (1) (1)
-- test-utils.tsx
+- routers/comps.py
 - Results Seasons (1)
-- test_users_api.py
-- test_queues.py
-- main.py
-- Claude
-- public.py
-- docs/pipeline.py
-- test_auth_api.py
-- ToolExecutor (1) (1)
-- test_ib.py (1) (1)
-- test_auth_reset.py (1) (2) (1) (1) (1)
-- ParsedFiling
-- test_scale_check.py
-- statusPanels.tsx
-- checks.py
+- Results History UI
+- Results Calendar UI
+- feeds.py
+- test-utils.tsx
+- Latest Results Paging
 - pytest
-- parser.py
-- auth.py
-- test_ib.py (1) (2)
-- test_ib.py (1) (3)
-- audio.py (1)
-- extract.py
-- ToolExecutor (1) (2)
+- test_login_ip_limit.py
+- design_docx.py (1) (1) (1)
+- test_users_api.py
+- test_auth_api.py
+- test_queues.py
 - ingest/pipeline.py
+- FeedItem
+- diagram_panels.py
+- ToolExecutor (1) (1) (1)
+- statusPanels.tsx
+- io (3)
+- system.py
+- auth.py
+- stocks_workbook.py
 - Watchlist Coverage
-- test_modelsync.py (1) (1) (2)
+- public.py
+- parser.py
 - CompanyPage.tsx (2)
-- test_ib.py (1) (4)
 - Workbook Engine Design
 - Sign-in, roles, upload limit and model locks: design
-- Review Focus
+- ToolExecutor (1) (2)
+- .text()
+- search.py
+- audio.py (1)
+- LocalStore (1)
+- calc.py
 - Product Rules and Workflows
 - Universe and Sector Design
-- FeedItem
 - Build Plan Phases
-- test_auth_reset.py (1) (2) (1) (1) (2)
+- passwords.py (1) (1)
+- LocalStore (2)
 - Results Collection Design
-- test_ib.py (1) (5)
-- ValidationReport
+- desk.py
 - Example NBFC Mapping
-- test_ib.py (1) (6)
-- analekh/cli.py (1) (1) (1) (2)
-- recompute_latest()
+- docs/pipeline.py
 - Grounded GenAI Design
-- API Schemas (1) (1) (1) (1) (1) (2)
-- last_close_day
 - taskpane.tsx
-- test_api.py (1) (1) (2)
-- API Schemas (1) (1) (1) (1) (1) (3)
-- analekh/cli.py (1) (1) (1) (3)
+- ToolExecutor (1) (1) (2)
 - Rule 8 Ratings and target prices from th
 - Deployment today and planned hosting
 - Job schedule by results season
@@ -116,9 +104,6 @@
 - Call recordings transcription (Whisper)
 - Section 22.5 Source control, CI/CD and G
 - Phase tracker tables
-- API Schemas (1) (1) (1) (1) (1) (4)
-- analekh/cli.py (1) (1) (1) (4)
-- analekh/cli.py (1) (1) (1) (5)
 - GitLab source of truth, GitHub read-only
 - Package layout in request-flow order
 - Rule 7 Macros never executed
@@ -154,17 +139,17 @@
 7. `ingest_results_xbrl()` - 53 edges
 8. `parse_instance()` - 52 edges
 9. `get()` - 48 edges
-10. `Mapping` - 42 edges
+10. `Mapping` - 41 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `AuditEntry` --references--> `Task 6: User administration, template permissions, create-admin CLI`  [INFERRED]
-  analekh/db/models.py → docs/superpowers/plans/2026-10-22-auth-stage-1.md
 - `User` --references--> `Task 3: Sign-in service (sessions, failure tiers, disable)`  [INFERRED]
   analekh/db/models.py → docs/superpowers/plans/2026-10-22-auth-stage-1.md
 - `User` --references--> `Task 4: Auth router, cookie, CSRF, role dependencies, protect every router`  [INFERRED]
   analekh/db/models.py → docs/superpowers/plans/2026-10-22-auth-stage-1.md
 - `db()` --references--> `Task 3: Sign-in service (sessions, failure tiers, disable)`  [INFERRED]
   tests/conftest.py → docs/superpowers/plans/2026-10-22-auth-stage-1.md
+- `Segmented()` --references--> `Task 11: Admin area (own routes and shell), personal settings`  [INFERRED]
+  web/src/components/ui.tsx → docs/superpowers/plans/2026-10-22-auth-stage-1.md
 - `Badge()` --references--> `Task 11: Admin area (own routes and shell), personal settings`  [INFERRED]
   web/src/components/ui.tsx → docs/superpowers/plans/2026-10-22-auth-stage-1.md
 
@@ -182,427 +167,379 @@
 - **Template mapping structure** — mappings_example_quarterly_yaml_period_axis, mappings_example_quarterly_yaml_xbrl_rows, mappings_example_quarterly_yaml_drivers, mappings_example_quarterly_yaml_checks [EXTRACTED 1.00]
 - **Trust, approval and NSE-access commitments** — product_principles, claude_rule2_human_in_loop, claude_rule3_grounded_genai, claude_rule1_nse_access [INFERRED 0.75]
 
-## Communities (137 total, 37 thin omitted)
+## Communities (122 total, 34 thin omitted)
 
-### Community 0 - "CompanyPage.tsx (1)"
-Cohesion: 0.10
-Nodes (55): CompanyDetail, HistoryLine, WatchlistEntry, Change(), COSTS, fmtDate(), QuarterRail(), BasisCell() (+47 more)
+### Community 0 - "extract.py"
+Cohesion: 0.05
+Nodes (47): LlmCall, chunk_pages(), TextChunk, PageScore, score_page(), select_pages(), Embedder, get_embedder() (+39 more)
 
-### Community 1 - "@tanstack/react-query"
+### Community 1 - "CompanyPage.tsx (1)"
+Cohesion: 0.08
+Nodes (67): CompanyDetail, GlanceLine, HistoryLine, WatchlistEntry, Change(), COSTS, fmtDate(), QuarterRail() (+59 more)
+
+### Community 2 - "get_settings()"
+Cohesion: 0.05
+Nodes (36): check_auth_switch(), _database_busy(), lifespan(), _storage_down(), _warm_up(), cache_size(), get_settings(), Settings (+28 more)
+
+### Community 3 - "Mapping"
 Cohesion: 0.07
-Nodes (43): Task 10: Sign-in in the web app, AdminLayout(), ITEMS, Me, onSignedOut(), RequireSignIn(), ME_KEY, rememberReturnPath() (+35 more)
+Nodes (36): Proposal, propose(), _propose_one(), _q(), _revenue_row(), _series(), quarter_start(), resolve_row() (+28 more)
 
-### Community 2 - "CI and Compose Deploy"
+### Community 4 - "@tanstack/react-query"
+Cohesion: 0.07
+Nodes (45): Task 10: Sign-in in the web app, AdminLayout(), ITEMS, Me, onSignedOut(), RequireSignIn(), ME_KEY, rememberReturnPath() (+37 more)
+
+### Community 5 - "io (1)"
+Cohesion: 0.07
+Nodes (36): initiation_docx(), note_docx(), summary_pptx(), book_value(), build_table(), clean_symbols(), CompInputs, CompRow (+28 more)
+
+### Community 6 - "Companies API (1) (1) (1)"
+Cohesion: 0.07
+Nodes (37): company_or_404(), job(), health(), analyse(), company_glance(), company_history(), company_index(), company_price() (+29 more)
+
+### Community 7 - "ib/comps.py"
+Cohesion: 0.08
+Nodes (32): company_history_xlsx(), desk(), Desk, DeskRow, _movers(), _quarter_start(), recent_quarters(), SectorProgress (+24 more)
+
+### Community 8 - "changeset.py"
+Cohesion: 0.08
+Nodes (28): fill_history(), FillReport, write_drivers(), write_sources(), Written, sync_model(), build_change_set(), _list_adjacent_hardcodes() (+20 more)
+
+### Community 9 - "CI and Compose Deploy"
 Cohesion: 0.06
 Nodes (53): CLAUDE.md project guidance, production service api, production service beat, production service migrate (alembic), production service postgres, production service valkey, production service worker, staging service api (+45 more)
 
-### Community 3 - "routers/models.py"
-Cohesion: 0.10
-Nodes (35): assumptions(), builds(), decide_assumptions(), discover_models(), download_version(), finalize(), link_model(), list_models() (+27 more)
+### Community 10 - "API Schemas (1) (1) (1) (1) (1) (1)"
+Cohesion: 0.05
+Nodes (48): results_calendar(), alert_channels(), jobs_available(), _mask(), _season(), test_alert(), AlertChannelsOut, AlertOut (+40 more)
 
-### Community 4 - "changeset.py"
+### Community 11 - "Golden Set Runner (1) (1)"
 Cohesion: 0.08
-Nodes (29): fill_history(), FillReport, write_drivers(), write_sources(), Written, ChangeItem, sync_model(), build_change_set() (+21 more)
+Nodes (27): build_sheet(), file_name(), fy_label(), GoldenReport, guess_unit(), import_sheet(), ImportSummary, Mismatch (+19 more)
 
-### Community 5 - "Company"
-Cohesion: 0.09
-Nodes (37): Company, _date(), _decimal(), ListedCompany, LoadSummary, _norm_header(), parse_equity_list(), upsert_universe() (+29 more)
+### Community 12 - "ValidationContext"
+Cohesion: 0.16
+Nodes (44): HistoryFact, KpiValue, validate(), ValidationContext, parse_instance(), main(), history(), quarter_file() (+36 more)
 
-### Community 6 - "get_settings()"
-Cohesion: 0.06
-Nodes (26): check_auth_switch(), _database_busy(), lifespan(), _storage_down(), _warm_up(), get_settings(), Settings, _api() (+18 more)
+### Community 13 - "routers/models.py"
+Cohesion: 0.12
+Nodes (32): assumptions(), decide_assumptions(), discover_models(), finalize(), link_model(), list_models(), _model(), relink_model() (+24 more)
 
-### Community 7 - "test_auth_reset.py (1) (1)"
+### Community 14 - "analekh/cli.py"
 Cohesion: 0.08
-Nodes (24): send_mail(), confirm_reset(), _hash_code(), request_reset(), _user(), PasswordReset, Task 5: Mail to any recipient and the reset-code flow, _code() (+16 more)
+Nodes (28): backfill(), build(), _company(), create_admin(), golden_import(), golden_sheet(), golden_test(), prices() (+20 more)
 
-### Community 8 - "design_docx.py (1) (1) (1)"
-Cohesion: 0.07
-Nodes (22): add(), caption(), cell_border(), cells(), code_block(), figure(), heading(), inline() (+14 more)
-
-### Community 9 - "Design Doc Core Components"
+### Community 15 - "Design Doc Core Components"
 Cohesion: 0.05
 Nodes (43): Appendices A-H (DDL, mapping, CI, deps, glossary), Backfill (results-backfill, --history, watchdog), NSE daily bhavcopy, Celery beat scheduler in Docker, Company page with results history table, Feed Watcher, NSE financial-results list (history from March 2023), GenAI tools (get_facts, get_kpis, get_model_values, search_filings, get_prices, calc) (+35 more)
 
-### Community 10 - "Mapping"
-Cohesion: 0.10
-Nodes (25): Proposal, propose(), _propose_one(), _q(), _revenue_row(), _series(), resolve_row(), Resolved (+17 more)
+### Community 16 - "test_universe.py"
+Cohesion: 0.11
+Nodes (30): Company, _date(), _decimal(), ListedCompany, LoadSummary, _norm_header(), parse_equity_list(), refresh_from_nse() (+22 more)
 
-### Community 11 - "Reports.tsx (2)"
-Cohesion: 0.07
-Nodes (42): Task 11: Admin area (own routes and shell), personal settings, ApiTokenCreated, Segmented(), SegmentThumb(), ADMIN, GROUPS, Item(), Layout() (+34 more)
-
-### Community 12 - "Polite HTTP Client (1) (1) (1) (1) (1)"
-Cohesion: 0.10
-Nodes (27): DisallowedHostError, FetchResult, identity_headers(), path_allowed(), PoliteClient, RateLimiter, _retryable(), fetch_results() (+19 more)
-
-### Community 13 - "Object Storage (1)"
+### Community 17 - "NSE Integrated Filings"
 Cohesion: 0.08
-Nodes (15): LocalStore, pack(), S3Store, StorageUnavailable, unpack(), compress(), main(), main() (+7 more)
-
-### Community 14 - "router.tsx"
-Cohesion: 0.14
-Nodes (32): AdminUserRow, UserChange, Icon(), IconName, PATHS, AVATAR_HUES, Badge(), EmptyState() (+24 more)
-
-### Community 15 - "API Schemas (1) (1) (1) (1) (1) (1)"
-Cohesion: 0.06
-Nodes (41): AlertOut, AssumptionDecision, AssumptionDecisions, AssumptionOut, BuildOut, ChangeItemOut, ChangeSetOut, CompanyDetail (+33 more)
-
-### Community 16 - "NSE Integrated Filings"
-Cohesion: 0.09
 Nodes (24): refused(), _date(), _download_and_ingest(), _error(), _fetch(), fetch_history(), FetchOutcome, _history_row() (+16 more)
 
-### Community 17 - "Companies API (1) (1) (1)"
+### Community 18 - "test_auth_reset.py (1) (1)"
 Cohesion: 0.09
-Nodes (26): company_or_404(), job(), analyse(), company_glance(), company_history(), company_index(), company_price(), facts() (+18 more)
+Nodes (23): send_mail(), confirm_reset(), _hash_code(), request_reset(), PasswordReset, Task 5: Mail to any recipient and the reset-code flow, _code(), sent() (+15 more)
 
-### Community 18 - "tasks.py"
-Cohesion: 0.09
-Nodes (23): get_store(), session_scope(), default_store(), ObjectStore, record(), analyse_company(), backfill(), background_backfill() (+15 more)
-
-### Community 19 - "Filing"
+### Community 19 - "rules.py"
 Cohesion: 0.10
-Nodes (24): Filing, desk(), Desk, DeskRow, _movers(), _quarter_start(), recent_quarters(), SectorProgress (+16 more)
+Nodes (22): _identity(), is_year_end(), _jsonable(), _power(), _quarters(), RuleResult, tolerance(), _typical() (+14 more)
 
-### Community 20 - "Office Add-in Task Pane (1) (1)"
-Cohesion: 0.06
-Nodes (38): AlertChannels, AlertEntry, ApiError, ApiToken, Assumption, BuildOut, Calendar, CalendarEvent (+30 more)
+### Community 20 - "login"
+Cohesion: 0.15
+Nodes (33): verify_password(), _hash_token(), login(), LoginResult, logout(), _now(), revoke_user_sessions(), set_password() (+25 more)
 
-### Community 21 - "login"
-Cohesion: 0.16
-Nodes (32): _hash_token(), login(), LoginResult, logout(), _now(), revoke_user_sessions(), set_password(), user_for_token() (+24 more)
+### Community 21 - "Polite HTTP Client (1) (1) (1) (1) (1)"
+Cohesion: 0.10
+Nodes (26): DisallowedHostError, FetchResult, identity_headers(), path_allowed(), PoliteClient, RateLimiter, _retryable(), lookup() (+18 more)
 
-### Community 22 - "reader.py (1)"
+### Community 22 - "test_api.py"
 Cohesion: 0.09
-Nodes (20): column_letter_shift(), DependencyGraph, expand(), references(), Finding, scan_hygiene(), LabelMatch, match_label() (+12 more)
+Nodes (29): client(), test_alert_channels_and_test_messages_never_leak_secrets(), test_comps_export_shows_each_company_basis(), test_discover_and_link(), test_facts_fall_back_to_standalone_when_company_files_no_consolidated(), test_glance_for_a_life_insurer_shows_premium_and_ratios(), quarter(), test_glance_lines_changes_and_derived_ebitda() (+21 more)
 
-### Community 23 - "passwords.py (1) (1)"
+### Community 23 - "users.py"
 Cohesion: 0.11
-Nodes (25): _active_admins(), _audit(), create(), _get(), list_users(), _out(), PasswordIn, reset_password() (+17 more)
+Nodes (24): _active_admins(), _audit(), create(), _get(), list_users(), _out(), PasswordIn, reset_password() (+16 more)
 
-### Community 24 - "test_public_load.py"
-Cohesion: 0.08
-Nodes (19): cache_size(), get_engine(), _session_factory(), _attempt(), committed_user(), test_login_flood_gets_no_server_errors(), test_parallel_wrong_passwords_cannot_skip_the_pause(), _cal() (+11 more)
+### Community 24 - "reader.py (1)"
+Cohesion: 0.09
+Nodes (23): column_letter_shift(), DependencyGraph, expand(), references(), Finding, scan_hygiene(), LabelMatch, match_label() (+15 more)
 
-### Community 25 - "test_upload_limit.py"
+### Community 25 - "Office Add-in Task Pane (1) (1)"
+Cohesion: 0.06
+Nodes (36): AlertChannels, AlertEntry, ApiError, ApiToken, Assumption, BuildOut, Calendar, CalendarEvent (+28 more)
+
+### Community 26 - "test_upload_limit.py"
 Cohesion: 0.10
 Nodes (21): _out(), read_upload_limit(), set_upload_limit(), UploadLimitIn, UploadLimitOut, get_max_upload_bytes(), mb(), read_limited() (+13 more)
 
-### Community 26 - "test_api.py (1) (1) (1)"
-Cohesion: 0.11
-Nodes (27): ingest_results_xbrl(), store(), client(), test_comps_export_shows_each_company_basis(), test_discover_and_link(), test_facts_fall_back_to_standalone_when_company_files_no_consolidated(), test_glance_for_a_life_insurer_shows_premium_and_ratios(), quarter() (+19 more)
+### Community 27 - "tasks.py"
+Cohesion: 0.09
+Nodes (20): session_scope(), _gone(), pending_feed_items(), process_feed_items(), default_store(), analyse_company(), backfill(), background_backfill() (+12 more)
 
-### Community 27 - "rules.py"
+### Community 28 - "dataclasses"
 Cohesion: 0.11
-Nodes (20): _identity(), is_year_end(), _power(), _quarters(), RuleResult, tolerance(), _typical(), v10_kpi_conflict() (+12 more)
+Nodes (18): _api(), apply(), link(), scan(), watch(), apply(), apply_openpyxl(), apply_xlwings() (+10 more)
 
-### Community 28 - "ib/comps.py"
+### Community 29 - "Reports.tsx (2)"
 Cohesion: 0.10
-Nodes (18): company_history_xlsx(), files_consolidated(), _day(), glance(), value(), Glance, is_financial(), _latest_revision() (+10 more)
+Nodes (30): ApiTokenCreated, IconName, PATHS, Segmented(), SegmentThumb(), ADMIN, GROUPS, Item() (+22 more)
 
-### Community 29 - "db/models.py (1)"
-Cohesion: 0.14
-Nodes (24): activate_template(), confirm(), list_templates(), _template(), test_build(), upload_template(), Template, TemplateTest (+16 more)
+### Community 30 - "User"
+Cohesion: 0.09
+Nodes (20): auth_is_off(), _bearer_user(), _dev_user(), get_current(), get_user(), require_admin(), _session_user(), User (+12 more)
 
-### Community 30 - "sqlalchemy"
+### Community 31 - "db/models.py"
+Cohesion: 0.10
+Nodes (20): create_report(), get_report(), alerts(), data_counts(), prices_status(), _run(), status(), DataCountsOut (+12 more)
+
+### Community 32 - "test_api_tokens.py"
+Cohesion: 0.10
+Nodes (21): create(), list_tokens(), revoke(), TokenCreated, TokenIn, TokenOut, _by_email(), create_user() (+13 more)
+
+### Community 33 - "bhavcopy.py"
+Cohesion: 0.10
+Nodes (21): BhavRow, _dec(), fetch(), latest_stored(), load_day(), market_cap(), paid_up_capital(), parse() (+13 more)
+
+### Community 34 - "router.tsx"
+Cohesion: 0.17
+Nodes (30): AdminUserRow, UserChange, Icon(), AVATAR_HUES, Badge(), EmptyState(), ErrorNote(), Loading() (+22 more)
+
+### Community 35 - "db/models.py (1)"
+Cohesion: 0.12
+Nodes (24): start(), activate_template(), confirm(), list_templates(), _template(), test_build(), upload_template(), BuildOut (+16 more)
+
+### Community 36 - "sqlalchemy"
 Cohesion: 0.10
 Nodes (9): downgrade(), upgrade(), upgrade(), upgrade(), upgrade(), upgrade(), upgrade(), upgrade() (+1 more)
 
-### Community 31 - "ValidationContext"
-Cohesion: 0.23
-Nodes (33): KpiValue, validate(), ValidationContext, parse_instance(), handler(), handler(), by_rule(), _quarter() (+25 more)
+### Community 37 - "io (2)"
+Cohesion: 0.09
+Nodes (12): TemplateTest, DbValueSource, ModelReader, run_test_build(), CheckResult, CheckRun, run_checks(), has_macros() (+4 more)
 
-### Community 32 - "test_api_tokens.py"
-Cohesion: 0.12
-Nodes (16): create(), list_tokens(), revoke(), TokenCreated, TokenIn, TokenOut, create_api_token(), _hash() (+8 more)
-
-### Community 33 - "Golden Set Runner (1) (1)"
-Cohesion: 0.13
-Nodes (21): build_sheet(), file_name(), fy_label(), GoldenReport, guess_unit(), import_sheet(), ImportSummary, Mismatch (+13 more)
-
-### Community 34 - "api"
+### Community 38 - "api"
 Cohesion: 0.10
 Nodes (26): api, CompanyIndexEntry, INDEX, renderSearch(), CompanySearch(), highlight(), Suggestion, CompanyIndex (+18 more)
 
-### Community 35 - "test_ingest.py"
+### Community 39 - "routers/comps.py"
 Cohesion: 0.10
-Nodes (15): FeedItem, FeedWatcher, item_key(), parse_pub_date(), parse_rss(), RssItem, store_items(), CompanyIndex (+7 more)
+Nodes (23): _commit(), comps(), comps_table(), create_peer_list(), delete_peer_list(), _list_or_404(), _name(), peer_lists() (+15 more)
 
-### Community 36 - "Results Calendar UI"
+### Community 40 - "Results Seasons (1)"
+Cohesion: 0.13
+Nodes (21): watcher_status(), WatcherStatusOut, watch_results(), deadline_days(), next_ask(), next_season(), previous_start(), Season (+13 more)
+
+### Community 41 - "Results History UI"
+Cohesion: 0.16
+Nodes (26): Filing, Revision, BOLD, cell(), FilingDetails(), headMark(), OtherFilings(), ResultsHistory() (+18 more)
+
+### Community 42 - "Results Calendar UI"
 Cohesion: 0.19
 Nodes (29): DayProps, DayStrip(), EventRow(), KIND_LABEL, KIND_TONE, KindChip(), KindFilter, MonthView() (+21 more)
 
-### Community 37 - "db/models.py"
-Cohesion: 0.12
-Nodes (8): Base, Chunk, Fact, Kpi, hybrid_search(), engine(), _ensure_database(), _no_real_claude()
-
-### Community 38 - "bhavcopy.py"
-Cohesion: 0.14
-Nodes (17): Price, BhavRow, _dec(), fetch(), latest_stored(), load_day(), market_cap(), paid_up_capital() (+9 more)
-
-### Community 39 - "Results History UI"
-Cohesion: 0.17
-Nodes (25): Filing, BOLD, cell(), FilingDetails(), headMark(), OtherFilings(), ResultsHistory(), SourceLinks() (+17 more)
-
-### Community 40 - "test_login_ip_limit.py"
+### Community 43 - "feeds.py"
 Cohesion: 0.10
-Nodes (17): clear(), _prune(), record_failure(), retry_after(), tracked(), _probe(), queue_available(), _fresh() (+9 more)
+Nodes (14): FeedWatcher, item_key(), parse_pub_date(), parse_rss(), RssItem, store_items(), CompanyIndex, normalise_name() (+6 more)
 
-### Community 41 - "test_docs.py"
-Cohesion: 0.15
-Nodes (16): PageScore, score_page(), select_pages(), _ocr(), PageText, read_pages(), subset(), as_prompt_text() (+8 more)
+### Community 44 - "test-utils.tsx"
+Cohesion: 0.11
+Nodes (12): LIMIT, quiet, USERS, TOKENS, ADMIN, ANALYST, Call, Handler (+4 more)
 
-### Community 42 - "test_builder.py (1)"
-Cohesion: 0.14
-Nodes (17): link(), apply(), apply_openpyxl(), apply_xlwings(), link_tag(), target_path(), Write, coerce() (+9 more)
-
-### Community 43 - "Latest Results Paging"
+### Community 45 - "Latest Results Paging"
 Cohesion: 0.13
 Nodes (21): fetch_latest(), is_truncated(), LatestOutcome, next_page_size(), company(), list_client(), handler(), row() (+13 more)
 
-### Community 44 - "test_modelsync.py (1) (1) (1)"
-Cohesion: 0.14
-Nodes (19): apply(), change_set(), _cs(), decide(), ChangeSet, quarter_start(), apply_headless(), ApprovedItem (+11 more)
-
-### Community 45 - "analekh/cli.py (1) (1) (1) (1)"
-Cohesion: 0.16
-Nodes (18): build(), _company(), create_admin(), golden_sheet(), prices(), results_backfill(), results_watch(), revalidate() (+10 more)
-
-### Community 46 - "test-utils.tsx"
-Cohesion: 0.10
-Nodes (12): LIMIT, quiet, USERS, TOKENS, ADMIN, ANALYST, Call, Handler (+4 more)
-
-### Community 47 - "Results Seasons (1)"
-Cohesion: 0.15
-Nodes (18): watcher_status(), WatcherStatusOut, deadline_days(), next_ask(), next_season(), previous_start(), Season, _season() (+10 more)
-
-### Community 48 - "test_users_api.py"
-Cohesion: 0.11
-Nodes (19): _by_email(), create_user(), adopt_local(), Task 6: User administration, template permissions, create-admin CLI, user(), user(), user(), test_create_user_validates_role_and_email() (+11 more)
-
-### Community 49 - "test_queues.py"
-Cohesion: 0.14
-Nodes (20): pending_feed_items(), process_feed_items(), test_backfill_from_import_folder(), bad_date_instance(), client_for(), company(), feed_item(), row() (+12 more)
-
-### Community 50 - "main.py"
-Cohesion: 0.14
-Nodes (15): auth_is_off(), _bearer_user(), _dev_user(), get_current(), get_user(), require_admin(), _session_user(), User (+7 more)
-
-### Community 51 - "Claude"
+### Community 46 - "pytest"
 Cohesion: 0.13
-Nodes (13): create_report(), get_report(), qa(), LlmCall, Report, Claude, ClaudeResult, RefusalError (+5 more)
+Nodes (19): BackfillSummary, run_backfill(), check_pdf(), classify_announcement(), NotAPdf, store_document(), make_pdf(), test_announcement_classifier() (+11 more)
 
-### Community 52 - "public.py"
-Cohesion: 0.12
-Nodes (16): auth_status(), _cached(), calendar(), build(), clear_cache(), PublicCalendarOut, PublicEventOut, welcome() (+8 more)
+### Community 47 - "test_login_ip_limit.py"
+Cohesion: 0.11
+Nodes (18): clear_cache(), clear(), _prune(), record_failure(), retry_after(), tracked(), _fresh_in_memory_state(), _fresh() (+10 more)
 
-### Community 53 - "docs/pipeline.py"
-Cohesion: 0.15
-Nodes (13): Document, chunk_pages(), TextChunk, Embedder, get_embedder(), LocalEmbedder, store_chunks(), DocResult (+5 more)
+### Community 48 - "design_docx.py (1) (1) (1)"
+Cohesion: 0.14
+Nodes (16): add(), caption(), cell_border(), code_block(), figure(), heading(), inline(), list_item() (+8 more)
 
-### Community 54 - "test_auth_api.py"
+### Community 49 - "test_users_api.py"
+Cohesion: 0.11
+Nodes (15): get_store(), adopt_local(), AuditEntry, Task 6: User administration, template permissions, create-admin CLI, admin(), analyst(), _Scope, _sign_in() (+7 more)
+
+### Community 50 - "test_auth_api.py"
 Cohesion: 0.15
 Nodes (20): Task 4: Auth router, cookie, CSRF, role dependencies, protect every router, _login(), raw(), test_access_log_has_no_secrets(), test_admin_only_dependency_refuses_analyst(), test_cookie_is_secure_outside_dev(), test_disabled_user_session_gets_401(), test_every_non_public_route_requires_session() (+12 more)
 
-### Community 55 - "ToolExecutor (1) (1)"
-Cohesion: 0.14
-Nodes (14): check(), collect_values(), _decimals(), extract_numbers(), GroundingResult, matches(), ReportRun, to_json() (+6 more)
+### Community 51 - "test_queues.py"
+Cohesion: 0.17
+Nodes (17): fetch_results(), bad_date_instance(), client_for(), company(), feed_item(), row(), stored_doc(), test_a_failed_item_retries_after_fresh_ones() (+9 more)
 
-### Community 56 - "test_ib.py (1) (1)"
-Cohesion: 0.18
-Nodes (19): CompInputs, compute(), four_quarters(), gather(), _pct(), _ratio(), _sum(), comp() (+11 more)
-
-### Community 57 - "test_auth_reset.py (1) (2) (1) (1) (1)"
+### Community 52 - "ingest/pipeline.py"
 Cohesion: 0.13
-Nodes (13): raise_alert(), send_email(), send_telegram(), alerts(), data_counts(), jobs_available(), prices_status(), _run() (+5 more)
+Nodes (14): _fact_key(), IncompleteXbrl, ingest_results_xbrl(), load_history(), revalidate_company(), rewrite_amounts(), scale_meta(), storage_key() (+6 more)
 
-### Community 58 - "ParsedFiling"
-Cohesion: 0.12
-Nodes (10): resolve(), sheet_lines(), SheetLine, _fact_key(), rewrite_amounts(), rescaled(), scaled_decimals(), _date_or_none() (+2 more)
+### Community 53 - "FeedItem"
+Cohesion: 0.15
+Nodes (11): FeedItem, process_feed_item(), CalendarEvent, events(), _filed_results(), kind_of(), parse_description(), _item() (+3 more)
 
-### Community 59 - "test_scale_check.py"
+### Community 54 - "diagram_panels.py"
+Cohesion: 0.13
+Nodes (5): main(), _graphify_python(), install_hooks(), main(), _triggered_by_rebuild()
+
+### Community 55 - "ToolExecutor (1) (1) (1)"
 Cohesion: 0.19
-Nodes (16): load_history(), revalidate_company(), HistoryFact, _company(), history(), quarter_file(), standalone_q2(), test_a_real_jump_reported_on_both_bases_passes() (+8 more)
+Nodes (13): check(), collect_values(), _decimals(), extract_numbers(), GroundingResult, matches(), ReportRun, run_report() (+5 more)
 
-### Community 60 - "statusPanels.tsx"
+### Community 56 - "statusPanels.tsx"
 Cohesion: 0.22
 Nodes (18): AlertTest, JobRun, Status, UploadLimit, Skeleton(), filedAt(), AdminSettings(), mb() (+10 more)
 
-### Community 61 - "checks.py"
-Cohesion: 0.18
-Nodes (7): CheckResult, CheckRun, run_checks(), evaluate(), lookup(), _plain(), recalc_file()
+### Community 57 - "io (3)"
+Cohesion: 0.19
+Nodes (12): apply(), change_set(), _cs(), decide(), Decisions, ChangeSet, sha256(), apply_headless() (+4 more)
 
-### Community 62 - "pytest"
-Cohesion: 0.22
-Nodes (13): NotAPdf, make_pdf(), company(), count(), store_it(), test_a_feed_item_with_an_error_page_is_given_up_at_once_and_the_queue_goes_on(), handler(), test_a_file_that_is_not_a_pdf_is_refused_and_nothing_is_stored() (+5 more)
+### Community 58 - "system.py"
+Cohesion: 0.15
+Nodes (5): raise_alert(), send_email(), send_telegram(), _probe(), queue_available()
 
-### Community 63 - "parser.py"
-Cohesion: 0.13
-Nodes (10): detect_taxonomy(), Context, _dedupe(), dims_hash(), _parse_context(), _unit_label(), test_contexts_resolved_from_dates_not_ids(), test_dims_hash_is_order_independent() (+2 more)
-
-### Community 64 - "auth.py"
-Cohesion: 0.17
+### Community 59 - "auth.py"
+Cohesion: 0.16
 Nodes (10): _cookie_secure(), login(), LoginIn, logout(), me(), MeOut, reset_confirm(), reset_request() (+2 more)
 
-### Community 65 - "test_ib.py (1) (2)"
+### Community 60 - "stocks_workbook.py"
+Cohesion: 0.18
+Nodes (4): S3Store, compress(), main(), test_s3_store_write_marks_gzip_and_overwrites()
+
+### Community 61 - "Watchlist Coverage"
+Cohesion: 0.23
+Nodes (10): unwatch(), add(), entries(), is_watched(), level(), remove(), _user(), Watchlist (+2 more)
+
+### Community 62 - "public.py"
 Cohesion: 0.22
-Nodes (12): _commit(), create_peer_list(), delete_peer_list(), _list_or_404(), _name(), peer_lists(), _symbols(), update_peer_list() (+4 more)
+Nodes (9): auth_status(), _cached(), calendar(), build(), PublicCalendarOut, PublicEventOut, welcome(), build() (+1 more)
 
-### Community 66 - "test_ib.py (1) (3)"
-Cohesion: 0.18
-Nodes (14): comps(), comps_table(), _requested(), _row_out(), CompRowOut, CompsRequest, CompsTableOut, CompStatOut (+6 more)
+### Community 63 - "parser.py"
+Cohesion: 0.20
+Nodes (9): Context, _dedupe(), dims_hash(), _parse_context(), period_type(), _unit_label(), test_contexts_resolved_from_dates_not_ids(), test_dims_hash_is_order_independent() (+1 more)
 
-### Community 67 - "audio.py (1)"
-Cohesion: 0.18
-Nodes (9): transcribe_audio(), _add_cuda_dll_dirs(), AudioTranscript, _clock(), _has_cuda(), Segment, transcribe(), 5. Security requirements (hard rules) (+1 more)
-
-### Community 68 - "extract.py"
-Cohesion: 0.21
-Nodes (12): batch_params(), build_prompt(), extract(), ExtractedKpi, Extraction, extraction_schema(), map_back(), _norm() (+4 more)
-
-### Community 69 - "ToolExecutor (1) (2)"
-Cohesion: 0.18
-Nodes (5): calc(), CalcError, _eval(), ToolExecutor, test_calc_is_exact_and_safe()
-
-### Community 70 - "ingest/pipeline.py"
-Cohesion: 0.18
-Nodes (9): BackfillSummary, run_backfill(), check_pdf(), classify_announcement(), _gone(), process_feed_item(), store_document(), storage_key() (+1 more)
-
-### Community 71 - "Watchlist Coverage"
-Cohesion: 0.26
-Nodes (9): add(), entries(), is_watched(), level(), remove(), _user(), Watchlist, test_calendar_endpoint_scopes_to_the_watchlist() (+1 more)
-
-### Community 72 - "test_modelsync.py (1) (1) (2)"
-Cohesion: 0.16
-Nodes (3): DbValueSource, SourceValue, FakeSource
-
-### Community 73 - "CompanyPage.tsx (2)"
+### Community 64 - "CompanyPage.tsx (2)"
 Cohesion: 0.19
 Nodes (14): CompRow, CompsTable, PeerList, AS_FLAG, BASES, Basis, Blank(), CompsGrid() (+6 more)
 
-### Community 74 - "test_ib.py (1) (4)"
-Cohesion: 0.19
-Nodes (7): refresh(), sub(), Replacement, build(), ProfileData, test_pitch_placeholders_replaced_and_logged(), test_profile_slide_builds()
-
-### Community 75 - "Workbook Engine Design"
+### Community 65 - "Workbook Engine Design"
 Cohesion: 0.17
 Nodes (12): Change set and change items, Excel bridge (xlwings, Office.js later), Workbook fingerprint, Hidden tag (custom document property), Initiation pack, Roll-forward, Section 13 Model discovery and recognition, Section 14 Template onboarding (+4 more)
 
-### Community 76 - "Sign-in, roles, upload limit and model locks: design"
+### Community 66 - "Sign-in, roles, upload limit and model locks: design"
 Cohesion: 0.15
 Nodes (12): 10. Other screens still to be mocked, 12. Left to the builder, 13. Open decisions for the owner, 2. Goals, 3. Non-goals and anti-goals, 4. Roles, 6. The sign-in screen (chosen mockup), 7. Upload limit (+4 more)
 
-### Community 77 - "Review Focus"
-Cohesion: 0.17
-Nodes (11): Global Constraints, Review Focus, Self-review notes, Sign-in, Roles and Upload Limit (Stage 1) Implementation Plan, Task 12: Records and end-to-end check, Task 1: Tables, config and dependency, Task 7: Upload limit, Task 8: Bridge and add-in tokens (+3 more)
+### Community 67 - "ToolExecutor (1) (2)"
+Cohesion: 0.24
+Nodes (4): qa(), QaRequest, ToolExecutor, test_tool_executor_looks_companies_up_like_everywhere_else()
 
-### Community 78 - "Product Rules and Workflows"
+### Community 68 - ".text()"
+Cohesion: 0.18
+Nodes (7): _clock(), Global Constraints, Self-review notes, Sign-in, Roles and Upload Limit (Stage 1) Implementation Plan, 5. Security requirements (hard rules), engine(), _ensure_database()
+
+### Community 69 - "search.py"
+Cohesion: 0.26
+Nodes (9): _run(), search(), SearchHit, db(), test_search_matches_words_in_any_order(), symbols(), test_search_narrows_with_each_keystroke(), symbols() (+1 more)
+
+### Community 70 - "audio.py (1)"
+Cohesion: 0.29
+Nodes (6): _add_cuda_dll_dirs(), AudioTranscript, _has_cuda(), Segment, transcribe(), test_audio_transcript_text_carries_timestamps()
+
+### Community 71 - "LocalStore (1)"
+Cohesion: 0.25
+Nodes (5): LocalStore, _no_real_claude(), store(), test_builtin_template_file_is_rebuilt_when_storage_lost_it(), test_store_gzips_xml_and_returns_the_original_bytes()
+
+### Community 72 - "calc.py"
+Cohesion: 0.33
+Nodes (4): calc(), CalcError, _eval(), test_calc_is_exact_and_safe()
+
+### Community 73 - "Product Rules and Workflows"
 Cohesion: 0.20
 Nodes (5): Approval gate, Workflow 5 Quarterly model update, Workflow 6 Start coverage, Workflow 7 Template onboarding, Investor presentations via NSE announcements (proposed)
 
-### Community 79 - "Universe and Sector Design"
+### Community 74 - "Universe and Sector Design"
 Cohesion: 0.20
 Nodes (9): Coverage levels (universe, numbers, deep), Excel Stocks data type (LSEG industry group), NSE Indices constituent lists, Results format / results_taxonomy (indas, banking, nbfc, insurance, life_insurance), Section 4.2 Sector classification precedence, Section 4 Company universe and coverage levels, Universe Loader, Watchlist (+1 more)
 
-### Community 80 - "FeedItem"
-Cohesion: 0.33
-Nodes (6): kind_of(), parse_description(), _item(), test_calendar_reschedule_watchlist_and_window(), test_parse_description(), test_past_days_show_results_filed_and_replace_the_announcement()
-
-### Community 81 - "Build Plan Phases"
+### Community 75 - "Build Plan Phases"
 Cohesion: 0.31
 Nodes (9): Phase 0 Spike, Phase 1 Data layer, Phase 2 Builder and sync, Phase 3 Document AI, Phase 4 GenAI outputs, Phase 5 Discovery, IB outputs, polish, Section 26 Build plan, Section 2 Requirements (F1-F20, NFRs) (+1 more)
 
-### Community 82 - "test_auth_reset.py (1) (2) (1) (1) (2)"
-Cohesion: 0.25
-Nodes (6): alert_channels(), _mask(), test_alert(), AlertChannelsOut, AlertTestIn, AlertTestOut
+### Community 76 - "passwords.py (1) (1)"
+Cohesion: 0.22
+Nodes (9): Review Focus, Task 11: Admin area (own routes and shell), personal settings, Task 12: Records and end-to-end check, Task 1: Tables, config and dependency, Task 7: Upload limit, Task 8: Bridge and add-in tokens, Task 9: Mock-ups gate (owner decision), test_bearer_token_authenticates_and_carries_role() (+1 more)
 
-### Community 83 - "Results Collection Design"
+### Community 78 - "Results Collection Design"
 Cohesion: 0.25
 Nodes (5): NSE request limit and watchdog, Workflow 1 Results collection, Newest filed value wins (restatements), How it works pipeline (ingest, XBRL, facts, approve, drafts), Status v0.0.5 (data layer on real NSE data)
 
-### Community 84 - "test_ib.py (1) (5)"
-Cohesion: 0.33
-Nodes (3): initiation_docx(), note_docx(), summary_pptx()
+### Community 80 - "desk.py"
+Cohesion: 0.48
+Nodes (4): _change(), LastClose, latest_price(), latest_prices()
 
-### Community 85 - "ValidationReport"
-Cohesion: 0.33
-Nodes (3): scale_meta(), _jsonable(), ValidationReport
-
-### Community 87 - "Example NBFC Mapping"
+### Community 81 - "Example NBFC Mapping"
 Cohesion: 0.38
 Nodes (7): Example NBFC quarterly template mapping, checks (balance sheet difference expect 0), drivers (loan_yield actual to forecast), kpi:gold_loan_aum row, period_axis (Period header row, A/E flag row), units default_transform div:10000000 (INR to crore), xbrl source rows (RevenueFromOperations, OtherIncome, FinanceCosts, ProfitLossForPeriod)
 
-### Community 88 - "test_ib.py (1) (6)"
-Cohesion: 0.33
-Nodes (3): peers(), PeerOut, suggest_peers()
+### Community 82 - "docs/pipeline.py"
+Cohesion: 0.40
+Nodes (4): StorageUnavailable, test_storage_down_is_a_fast_503(), down(), test_s3_store_unreachable_raises_storage_unavailable()
 
-### Community 89 - "analekh/cli.py (1) (1) (1) (2)"
-Cohesion: 0.20
-Nodes (3): golden_import(), golden_test(), refresh()
-
-### Community 90 - "recompute_latest()"
-Cohesion: 0.33
-Nodes (3): recompute_latest(), refresh_latest(), infer_revision_flags()
-
-### Community 91 - "Grounded GenAI Design"
+### Community 83 - "Grounded GenAI Design"
 Cohesion: 0.33
 Nodes (5): Claude API usage policy (Claude.create, fallbacks, Batch), Grounding and style check, Workflow 8 Documents, KPIs and reports, Reports set-up (quarterly update, initiating coverage), Section-by-section report runner (proposed)
 
-### Community 92 - "API Schemas (1) (1) (1) (1) (1) (2)"
-Cohesion: 0.40
-Nodes (4): results_calendar(), CalendarEventOut, CalendarOut, UnscheduledOut
-
-### Community 93 - "last_close_day"
-Cohesion: 0.50
-Nodes (4): last_close_day(), test_prices_are_overdue_only_after_the_evening_window(), expected(), test_latest_close_day_waits_for_the_evening_and_skips_weekends()
-
-### Community 94 - "taskpane.tsx"
-Cohesion: 0.60
+### Community 84 - "taskpane.tsx"
+Cohesion: 0.47
 Nodes (4): Item, readTag(), select(), TaskPane()
 
-### Community 95 - "test_api.py (1) (1) (2)"
-Cohesion: 0.33
-Nodes (3): health(), test_alert_channels_and_test_messages_never_leak_secrets(), test_analyse_fails_fast_when_the_job_queue_is_down()
-
-### Community 100 - "Deployment today and planned hosting"
+### Community 88 - "Deployment today and planned hosting"
 Cohesion: 0.67
 Nodes (3): Deployment today and planned hosting, Scheduler in Docker (Celery beat, worker, Redis), Hosting in India blocker
 
-### Community 101 - "Job schedule by results season"
+### Community 89 - "Job schedule by results season"
 Cohesion: 0.67
 Nodes (3): Job schedule by results season, Workflow 9 Events, results calendar and alerts, Results watcher by SEBI season
 
-### Community 104 - "Call recordings transcription (Whisper)"
+### Community 92 - "Call recordings transcription (Whisper)"
 Cohesion: 0.67
 Nodes (3): Call recordings transcription (Whisper), Live earnings-call listener (future scope), Section 11 Document pipeline
 
-### Community 105 - "Section 22.5 Source control, CI/CD and G"
+### Community 93 - "Section 22.5 Source control, CI/CD and G"
 Cohesion: 0.67
 Nodes (3): GitHub read-only mirror via mirror_to_github CI job, GitLab Free as source of truth, Section 22.5 Source control, CI/CD and GitHub mirroring
 
-### Community 106 - "Phase tracker tables"
+### Community 94 - "Phase tracker tables"
 Cohesion: 0.67
 Nodes (3): Dev log, What stops the next phases, Phase tracker tables
 
 ## Knowledge Gaps
 - **89 isolated node(s):** `Analekh (system)`, `Technical Design Document v0.0.5`, `Scheduler in Docker (Celery beat, worker, Redis)`, `Hosting in India blocker`, `Workflow 9 Events, results calendar and alerts` (+84 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 804 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **37 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 808 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **34 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Task 10: Sign-in in the web app` connect `@tanstack/react-query` to `auth.py`, `Review Focus`?**
-  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+- **Why does `Task 10: Sign-in in the web app` connect `@tanstack/react-query` to `auth.py`, `passwords.py (1) (1)`?**
+  _High betweenness centrality (0.114) - this node is a cross-community bridge._
 - **Are the 67 inferred relationships involving `Company` (e.g. with `suggest_peers()` and `start_coverage()`) actually correct?**
   _`Company` has 67 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Analekh (system)`, `Technical Design Document v0.0.5`, `Scheduler in Docker (Celery beat, worker, Redis)` to the rest of the system?**
   _89 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `CompanyPage.tsx (1)` be split into smaller, more focused modules?**
-  _Cohesion score 0.10189452124935997 - nodes in this community are weakly interconnected._
-- **Why does `Company` connect `Company` to `routers/models.py`, `Polite HTTP Client (1) (1) (1) (1) (1)`, `NSE Integrated Filings`, `Companies API (1) (1) (1)`, `tasks.py`, `Filing`, `test_api.py (1) (1) (1)`, `ib/comps.py`, `db/models.py (1)`, `Golden Set Runner (1) (1)`, `test_ingest.py`, `db/models.py`, `bhavcopy.py`, `Latest Results Paging`, `analekh/cli.py (1) (1) (1) (1)`, `test_queues.py`, `main.py`, `public.py`, `docs/pipeline.py`, `test_auth_api.py`, `test_ib.py (1) (1)`, `test_auth_reset.py (1) (2) (1) (1) (1)`, `test_scale_check.py`, `pytest`, `audio.py (1)`, `ToolExecutor (1) (2)`, `ingest/pipeline.py`, `Watchlist Coverage`, `FeedItem`, `test_ib.py (1) (6)`, `recompute_latest()`?**
-  _High betweenness centrality (0.097) - this node is a cross-community bridge._
+- **Should `extract.py` be split into smaller, more focused modules?**
+  _Cohesion score 0.05417236662106703 - nodes in this community are weakly interconnected._
+- **Why does `_month_end()` connect `changeset.py` to `Results Calendar UI`?**
+  _High betweenness centrality (0.093) - this node is a cross-community bridge._
 - **Are the 42 inferred relationships involving `Filing` (e.g. with `process_documents()` and `revalidate_company()`) actually correct?**
   _`Filing` has 42 INFERRED edges - model-reasoned connections that need verification._
-- **Should `@tanstack/react-query` be split into smaller, more focused modules?**
-  _Cohesion score 0.07130333138515488 - nodes in this community are weakly interconnected._
+- **Should `CompanyPage.tsx (1)` be split into smaller, more focused modules?**
+  _Cohesion score 0.08 - nodes in this community are weakly interconnected._

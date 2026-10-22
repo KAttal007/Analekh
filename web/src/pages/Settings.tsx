@@ -211,6 +211,7 @@ function BridgeTokens() {
 function Account() {
   const me = useMe().data;
   const signOut = useSignOut();
+  const [confirming, setConfirming] = useState(false);
   if (!me) return null;
   return (
     <section className="card">
@@ -227,6 +228,34 @@ function Account() {
         <button type="button" className="btn btn-sm" onClick={() => void signOut()}>
           Sign out
         </button>
+      </div>
+      <div className="card-body settings-row">
+        <div className="settings-row-text">
+          <strong>Sign out everywhere</strong>
+          <p className="muted">
+            {confirming
+              ? "This ends your sessions in every browser and revokes your Excel bridge tokens. You will need to sign in again and make new tokens."
+              : "For a lost laptop or a shared computer: ends every session and revokes your bridge tokens."}
+          </p>
+        </div>
+        {confirming ? (
+          <div className="settings-actions">
+            <button type="button" className="btn btn-sm" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => void signOut(true)}
+            >
+              Sign out everywhere
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-sm" onClick={() => setConfirming(true)}>
+            Sign out everywhere
+          </button>
+        )}
       </div>
     </section>
   );

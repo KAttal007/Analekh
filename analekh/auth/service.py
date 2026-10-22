@@ -10,19 +10,27 @@ import math
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Literal, NamedTuple
+from typing import Literal, NamedTuple, cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from analekh.auth.passwords import hash_password, normalize_email, verify_password
 from analekh.config import get_settings
 from analekh.db.models import AuthSession, User
 
-ROLES = ("admin", "analyst")
+Role = Literal["admin", "analyst"]
+ROLES: tuple[Role, ...] = ("admin", "analyst")
+
+
+def role_of(user: User) -> Role:
+    """The user's role, typed. The column's CHECK constraint allows only these two values."""
+    return cast(Role, user.role)
+
+
 LAST_SEEN_WRITE_EVERY = timedelta(minutes=1)
 
-Reason = Literal["ok", "bad_credentials", "unknown_email", "paused", "blocked"]
+Reason = Literal["ok", "bad_credentials", "paused", "blocked"]
 
 
 class LoginResult(NamedTuple):
@@ -59,12 +67,9 @@ def login(db: Session, email: str, password: str, now: datetime | None = None) -
     # Lock the row for this attempt: parallel guesses queue here instead of all reading the same
     # failure count, so a flood cannot skip the pause or the block.
     user = db.scalar(select(User).where(User.email == key).with_for_update())
-    if user is None:
-        # Closed internal tool: say plainly that the address is not registered.
-        verify_password(password, None)
-        return LoginResult(False, None, None, "unknown_email", None)
-    # Disabled and Microsoft accounts: same work, same reply as a wrong password.
-    if not user.is_active or user.auth_kind != "password" or not user.password_hash:
+    # Unknown, disabled and Microsoft accounts: same work, same reply as a wrong password, so the
+    # reply never tells anyone whether an address has an account (owner, 2026-10-22).
+    if user is None or not user.is_active or user.auth_kind != "password" or not user.password_hash:
         verify_password(password, None)
         return _BAD
     if user.blocked:
@@ -131,6 +136,31 @@ def revoke_user_sessions(db: Session, user_id: str) -> int:
     result = db.execute(delete(AuthSession).where(AuthSession.user_id == user_id))
     db.flush()
     return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+
+def purge_expired_sessions(db: Session, now: datetime | None = None) -> int:
+    """Delete every session past its idle or hard limit (they can no longer be used). Sign-in
+    only clears the signing-in user's own; this sweeps the rest (a daily job)."""
+    now = _now(now)
+    cfg = get_settings()
+    result = db.execute(
+        delete(AuthSession).where(
+            (AuthSession.created_at < now - timedelta(hours=cfg.session_max_hours))
+            | (AuthSession.last_seen_at < now - timedelta(hours=cfg.session_idle_hours))
+        )
+    )
+    db.flush()
+    return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+
+def last_seen(db: Session) -> dict[str, datetime]:
+    """Each user's most recent activity in any live or stale session, by user id."""
+    rows = db.execute(
+        select(AuthSession.user_id, func.max(AuthSession.last_seen_at)).group_by(
+            AuthSession.user_id
+        )
+    )
+    return {uid: at for uid, at in rows}
 
 
 def create_user(

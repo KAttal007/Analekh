@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api, type AdminUserRow, type UserChange } from "../../api/client";
 import { Badge, ErrorNote, PageHeader, Skeleton } from "../../components/ui";
 import { useMe } from "../../lib/auth";
+import { filedAt } from "../../lib/format";
 
 type Role = "admin" | "analyst";
 
@@ -17,6 +18,7 @@ const initials = (name: string) =>
 function Status({ u }: { u: AdminUserRow }) {
   if (!u.is_active) return <Badge>Disabled</Badge>;
   if (u.blocked) return <Badge tone="error">Blocked</Badge>;
+  if (u.paused_until) return <Badge tone="warn">Paused until {filedAt(u.paused_until)}</Badge>;
   return <Badge tone="ok">Active</Badge>;
 }
 
@@ -211,6 +213,7 @@ export function Users() {
                   <th>Name</th>
                   <th>Role</th>
                   <th>Sign-in</th>
+                  <th>Last seen</th>
                   <th>Status</th>
                   <th />
                 </tr>
@@ -235,6 +238,7 @@ export function Users() {
                       </Badge>
                     </td>
                     <td>{u.auth_kind === "password" ? "Password" : "Microsoft"}</td>
+                    <td className="muted">{u.last_seen_at ? filedAt(u.last_seen_at) : "Never"}</td>
                     <td>
                       <Status u={u} />
                     </td>

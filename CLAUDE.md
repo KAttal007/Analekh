@@ -31,6 +31,7 @@ uv sync --group audio                     # Whisper for call recordings (analekh
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py
 uv run analekh --help                     # CLI: universe, search, watch, template, build, sync
 uv run analekh recompute-latest          # newest FILED value of each line in use (after imports)
+uv run analekh create-admin EMAIL "Name" --adopt-local   # first admin; prompts for the password
 uv run python scripts/phase0_spike.py --limit 10  # needs NSE access (Indian network)
 pnpm install                              # front ends (pnpm workspace: web/, office-addin/)
 pnpm dev                                  # web app, proxies /api to :8000
@@ -74,6 +75,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
 - `ib/` comps, profile slide, pitch refresh. `alerts/`. Daily prices: `ingest/bhavcopy.py`
   (NSE's bhavcopy after each close; market cap = close x paid-up capital from the results filings / face value from NSE's equity
   list, with guards for tagging errors; `analekh prices --recompute` redoes it without a download).
+- `auth/` passwords (argon2id), sign-in service (sessions, pause/block), per-address limit,
+  emailed reset codes, bridge tokens. `api/body_limit.py` refuses oversized bodies on arrival.
 - `api/` FastAPI app with routers (design doc 20). `jobs/` Celery app, beat schedule, tasks.
   `cli.py` typer CLI. `admin/` Streamlit ops dashboard. `golden.py` golden-set runner.
 - `web/` React + TypeScript (types generated from OpenAPI). `office-addin/` Excel task pane.
@@ -111,6 +114,12 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    marked blank for the analyst to fill in; the AI never proposes one (owner's amendment,
    2026-10-21; design doc 23). Drafts must read as the analyst's own work: no em-dashes or other
    marks of generated text.
+9. **Every route needs a signed-in user** (`analekh/auth/`, deviations "Since v0.0.5"), except
+   `/auth/login`, the reset flow and `/public/*`. Credentials, session tokens, bridge tokens and
+   reset codes travel only in POST bodies, the session cookie or the `Authorization` header:
+   never in a URL, and never logged. Sign-in replies never reveal whether an email has an
+   account. Only admins manage users, templates and the upload limit. Limits and timings come
+   from `config.py` settings, never literals in code or tests.
 
 ## Where the skeleton stops
 

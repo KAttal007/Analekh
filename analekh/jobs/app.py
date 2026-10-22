@@ -59,5 +59,9 @@ app.conf.update(
             "task": "analekh.jobs.tasks.fetch_prices",
             "schedule": _cron(settings.prices_cron),
         },
+        "purge-sessions": {
+            "task": "analekh.jobs.tasks.purge_sessions",
+            "schedule": _cron(settings.session_purge_cron),
+        },
     },
 )

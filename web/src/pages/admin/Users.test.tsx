@@ -160,6 +160,24 @@ test("reset password asks for a new password and posts it", async () => {
   );
 });
 
+test("shows when each user was last seen, and a current pause", async () => {
+  mockApi({
+    ...base(),
+    "GET /api/users": () => ({
+      status: 200,
+      body: [
+        row({ id: "s1", name: "Seen Once", last_seen_at: "2026-10-22T04:12:00Z" }),
+        row({ id: "p1", name: "Paused Now", paused_until: "2026-10-22T05:00:00Z" }),
+      ],
+    }),
+  });
+  renderAt(<Users />);
+  await screen.findByText("Seen Once");
+  expect(within(rowOf("Seen Once")).getByText(/22 Oct.*9:42/)).toBeTruthy(); // India time
+  expect(within(rowOf("Paused Now")).getByText("Never")).toBeTruthy();
+  expect(within(rowOf("Paused Now")).getByText(/Paused until 22 Oct.*10:30/)).toBeTruthy();
+});
+
 test("search narrows the list by name or email", async () => {
   mockApi(base());
   renderAt(<Users />);
