@@ -113,7 +113,10 @@ class FeedItem(Base):
     description: Mapped[str | None] = mapped_column(Text)
     pub_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
+    # Set when done, or when given up on (then error says why). Failed attempts so far.
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    error: Mapped[str | None] = mapped_column(Text)
 
 
 class Filing(Base):

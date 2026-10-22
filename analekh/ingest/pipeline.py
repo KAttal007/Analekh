@@ -18,12 +18,13 @@ recomputes from it and never applies a factor twice.
 from dataclasses import dataclass
 from datetime import datetime
 
+import httpx
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, FeedItem, Filing
 from analekh.ingest.feeds import IST
-from analekh.ingest.http import PoliteClient
+from analekh.ingest.http import DisallowedHostError, PoliteClient, refused
 from analekh.ingest.storage import ObjectStore, sha256, storage_key
 from analekh.validate.rules import (
     MONETARY_UNITS,
@@ -52,6 +53,31 @@ class IncompleteXbrl(ValueError):
 
 
 MAIN_CONTEXTS = ("OneD", "FourD", "OneI")
+
+
+class NotAPdf(ValueError):
+    """The bytes NSE sent for a document are not a PDF: an error page answered with a 200, an
+    empty body, or one of the XML and ZIP attachments some announcements link. Not stored."""
+
+
+def check_pdf(data: bytes) -> None:
+    """Raise NotAPdf unless the file starts with the PDF header (blank space before it is fine).
+    Says what it looks like instead, so the failed item shows what NSE sent."""
+    head = data[:1024].lstrip(b" \t\r\n\f\x00")
+    if head.startswith(b"%PDF-"):
+        return
+    kind = (
+        "empty"
+        if not head
+        else "xml"
+        if head.startswith(b"<?xml")
+        else "html"
+        if head.startswith(b"<")
+        else "zip"
+        if head.startswith(b"PK\x03\x04")
+        else "unknown"
+    )
+    raise NotAPdf(f"not a PDF ({kind}, {len(data)} bytes)")
 
 
 @dataclass
@@ -232,10 +258,13 @@ def process_feed_item(
     session: Session, store: ObjectStore, client: PoliteClient, item: FeedItem
 ) -> Filing | None:
     """Fetch the file an RSS item links to and route it. Unlinked items wait for review."""
-    if item.company_id is None or not item.link:
+    if item.company_id is None:
         return None
     company = session.get(Company, item.company_id)
     if company is None:
+        return None
+    if not item.link:  # nothing to fetch: done, so it never holds a place in the queue
+        item.processed_at = datetime.now().astimezone()
         return None
     result = client.get(item.link)
     filing: Filing | None
@@ -261,7 +290,63 @@ def process_feed_item(
             filed_at=item.pub_date,
         )
     item.processed_at = datetime.now().astimezone()
+    item.error = None
     return filing
+
+
+# A feed item whose file fails this many times is given up on (processed_at set, error kept).
+MAX_ATTEMPTS = 3
+
+
+@dataclass
+class QueueRun:
+    done: int = 0
+    failed: int = 0
+    stopped: str | None = None  # why the run stopped early; the rest waits for the next run
+
+
+def pending_feed_items(session: Session, limit: int) -> list[FeedItem]:
+    """Linked items not processed yet, oldest first; items that failed before go last, so a few
+    bad ones can't fill every batch."""
+    return list(
+        session.scalars(
+            select(FeedItem)
+            .where(FeedItem.processed_at.is_(None), FeedItem.company_id.is_not(None))
+            .order_by(FeedItem.attempts, FeedItem.pub_date, FeedItem.id)
+            .limit(limit)
+        )
+    )
+
+
+def _gone(exc: BaseException) -> bool:
+    """Failures that will be the same on every try: give up at once."""
+    if isinstance(exc, DisallowedHostError | IncompleteXbrl | NotAPdf):
+        return True
+    return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (404, 410)
+
+
+def process_feed_items(
+    session: Session, store: ObjectStore, client: PoliteClient, items: list[FeedItem]
+) -> QueueRun:
+    """Each item in its own savepoint: a failure is recorded on the item and the run goes on.
+    A sign that NSE is refusing us stops the run without counting against the item."""
+    run = QueueRun()
+    for item in items:
+        try:
+            with session.begin_nested():
+                process_feed_item(session, store, client, item)
+        except Exception as exc:
+            if refused(exc):
+                run.stopped = f"{item.link}: {type(exc).__name__}: {exc}"[:300]
+                break
+            item.attempts = (item.attempts or 0) + 1
+            item.error = f"{type(exc).__name__}: {exc}"[:500]
+            if _gone(exc) or item.attempts >= MAX_ATTEMPTS:
+                item.processed_at = datetime.now().astimezone()
+            run.failed += 1
+        else:
+            run.done += 1
+    return run
 
 
 def store_document(
@@ -276,7 +361,9 @@ def store_document(
     filed_at: datetime | None = None,
     ext: str = "pdf",
 ) -> Filing:
-    """Store a PDF once; the document pipeline (analekh.docs) picks it up from status 'fetched'."""
+    """Store a PDF once; the document pipeline (analekh.docs) picks it up from status 'fetched'.
+    Anything else is refused before it reaches storage (NotAPdf)."""
+    check_pdf(data)
     digest = sha256(data)
     existing = session.scalar(select(Filing).where(Filing.file_sha256 == digest))
     if existing is not None:

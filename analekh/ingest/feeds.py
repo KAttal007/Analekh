@@ -129,5 +129,7 @@ class FeedWatcher:
         result = self.client.get(RSS_BASE + filename, etag=etag, last_modified=last_mod)
         if result.not_modified:
             return 0
+        new = store_items(session, feed, parse_rss(result.content))
+        # Only once stored: had storing failed, a 304 on the next poll would lose these items.
         self.validators[feed] = (result.etag, result.last_modified)
-        return store_items(session, feed, parse_rss(result.content))
+        return new

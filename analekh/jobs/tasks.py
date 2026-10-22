@@ -17,7 +17,7 @@ from analekh.ingest.backfill import run_backfill
 from analekh.ingest.feeds import FeedWatcher
 from analekh.ingest.http import PoliteClient
 from analekh.ingest.integrated import fetch_results
-from analekh.ingest.pipeline import process_feed_item
+from analekh.ingest.pipeline import pending_feed_items, process_feed_items
 from analekh.ingest.storage import default_store
 from analekh.jobs.app import app
 from analekh.universe.search import get as get_company
@@ -43,30 +43,23 @@ def poll_feed(self, feed: str) -> int:
 
 
 @app.task
-def process_pending(limit: int = 100) -> int:
-    """Fetch the files new feed items link to, for every linked company (cheap, no AI)."""
-    store, client, done = default_store(), PoliteClient(), 0
+def process_pending(limit: int = 100) -> dict:
+    """Fetch the files new feed items link to, for every linked company (cheap, no AI). A
+    failing item is recorded on it and skipped; it never holds up the items behind it."""
+    store, client = default_store(), PoliteClient()
     with session_scope() as s:
-        items = s.scalars(
-            select(FeedItem)
-            .where(FeedItem.processed_at.is_(None), FeedItem.company_id.is_not(None))
-            .order_by(FeedItem.pub_date)
-            .limit(limit)
-        ).all()
-        for item in items:
-            with s.begin_nested():
-                process_feed_item(s, store, client, item)
-                done += 1
-    return done
+        run = process_feed_items(s, store, client, pending_feed_items(s, limit))
+    return run.__dict__
 
 
 @app.task
-def process_documents(limit: int = 10, company_id: int | None = None) -> int:
-    """Document pipeline (AI) for watchlist companies, or one company on demand."""
-    from analekh.docs.pipeline import process_document
+def process_documents(limit: int = 10, company_id: int | None = None) -> dict:
+    """Document pipeline (AI) for watchlist companies, or one company on demand. A document that
+    fails is marked failed and skipped; an outage stops the run for the next one."""
+    from analekh.docs.pipeline import process_documents as run_documents
     from analekh.genai.client import Claude
 
-    store, done = default_store(), 0
+    store = default_store()
     with session_scope() as s:
         claude = Claude(s) if get_settings().anthropic_api_key else None
         q = select(Filing).where(Filing.status == "fetched", Filing.kind != "results_xbrl")
@@ -74,11 +67,9 @@ def process_documents(limit: int = 10, company_id: int | None = None) -> int:
             q = q.where(Filing.company_id == company_id)
         else:
             q = q.where(exists().where(Watchlist.company_id == Filing.company_id))
-        for filing in s.scalars(q.limit(limit)).all():
-            with s.begin_nested():
-                process_document(s, store, filing, claude, embedder=None)
-                done += 1
-    return done
+        filings = list(s.scalars(q.order_by(Filing.id).limit(limit)))
+        run = run_documents(s, store, filings, claude, embedder=None)
+    return run.__dict__
 
 
 @app.task
@@ -89,16 +80,17 @@ def refresh_company(symbol: str) -> dict:
         company = get_company(s, symbol)
         if company is None:
             return {"error": f"unknown symbol {symbol}"}
-        pending = s.scalars(
-            select(FeedItem).where(
-                FeedItem.company_id == company.id,
-                FeedItem.feed == "financial_results",
-                FeedItem.processed_at.is_(None),
+        pending = list(
+            s.scalars(
+                select(FeedItem).where(
+                    FeedItem.company_id == company.id,
+                    FeedItem.feed == "financial_results",
+                    FeedItem.processed_at.is_(None),
+                )
             )
-        ).all()
+        )
         store, client = default_store(), PoliteClient()
-        for item in pending:
-            process_feed_item(s, store, client, item)
+        feed_run = process_feed_items(s, store, client, pending)
         integrated = fetch_results(s, store, client, company)
         latest = s.scalar(
             select(Filing)
@@ -108,8 +100,9 @@ def refresh_company(symbol: str) -> dict:
         return {
             "filing_id": latest.id if latest else None,
             "period_end": str(latest.period_end) if latest else None,
-            "fetched": len(pending),
+            "fetched": feed_run.done,
             "integrated_new": integrated.new,
+            "errors": feed_run.failed + len(integrated.errors),
         }
 
 
@@ -120,8 +113,8 @@ def analyse_company(symbol: str) -> dict:
     with session_scope() as s:
         company = get_company(s, symbol)
         company_id = company.id if company else None
-    docs = process_documents(limit=50, company_id=company_id) if company_id else 0
-    return {"backfill": result, "documents_processed": docs}
+    docs = process_documents(limit=50, company_id=company_id) if company_id else {"done": 0}
+    return {"backfill": result, "documents_processed": docs["done"], "documents": docs}
 
 
 @app.task
@@ -289,6 +282,8 @@ def bulk_fetch_results(
                     entry.update(listed=outcome.listed, new=outcome.new)
                     if outcome.missing:
                         entry["missing"] = len(outcome.missing)
+                    if outcome.errors:
+                        entry["errors"] = outcome.errors
                     entry["blocked"] = sum(
                         bool(r.report and r.report.blocks_auto_apply) for r in outcome.results
                     )
@@ -355,8 +350,9 @@ def watch_results(force: bool = False) -> dict:
     when the season schedule says so (analekh.seasons): every 2 hours from 09:00 to 23:00 IST in
     a results season, at 21:00 otherwise. `force` asks NSE regardless."""
     from analekh import seasons
+    from analekh.db.models import JobStatus
     from analekh.ingest.bhavcopy import recompute_market_caps
-    from analekh.ingest.integrated import fetch_latest
+    from analekh.ingest.integrated import fetch_latest, next_page_size
     from analekh.jobs import status
 
     due, reason = seasons.watch_due()
@@ -366,7 +362,10 @@ def watch_results(force: bool = False) -> dict:
         return skipped
     try:
         with session_scope() as s:
-            out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2))
+            # last_ok_summary, not last_summary: a skipped run overwrites that one
+            last = s.get(JobStatus, "results_watch")
+            size = next_page_size(last.last_ok_summary if last else None)
+            out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2), size=size)
             # A first or newer filing changes the share count behind today's market cap.
             caps = recompute_market_caps(s) if out.new else None
     except Exception as exc:
@@ -378,12 +377,13 @@ def watch_results(force: bool = False) -> dict:
         "new": out.new,
         "market_caps_changed": caps["changed"] if caps else 0,
         "missing": len(out.missing),
+        "errors": out.errors,
+        "stopped": out.stopped,
         "unknown_symbols": sorted(set(out.unknown_symbols)),
-        "warning": (
-            "every filing on the page was new: there may be more than one page of results today"
-            if out.page_full
-            else None
-        ),
+        "page_size": out.page_size,
+        "total": out.total,
+        "truncated": out.truncated,
+        "warning": out.warning,
     }
     status.record("results_watch", "ok", result)
     return result

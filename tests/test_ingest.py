@@ -449,7 +449,7 @@ def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, sto
     first = fetch_latest(db, store, client)
     assert first.new == 1 and first.unknown_symbols == ["NOTOURS"]
     (req,) = lookups
-    assert "symbol" not in req.url.params and req.url.params["size"] == "500"
+    assert "symbol" not in req.url.params and req.url.params["size"] == "1000"
 
     second = fetch_latest(db, store, client)  # same list again: nothing new to download
     assert second.new == 0 and len(lookups) == 2

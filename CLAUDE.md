@@ -140,3 +140,20 @@ All calls go through `analekh/genai/client.py` (`Claude.create`), which sets the
 `output_config.format` JSON schemas with `additionalProperties: false`. Backfill extraction uses
 the Batch API (`docs/extract.py: batch_params`, no fallbacks on batches). Label matching that
 falls through to AI uses `CLAUDE_SMALL_MODEL`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- graphify is installed as an isolated tool, not a project dependency, so `uv sync` leaves it alone:
+  `uv tool install graphifyy==0.9.93 --python .venv/Scripts/python.exe`. Every rebuild re-adds
+  noise nodes (stdlib and library references, config-file keys, empty `__init__.py`);
+  `scripts/graphify_clean.py` strips them. A Claude Code hook runs it after Bash rebuilds. Git
+  hooks are not versioned: after a fresh clone run `python scripts/graphify_clean.py --install-hooks`
+  (installs graphify's hooks and adds the cleanup call; safe to repeat).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.

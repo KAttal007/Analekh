@@ -1,0 +1,5 @@
+# Generated copies of docs/design/technical-design.md and architecture.html
+docs/design/*.pdf
+docs/design/*.docx
+# graphify's own output, incl. text copies of the Word files
+graphify-out/

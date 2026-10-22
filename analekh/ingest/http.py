@@ -106,6 +106,17 @@ def _retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in RETRY_STATUSES
 
 
+# Statuses that mean NSE is refusing us: stop the whole run rather than keep knocking.
+BLOCKED_STATUSES = {401, 403, 429}
+
+
+def refused(exc: BaseException) -> bool:
+    """A sign that NSE is blocking or throttling us, as opposed to one bad file."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in BLOCKED_STATUSES
+    return isinstance(exc, httpx.TransportError)  # timeouts and stalls included
+
+
 class PoliteClient:
     def __init__(
         self,

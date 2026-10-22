@@ -16,12 +16,13 @@ from urllib.parse import urlencode
 
 import httpx
 from lxml import etree
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Filing
 from analekh.ingest.feeds import IST
-from analekh.ingest.http import PoliteClient
+from analekh.ingest.http import PoliteClient, refused
 from analekh.ingest.pipeline import IncompleteXbrl, IngestResult, ingest_results_xbrl
 from analekh.ingest.storage import ObjectStore
 
@@ -193,6 +194,8 @@ class FetchOutcome:
     results: list[IngestResult]
     # XBRL links NSE lists but answers 404 for, or serves as a broken file (twice)
     missing: list[str] = field(default_factory=list)
+    # Files that failed some other way ("url: error"); fetched again on the next run
+    errors: list[str] = field(default_factory=list)
 
     @property
     def new(self) -> int:
@@ -205,6 +208,8 @@ class FetchOutcome:
             return "no integrated financials filings listed on NSE"
         if self.with_xbrl == 0:
             return f"{self.listed} filings listed, none with an XBRL file"
+        if self.errors and not self.results:  # "error..." reasons are retried by bulk runs
+            return f"error: {len(self.errors)} XBRL files failed ({self.errors[0]})"
         if self.missing and not self.results:
             return f"{len(self.missing)} XBRL files listed but missing or unreadable on NSE"
         return None
@@ -247,17 +252,75 @@ def _fetch(
     quarters: int | None,
     one_basis: bool,
 ) -> FetchOutcome:
-    urls = session.scalars(select(Filing.source_url).where(Filing.company_id == company.id))
-    known = {u for u in urls if u}
-    results: list[IngestResult] = []
-    missing: list[str] = []
+    known = unchanged_links(session, listed, company.id)
+    out = FetchOutcome(len(listed), sum(1 for f in listed if f.xbrl_url), [])
     for f in select_filings(listed, known, quarters=quarters, one_basis=one_basis):
-        result = _download_and_ingest(session, store, client, company, f)
+        try:
+            result = _download_and_ingest(session, store, client, company, f)
+        except Exception as exc:
+            if refused(exc):  # bulk runs stop on this; the company is fetched again in full
+                raise
+            out.errors.append(_error(f, exc))
+            continue
         if result is None:
-            missing.append(f.xbrl_url or "")
+            out.missing.append(f.xbrl_url or "")
         else:
-            results.append(result)
-    return FetchOutcome(len(listed), sum(1 for f in listed if f.xbrl_url), results, missing)
+            out.results.append(result)
+    return out
+
+
+def _error(f: IntegratedFiling, exc: BaseException) -> str:
+    return f"{f.xbrl_url}: {type(exc).__name__}: {exc}"[:300]
+
+
+def _listing(f: IntegratedFiling) -> dict[str, str]:
+    """How NSE lists a link: its broadcast time and Original/Revision flag, when given."""
+    out = {}
+    if f.broadcast_at:
+        out["broadcast_at"] = f.broadcast_at.isoformat()
+    if f.revision:
+        out["revision"] = f.revision
+    return out
+
+
+def unchanged_links(
+    session: Session, listed: list[IntegratedFiling], company_id: int | None = None
+) -> set[str]:
+    """Listed XBRL links already stored and listed as before: nothing to download.
+
+    A link NSE lists with a new broadcast time or Original/Revision flag is fetched once more, in
+    case a corrected file sits behind it. A filing remembers each listing it was fetched for
+    (meta "listed", by link): an identical file, or one stored under another link, is then not
+    fetched again on every run. A listing that gives no time or flag matches any.
+    """
+    urls = sorted({f.xbrl_url for f in listed if f.xbrl_url})
+    if not urls:
+        return set()
+    q = select(Filing.source_url, Filing.filed_at, Filing.meta).where(
+        or_(Filing.source_url.in_(urls), Filing.meta["listed"].has_any(array(urls)))
+    )
+    if company_id is not None:
+        q = q.where(Filing.company_id == company_id)
+    seen: dict[str, list[tuple[datetime | None, str | None]]] = {}
+    for source_url, filed_at, meta in session.execute(q):
+        meta = meta or {}
+        if source_url:  # as filed: the filing's own time and flag
+            seen.setdefault(source_url, []).append((filed_at, meta.get("revision")))
+        for url, again in (meta.get("listed") or {}).items():
+            when = again.get("broadcast_at")
+            seen.setdefault(url, []).append(
+                (datetime.fromisoformat(when) if when else None, again.get("revision"))
+            )
+    return {
+        f.xbrl_url
+        for f in listed
+        if f.xbrl_url
+        and any(
+            (f.broadcast_at is None or f.broadcast_at == when)
+            and (f.revision is None or f.revision == revision)
+            for when, revision in seen.get(f.xbrl_url, ())
+        )
+    }
 
 
 def _download_and_ingest(
@@ -292,6 +355,10 @@ def _download_and_ingest(
                 )
                 if not result.skipped:
                     result.filing.meta = {**result.filing.meta, "links": f.links}
+                else:  # already stored: remember this listing so it isn't fetched again
+                    meta = result.filing.meta or {}
+                    listed = {**(meta.get("listed") or {}), f.xbrl_url: _listing(f)}
+                    result.filing.meta = {**meta, "listed": listed}
             return result
         except IncompleteXbrl:
             return None  # the same file every time: no point fetching it again
@@ -301,9 +368,20 @@ def _download_and_ingest(
     return None
 
 
-# The daily results watcher reads NSE's latest-results list once (the owner's choice: one request
-# a day), so it asks for a page big enough for a busy results day.
-LATEST_PAGE_SIZE = 500
+# The results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest day
+# on record: 692 filings, so 1000 covers a day of missed runs. A truncated page (fewer rows than
+# NSE's totalCount) makes the next run ask for double, up to MAX_PAGE_SIZE; a full one resets it.
+DEFAULT_PAGE_SIZE = 1000
+MAX_PAGE_SIZE = 4000
+
+
+def next_page_size(last_summary: dict | None) -> int:
+    """Page size for the next watcher run, from the last run's job-status summary."""
+    last = (last_summary or {}).get("page_size")
+    size = last if isinstance(last, int) and not isinstance(last, bool) and last > 0 else None
+    if not (last_summary or {}).get("truncated"):
+        return DEFAULT_PAGE_SIZE
+    return min((size or DEFAULT_PAGE_SIZE) * 2, MAX_PAGE_SIZE)
 
 
 @dataclass
@@ -312,11 +390,30 @@ class LatestOutcome:
     new: int  # filings downloaded and stored
     unknown_symbols: list[str] = field(default_factory=list)  # not in our universe
     missing: list[str] = field(default_factory=list)
-    page_full: bool = False  # every row was new: there may be more than one page of news
+    errors: list[str] = field(default_factory=list)  # "url: error"; tried again next run
+    stopped: str | None = None  # NSE refused or stalled: the rest waits for the next run
+    page_size: int = DEFAULT_PAGE_SIZE  # what we asked for
+    total: int | None = None  # NSE's totalCount, when it gives one
+    truncated: bool = False  # the page holds fewer rows than NSE has
+    capped: bool = False  # truncated even at MAX_PAGE_SIZE: only a bulk run can catch up
+
+    @property
+    def warning(self) -> str | None:
+        if not self.capped:
+            return None
+        return (
+            f"NSE lists {self.total or 'more than'} rows but a page of {self.page_size} holds "
+            f"{self.listed}: run a bulk fetch (analekh results-backfill) to catch up"
+        )
+
+
+def is_truncated(returned: int, requested: int, total: int | None) -> bool:
+    """With NSE's totalCount: fewer rows than it has. Without: a page as big as we asked for."""
+    return returned < total if total is not None else returned >= requested
 
 
 def fetch_latest(
-    session: Session, store: ObjectStore, client: PoliteClient, size: int = LATEST_PAGE_SIZE
+    session: Session, store: ObjectStore, client: PoliteClient, size: int = DEFAULT_PAGE_SIZE
 ) -> LatestOutcome:
     """New results filings across all companies from ONE request to NSE's latest-results list
     (the integrated-filing lookup without a ticker), then the XBRL for each filing we lack."""
@@ -324,24 +421,34 @@ def fetch_latest(
     result = client.get(
         f"{LOOKUP_URL}?{query}", headers={"Accept": "application/json", "Referer": PAGE_URL}
     )
-    listed = [IntegratedFiling.from_row(r) for r in json.loads(result.content).get("data") or []]
-    urls = {f.xbrl_url for f in listed if f.xbrl_url}
-    known = set(session.scalars(select(Filing.source_url).where(Filing.source_url.in_(urls))))
+    body = json.loads(result.content)
+    listed = [IntegratedFiling.from_row(r) for r in body.get("data") or []]
+    raw_total = body.get("totalCount")
+    total = int(raw_total) if str(raw_total or "").isdigit() else None
+    known = unchanged_links(session, listed)
     companies = {
         c.nse_symbol: c
         for c in session.scalars(
             select(Company).where(Company.nse_symbol.in_({f.symbol for f in listed}))
         )
     }
-    out = LatestOutcome(listed=len(listed), new=0)
+    out = LatestOutcome(listed=len(listed), new=0, page_size=size, total=total)
+    out.truncated = is_truncated(len(listed), size, total)
+    out.capped = out.truncated and size >= MAX_PAGE_SIZE
     todo = [f for f in listed if f.xbrl_url and f.xbrl_url not in known]
-    out.page_full = bool(listed) and len(todo) == len(listed)
     for f in select_filings(todo, set()):
         company = companies.get(f.symbol)
         if company is None:
             out.unknown_symbols.append(f.symbol)
             continue
-        ingested = _download_and_ingest(session, store, client, company, f)
+        try:
+            ingested = _download_and_ingest(session, store, client, company, f)
+        except Exception as exc:
+            if refused(exc):  # stop knocking; what is stored so far is kept
+                out.stopped = _error(f, exc)
+                break
+            out.errors.append(_error(f, exc))
+            continue
         if ingested is None:
             out.missing.append(f.xbrl_url or "")
         elif not ingested.skipped:
@@ -393,16 +500,5 @@ def record_gap(
         writer.writerows(sorted(rows.values(), key=lambda r: r["symbol"]))
 
 
-# Statuses that mean NSE is refusing us: stop the whole run rather than keep knocking.
-BLOCKED_STATUSES = {401, 403, 429}
-
-
 class NseRefusedError(RuntimeError):
     pass
-
-
-def refused(exc: BaseException) -> bool:
-    """A sign that NSE is blocking or throttling us, as opposed to one bad file."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code in BLOCKED_STATUSES
-    return isinstance(exc, httpx.TransportError)  # timeouts and stalls included
