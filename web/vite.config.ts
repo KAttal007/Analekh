@@ -8,7 +8,7 @@ export default defineConfig({
     // ANALEKH_API points the dev server at another API (e.g. a second instance on :8001).
     proxy: {
       "/api": {
-        target: process.env.ANALEKH_API ?? "http://localhost:8000",
+        target: process.env.ANALEKH_API ?? "http://127.0.0.1:8000",
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
     },

@@ -323,14 +323,19 @@ function EventRow({ e }: { e: CalendarEvent }) {
       <Badge tone={e.status === "filed" ? "ok" : KIND_TONE[e.kind]} title={e.purpose ?? undefined}>
         {e.status === "filed" ? "Filed" : KIND_LABEL[e.kind]}
       </Badge>
+      {e.revised && (
+        <Badge tone="neutral" title="Restated numbers for an earlier quarter">
+          Revised
+        </Badge>
+      )}
       {e.source_url && (
         <a
           className="cal-source"
           href={e.source_url}
           target="_blank"
           rel="noreferrer"
-          aria-label={`Intimation for ${e.name} (opens the NSE file)`}
-          title="Open the intimation"
+          aria-label={`${e.status === "filed" ? "Results filing" : "Intimation"} for ${e.name} (opens the NSE file)`}
+          title={e.status === "filed" ? "Open the results filing (iXBRL)" : "Open the intimation"}
         >
           <Icon name="file" size={14} />
         </a>

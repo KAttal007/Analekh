@@ -432,7 +432,7 @@ docker compose exec api analekh build MUTHOOTFIN --out muthoot.xlsx
 
 | | URL |
 |---|---|
-| API docs | http://localhost:8000/docs |
+| API docs | http://127.0.0.1:8000/docs |
 | Web app | http://localhost:5173 |
 
 Without NSE access, load the universe from a file downloaded by hand:

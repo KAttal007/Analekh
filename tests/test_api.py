@@ -8,9 +8,10 @@ from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from sqlalchemy import delete, select
 
-from analekh.api.deps import get_store
+from analekh.api.deps import get_current, get_store, get_user
 from analekh.api.main import app
 from analekh.db.models import Company, Filing, Model, PeerList, Price, Watchlist
+from analekh.db.models import User as UserRow
 from analekh.db.session import get_session
 from analekh.facts import DbValueSource
 from analekh.ingest.pipeline import ingest_results_xbrl
@@ -30,6 +31,10 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def client(db, store):
     app.dependency_overrides[get_session] = lambda: db
     app.dependency_overrides[get_store] = lambda: store
+    # Sign-in is tested in test_auth_api.py; here every request is a fixed admin's.
+    admin = UserRow(id="local", email="admin@test.local", name="Admin", role="admin")
+    app.dependency_overrides[get_current] = lambda: admin
+    app.dependency_overrides[get_user] = lambda: "local"
     yield TestClient(app)
     app.dependency_overrides.clear()
 

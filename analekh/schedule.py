@@ -10,7 +10,7 @@ rule 1, so no code produces it yet; the API and the web app already carry the ki
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
@@ -34,6 +34,7 @@ class CalendarEvent:
     watched: bool
     source_url: str | None
     status: str = "scheduled"  # scheduled (announced) | filed (the results are in)
+    revised: bool = False  # filed as a revision of an earlier quarter's numbers
 
 
 def parse_description(description: str | None) -> tuple[str | None, date | None]:
@@ -132,7 +133,7 @@ def _filed_results(
     lo = datetime(start.year, start.month, start.day, tzinfo=IST)
     hi = datetime(end.year, end.month, end.day, tzinfo=IST) + timedelta(days=1)
     rows = session.execute(
-        select(Filing.filed_at, Filing.source_url, Company)
+        select(Filing.filed_at, Filing.meta, Company)
         .join(Company, Company.id == Filing.company_id)
         .where(
             Filing.kind == "results_xbrl",
@@ -142,22 +143,33 @@ def _filed_results(
         .order_by(Filing.filed_at.asc())
     ).all()
     seen: dict[tuple[int, date], CalendarEvent] = {}
-    for filed_at, url, company in rows:
+    for filed_at, meta, company in rows:
         if filed_at is None:
             continue
         day = filed_at.astimezone(IST).date()
-        seen.setdefault(
-            (company.id, day),
-            CalendarEvent(
-                date=day,
-                kind="results",
-                symbol=company.nse_symbol,
-                name=company.name,
-                sector=company.sector,
-                purpose="Results filed",
-                watched=company.id in watched,
-                source_url=url,
-                status="filed",
-            ),
+        # The readable iXBRL page, never the raw XBRL file (None when NSE listed no iXBRL link).
+        url = ((meta or {}).get("links") or {}).get("ixbrl")
+        # NSE's "Revision": restated numbers for a quarter already filed. Shown with a badge, and
+        # an original filing the same day still wins (it is the news; the revision a follow-up).
+        revised = str((meta or {}).get("revision") or "").lower().startswith("revis")
+        key = (company.id, day)
+        event = CalendarEvent(
+            date=day,
+            kind="results",
+            symbol=company.nse_symbol,
+            name=company.name,
+            sector=company.sector,
+            purpose="Results filed",
+            watched=company.id in watched,
+            source_url=url,
+            status="filed",
+            revised=revised,
         )
+        current = seen.get(key)
+        if current is None:
+            seen[key] = event
+        elif current.revised and not revised:  # an original arrived: it is the day's filing
+            seen[key] = replace(event, source_url=url or current.source_url)
+        elif not current.source_url and url:  # a later filing that day has the page
+            seen[key] = replace(current, source_url=url)
     return list(seen.values())

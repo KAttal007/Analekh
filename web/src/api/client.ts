@@ -25,6 +25,7 @@ export type CalendarEvent = {
   watched: boolean;
   source_url: string | null;
   status: "scheduled" | "filed";
+  revised?: boolean;
 };
 export type Calendar = {
   start: string;
@@ -32,6 +33,54 @@ export type Calendar = {
   events: CalendarEvent[];
   unscheduled: { symbol: string; name: string; sector: string | null }[];
 };
+// Sign-in, and the signed-out data for the sign-in screen (hand-typed until `pnpm api-types`).
+export type Me = { id: string; name: string; email: string; role: "admin" | "analyst" };
+export type PublicWelcome = {
+  companies_in_scope: number;
+  filings_total: number;
+  reported: number;
+  quarter_label: string | null;
+  latest_filed_at: string | null;
+};
+export type PublicEvent = {
+  date: string;
+  kind: CalendarKind;
+  symbol: string;
+  name: string;
+  sector: string | null;
+  purpose: string | null;
+  source_url: string | null;
+  status: "scheduled" | "filed";
+  revised: boolean;
+};
+export type PublicCalendar = { start: string; end: string; events: PublicEvent[] };
+// Administration (hand-typed until `pnpm api-types` is next run against the API).
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "analyst";
+  auth_kind: string;
+  is_active: boolean;
+  blocked: boolean;
+  created_at: string | null;
+};
+export type NewUser = {
+  name: string;
+  email: string;
+  role: "admin" | "analyst";
+  password?: string;
+};
+export type UserChange = { name?: string; role?: "admin" | "analyst"; is_active?: boolean };
+export type UploadLimit = {
+  bytes: number;
+  ceiling_bytes: number;
+  min_bytes: number;
+  updated_by: string | null;
+  updated_at: string | null;
+};
+export type ApiToken = { id: number; name: string; created_at: string };
+export type ApiTokenCreated = ApiToken & { token: string };
 export type DeskSort = "filed" | "market_cap";
 export type DeskQuery = {
   quarter_end?: string;
@@ -70,34 +119,64 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Seconds to wait, from a 429 or 503's Retry-After header. */
+    public retryAfter?: number,
+    /** The account is blocked until its password is reset (sign-in answered 403). */
+    public blocked = false,
   ) {
     super(message);
   }
 }
 
+// Signed-in state lives in an HttpOnly cookie the page cannot read. A 401 anywhere except the
+// sign-in form itself means the session ended: the app is told once and shows sign-in.
+let signedOutHandler: (() => void) | null = null;
+export const onSignedOut = (handler: (() => void) | null) => {
+  signedOutHandler = handler;
+};
+
+// Every request that changes something carries this header. A cross-site form cannot set it, so
+// the server refuses a forged request even when the browser attaches the cookie.
+const CSRF = { "X-Analekh-CSRF": "1" };
+const isRead = (method?: string) => ["GET", "HEAD"].includes((method ?? "GET").toUpperCase());
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> =
-    init.body instanceof FormData ? {} : { "Content-Type": "application/json" };
-  const res = await fetch(BASE + path, { headers, ...init });
+  const headers: Record<string, string> = {
+    ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+    ...(isRead(init.method) ? {} : CSRF),
+  };
+  const res = await fetch(BASE + path, { headers, credentials: "same-origin", ...init });
   if (!res.ok) {
     let detail = res.statusText;
+    let blocked = false;
     try {
-      detail = (await res.json()).detail ?? detail;
+      const body = await res.json();
+      detail = body.detail ?? detail;
+      blocked = body.blocked === true;
     } catch {
       /* not JSON */
     }
+    if (res.status === 401 && path !== "/auth/login") signedOutHandler?.();
+    const wait = Number(res.headers.get("Retry-After"));
     // FastAPI's bare "Not Found" means the route doesn't exist: the API process is older than
     // this page. Analekh's own 404s always say what is missing ("peer list not found").
     if (res.status === 404 && detail === "Not Found") {
       throw new ApiError(404, STALE_API);
     }
-    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
+    throw new ApiError(
+      res.status,
+      typeof detail === "string" ? detail : JSON.stringify(detail),
+      Number.isFinite(wait) && wait > 0 ? wait : undefined,
+      blocked,
+    );
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
 const post = <T>(path: string, body?: unknown) =>
   call<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+const patch = <T>(path: string, body: unknown) =>
+  call<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 const put = <T>(path: string, body: unknown) =>
   call<T>(path, { method: "PUT", body: JSON.stringify(body) });
 
@@ -105,9 +184,11 @@ const put = <T>(path: string, body: unknown) =>
 async function download(path: string, body: unknown, filename: string): Promise<void> {
   const res = await fetch(BASE + path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CSRF },
+    credentials: "same-origin",
     body: JSON.stringify(body),
   });
+  if (res.status === 401) signedOutHandler?.();
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   const url = URL.createObjectURL(await res.blob());
   const a = Object.assign(document.createElement("a"), { href: url, download: filename });
@@ -118,6 +199,30 @@ async function download(path: string, body: unknown, filename: string): Promise<
 }
 
 export const api = {
+  // Sign-in (credentials only ever travel in a POST body, never in a URL)
+  login: (email: string, password: string) => post<Me>("/auth/login", { email, password }),
+  logout: () => post<void>("/auth/logout"),
+  me: () => call<Me>("/auth/me"),
+  requestReset: (email: string) => post<{ detail: string }>("/auth/reset/request", { email }),
+  confirmReset: (email: string, code: string, newPassword: string) =>
+    post<void>("/auth/reset/confirm", { email, code, new_password: newPassword }),
+  // Administration (admins only; the server answers 403 to anyone else)
+  users: () => call<AdminUserRow[]>("/users"),
+  createUser: (body: NewUser) => post<AdminUserRow>("/users", body),
+  updateUser: (id: string, body: UserChange) => patch<AdminUserRow>(`/users/${id}`, body),
+  resetUserPassword: (id: string, newPassword: string) =>
+    post<void>(`/users/${id}/reset-password`, { new_password: newPassword }),
+  unblockUser: (id: string) => post<void>(`/users/${id}/unblock`),
+  uploadLimit: () => call<UploadLimit>("/settings/upload-limit"),
+  setUploadLimit: (bytes: number) => put<UploadLimit>("/settings/upload-limit", { bytes }),
+  // Tokens for the Excel bridge and add-in (a token is shown once, when it is made)
+  tokens: () => call<ApiToken[]>("/auth/tokens"),
+  createToken: (name: string) => post<ApiTokenCreated>("/auth/tokens", { name }),
+  revokeToken: (id: number) => call<void>(`/auth/tokens/${id}`, { method: "DELETE" }),
+  publicAuthStatus: () => call<{ auth_enabled: boolean }>("/public/auth-status"),
+  publicWelcome: () => call<PublicWelcome>("/public/welcome"),
+  publicCalendar: (start: string, end: string) =>
+    call<PublicCalendar>(`/public/calendar?start=${start}&end=${end}`),
   companyIndex: () => call<CompanyIndexEntry[]>("/companies/index"),
   search: (q: string, offset = 0, limit = 20) =>
     call<SearchHit[]>(

@@ -25,7 +25,9 @@ app = typer.Typer(help="Analekh Excel bridge", no_args_is_help=True)
 
 
 def _api() -> httpx.Client:
-    return httpx.Client(base_url=get_settings().analekh_api, timeout=60)
+    s = get_settings()
+    headers = {"Authorization": f"Bearer {s.analekh_token}"} if s.analekh_token else {}
+    return httpx.Client(base_url=s.analekh_api, timeout=60, headers=headers)
 
 
 @app.command()

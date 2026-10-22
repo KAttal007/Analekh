@@ -3564,3 +3564,343 @@ table.glance tbody tr:last-child > * {
     animation: none;
   }
 }
+
+/* ---------- Sign-in ---------- */
+/* Rises from the welcome page (data-vt="reveal"): the calendar and mark on the left, a frosted
+   card on the right, over the same living light. */
+
+.login-screen {
+  --p: 0;
+  --mx: 0;
+  --my: 0;
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: var(--s6) clamp(var(--s4), 6vw, 96px) 72px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.login {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  align-items: center;
+  gap: clamp(var(--s5), 6vw, 96px);
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.login-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.login-intro .welcome-lead {
+  margin-left: 0;
+  text-align: left;
+}
+.login-tagline {
+  margin: 0 0 var(--s3);
+  font-size: clamp(24px, 3.2vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.login-card,
+.login-week {
+  border: 1px solid color-mix(in srgb, var(--surface) 55%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 8px 30px rgb(16 24 40 / 8%);
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+}
+.login-card h1 {
+  margin: 0;
+  font-size: 20px;
+}
+.login-card .btn {
+  justify-content: center;
+}
+.login-notice,
+.login-error {
+  margin: 0;
+  font-size: 13px;
+}
+.login-notice {
+  color: var(--text-2);
+}
+.login-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.login-link:hover {
+  text-decoration: underline;
+}
+.login-week {
+  width: 100%;
+  max-width: 460px;
+  margin-top: var(--s4);
+  padding: var(--s3) var(--s4);
+}
+.login-week h2 {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.login-week ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.login-week li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.login-week li:last-child {
+  border-bottom: 0;
+}
+.login-week-date {
+  flex: none;
+  width: 52px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.login-week-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .login-screen {
+    justify-content: flex-start;
+    padding-top: var(--s5);
+  }
+  .login {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s5);
+  }
+  .login-card {
+    order: -1; /* the calendar drops below the sign-in card */
+  }
+  .login-intro {
+    order: 0;
+  }
+}
+/* The sign-in screen rises into place from the welcome page. */
+:root[data-vt="reveal"]::view-transition-old(root) {
+  animation: unlock-out 520ms var(--ease-out) both;
+}
+:root[data-vt="reveal"]::view-transition-new(root) {
+  animation: unlock-in 680ms var(--spring) 120ms both;
+}
+.signed-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.signed-in-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.collapsed .signed-in-name {
+  display: none;
+}
+
+/* ---------- Admin area ---------- */
+
+.admin-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-back {
+  margin-top: var(--s5);
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text-2);
+  text-decoration: none;
+}
+.admin-back:hover {
+  background: var(--surface-2);
+}
+.admin-content {
+  max-width: none; /* the admin screens use the full width */
+}
+.admin-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+.admin-bar input {
+  width: 280px;
+}
+.admin-spacer {
+  flex: 1;
+}
+.admin-who {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.admin-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+.admin-name {
+  font-weight: 550;
+}
+.admin-email {
+  font-size: 12px;
+}
+.admin-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-dim {
+  opacity: 0.6;
+}
+.admin-note {
+  margin-top: var(--s3);
+  font-size: 12px;
+}
+.admin-panel {
+  position: fixed;
+  right: 36px;
+  top: 150px;
+  z-index: 20;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r3);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.admin-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.admin-panel h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.admin-panel p {
+  margin: 0;
+  font-size: 12px;
+}
+.admin-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+.admin-roles {
+  display: flex;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 13px;
+}
+.admin-roles legend {
+  padding: 0;
+  margin-bottom: var(--s1);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.admin-limit-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s3);
+  margin: var(--s3) 0;
+}
+.admin-limit-row input {
+  width: 120px;
+}
+.admin-limit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.settings-token-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s3);
+  margin: var(--s3) 0;
+}
+.settings-token-form input {
+  width: 240px;
+}
+.token-fresh {
+  margin: var(--s3) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r2);
+  background: var(--surface-2);
+}
+.token-fresh p {
+  margin: 0 0 var(--s2);
+}
+.token-value {
+  display: block;
+  padding: var(--s2);
+  border-radius: var(--r1);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.token-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}

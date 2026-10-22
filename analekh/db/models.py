@@ -450,3 +450,90 @@ class JobStatus(Base):
     last_summary: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default=text("'{}'"))
     last_ok_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_ok_summary: Mapped[dict[str, Any] | None] = mapped_column()
+
+
+# --- sign-in, roles, tokens, settings, audit (auth design, stage 1) -------------------------------
+
+
+class User(Base):
+    """A person who signs in. Email is stored lowercase; the id is an opaque string."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('admin','analyst')", name="ck_users_role"),
+        CheckConstraint("auth_kind IN ('password','microsoft')", name="ck_users_auth_kind"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    email: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(Text, server_default="analyst")
+    auth_kind: Mapped[str] = mapped_column(Text, server_default="password")
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    failed_count: Mapped[int] = mapped_column(Integer, server_default="0")
+    paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    blocked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuthSession(Base):
+    """A browser session. Only the SHA-256 of the cookie token is stored."""
+
+    __tablename__ = "auth_sessions"
+
+    token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ApiToken(Base):
+    """A bearer token for the Excel bridge or add-in; shown once, stored hashed, revocable."""
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PasswordReset(Base):
+    """The one live reset code of a user: hashed, expiring, with its own attempt count."""
+
+    __tablename__ = "password_resets"
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    code_hash: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+class AppSetting(Base):
+    """Settings an admin edits in the app (for example the upload limit)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column()
+    updated_by: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditEntry(Base):
+    """Who did what: user changes, password resets, upload-limit changes."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    user_id: Mapped[str | None] = mapped_column(Text)
+    action: Mapped[str] = mapped_column(Text)
+    detail: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default=text("'{}'"))

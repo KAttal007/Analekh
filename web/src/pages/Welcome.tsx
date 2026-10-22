@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { filedAt } from "../lib/format";
-import { greeting, markWelcomed } from "../lib/welcome";
+import { useMe } from "../lib/auth";
+import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
 
 // The welcome screen is Analekh's lock screen: the page follows a scroll or swipe up, with some
 // resistance, springs back when let go early, and opens the app past a threshold or on a click.
@@ -51,18 +52,29 @@ export function Welcome() {
   const root = useRef<HTMLDivElement>(null);
   const enter = useRef<HTMLButtonElement>(null);
   const opened = useRef(false);
-  const desk = useQuery({ queryKey: ["welcome-desk"], queryFn: () => api.desk({ limit: 1 }) });
+  const desk = useQuery({
+    queryKey: ["public-welcome"],
+    queryFn: api.publicWelcome,
+    retry: false,
+  });
   const d = desk.data;
+  // Signed in (or sign-in switched off in development): the way in opens the desk. Otherwise it
+  // brings up the sign-in screen. Read through a ref, because the gesture listeners are set up once.
+  const me = useMe();
+  const signedIn = useRef(false);
+  useEffect(() => {
+    signedIn.current = !!me.data;
+  }, [me.data]);
 
   const open = () => {
     if (opened.current) return;
     opened.current = true;
     markWelcomed();
     // Gives this one transition its own choreography (styles.css): the page lifts away from
-    // wherever the gesture left it, the mark flies into the sidebar, the desk settles in.
-    document.documentElement.dataset.vt = "welcome";
-    navigate("/", { viewTransition: true });
-    window.setTimeout(() => delete document.documentElement.dataset.vt, 1400);
+    // wherever the gesture left it; the desk settles in with the mark flying into the sidebar, or
+    // the sign-in screen rises into place.
+    tagTransition(signedIn.current ? "welcome" : "reveal");
+    navigate(signedIn.current ? "/" : "/login", { viewTransition: true });
   };
 
   useEffect(() => {

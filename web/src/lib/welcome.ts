@@ -25,3 +25,10 @@ export function greeting(now = new Date()): string {
   const h = now.getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
+
+/** Names the next route change for the transition styles (styles.css): "reveal" brings the sign-in
+ * screen up from the welcome page; "welcome" unlocks into the desk. Cleared once it has played. */
+export function tagTransition(kind: "reveal" | "welcome"): void {
+  document.documentElement.dataset.vt = kind;
+  window.setTimeout(() => delete document.documentElement.dataset.vt, 1400);
+}

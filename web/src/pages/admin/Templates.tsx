@@ -1,13 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api, type Template } from "../api/client";
-import { Icon } from "../components/Icon";
-import { Badge, EmptyState, ErrorNote, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { api, type Template } from "../../api/client";
+import { Icon } from "../../components/Icon";
+import {
+  Badge,
+  EmptyState,
+  ErrorNote,
+  Loading,
+  PageHeader,
+  StatusBadge,
+} from "../../components/ui";
 
 // Template onboarding (design doc 14): upload, review suggested mapping, test build, activate.
 export function Templates() {
   const qc = useQueryClient();
-  const { data = [], isLoading, isError, error } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["templates"],
     queryFn: api.templates,
   });

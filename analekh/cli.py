@@ -508,3 +508,49 @@ def golden_import(folder: Path = typer.Option(Path("tests/fixtures/golden"))) ->
 
 if __name__ == "__main__":
     app()
+
+
+def adopt_local(db, user) -> int:  # type: ignore[no-untyped-def]
+    """Re-key everything created before sign-in (owner id = default_user_id) to `user`.
+    Covers every user_id / owner column that is not a foreign key to users."""
+    from sqlalchemy import update
+
+    from analekh.config import get_settings
+    from analekh.db.models import Base
+
+    local = get_settings().default_user_id
+    moved = 0
+    for table in Base.metadata.sorted_tables:
+        if table.name in ("audit_log", "users"):
+            continue
+        for col in table.columns:
+            if col.name in ("user_id", "owner") and not col.foreign_keys:
+                result = db.execute(update(table).where(col == local).values({col.name: user.id}))
+                moved += int(result.rowcount or 0)
+    db.flush()
+    return moved
+
+
+@app.command("create-admin")
+def create_admin(
+    email: str,
+    name: str,
+    adopt_local_data: bool = typer.Option(
+        False,
+        "--adopt-local",
+        help="Move the watchlist, templates and other data made before sign-in to this admin.",
+    ),
+) -> None:
+    """Create the first admin. The password is asked for, never taken as an argument."""
+    from analekh.auth.passwords import PasswordTooLong, PasswordTooShort
+    from analekh.auth.service import create_user
+
+    password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+    with _session() as s:
+        try:
+            user = create_user(s, email, name, "admin", password)
+        except (PasswordTooShort, PasswordTooLong, ValueError) as exc:
+            typer.echo(f"Not created: {exc}")
+            raise typer.Exit(1) from exc
+        moved = adopt_local(s, user) if adopt_local_data else 0
+    typer.echo(f"Admin {user.email} created." + (f" {moved} rows adopted." if moved else ""))

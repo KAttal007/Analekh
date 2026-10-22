@@ -51,6 +51,7 @@ dependencies = [
     # CLI and logging
     "typer>=0.27,<1.0",
     "structlog>=26.1",
+    "argon2-cffi>=23.1",
 ]
 
 [project.scripts]

@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 // Phase 5 task pane (design doc 13.3, 19.2): works on the open workbook directly, reads the
 // hidden tag (custom document properties) so no lookup is needed, shows the pending change set
 // and highlights each item's cell when clicked. Writes still go through the approval gate.
-const API = localStorage.getItem("analekh_api") ?? "http://localhost:8000";
+const API = localStorage.getItem("analekh_api") ?? "http://127.0.0.1:8000";
 
 type Item = { id: number; kind: string; sheet: string; cell: string; new_value: string | null };
 

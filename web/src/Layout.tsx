@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { CompanySearch } from "./components/CompanySearch";
 import { Icon, type IconName } from "./components/Icon";
 import { SegmentThumb } from "./components/ui";
+import { useMe, useSignOut } from "./lib/auth";
 import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
 
 type NavItem = { to: string; label: string; icon: IconName; soon?: boolean };
@@ -18,10 +19,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "Modelling",
-    items: [
-      { to: "/models", label: "Models", icon: "table" },
-      { to: "/templates", label: "Templates", icon: "layers" },
-    ],
+    items: [{ to: "/models", label: "Models", icon: "table" }],
   },
   {
     label: "Outputs",
@@ -34,8 +32,9 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
 ];
 // Screens without the top search bar: those with their own company picker (Reports, Comps), and
 // those that are not about one company (Models, which gets its own search; Templates; Settings).
-const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/templates", "/settings"]);
+const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/settings"]);
 const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders" };
+const ADMIN: NavItem = { to: "/admin/users", label: "Admin", icon: "layers" };
 
 const THEMES: { choice: ThemeChoice; icon: IconName; label: string }[] = [
   { choice: "light", icon: "sun", label: "Light theme" },
@@ -150,8 +149,25 @@ function useNavHighlight(pathname: string, collapsed: boolean) {
   return { aside, highlight };
 }
 
+function SignOut() {
+  const me = useMe().data;
+  const signOut = useSignOut();
+  if (!me) return null;
+  return (
+    <div className="signed-in">
+      <span className="signed-in-name" title={me.email}>
+        {me.name}
+      </span>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}>
+        Sign out
+      </button>
+    </div>
+  );
+}
+
 export function Layout() {
   const { pathname } = useLocation();
+  const isAdmin = useMe().data?.role === "admin";
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const { aside, highlight } = useNavHighlight(pathname, collapsed);
   const toggle = () => {
@@ -189,6 +205,8 @@ export function Layout() {
         </nav>
         <nav className="nav nav-bottom" aria-label="Settings">
           <Item item={SETTINGS} />
+          {isAdmin && <Item item={ADMIN} />}
+          <SignOut />
           <div className="sidebar-tools">
             <ThemeSwitch />
             <button

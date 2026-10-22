@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 # A database of its own: tests run in rolled-back transactions, but against the working database
 # (10M facts after the full sweep) every unscoped query scans real data: 6 minutes instead of 50 s.
 TEST_DB = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://app:app@localhost:5432/analekh_test"
+    "TEST_DATABASE_URL", "postgresql+psycopg://app:app@127.0.0.1:5432/analekh_test"
 )
 
 
@@ -41,6 +41,20 @@ def _no_real_claude(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_in_memory_state() -> Iterator[None]:
+    """The per-address sign-in counts and the public answer cache live in memory; no test may
+    inherit another's."""
+    from analekh.api.routers import public
+    from analekh.auth import ip_limit
+
+    ip_limit.clear()
+    public.clear_cache()
+    yield
+    ip_limit.clear()
+    public.clear_cache()
 
 
 @pytest.fixture(scope="session")

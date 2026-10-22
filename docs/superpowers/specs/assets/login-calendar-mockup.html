@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in: calendar and login (Welcome style)</title>
+<style>
+  :root{--bg:#f4f6f9;--surface:#ffffff;--surface-2:#f1f3f7;--border:#e2e6ec;--border-strong:#cdd3dc;--text:#17202c;--text-2:#465165;--muted:#6b7486;--accent:#1f5fbf;--accent-2:#3b7ddd;--accent-hover:#194f9f;--accent-soft:#e8f0fc;--on-accent:#ffffff;--positive:#0f7b4f;--positive-soft:#e3f4ec}
+  /* Follows the system theme, exactly as the app does (tokens copied from styles.css) */
+  @media (prefers-color-scheme: dark){:root{--bg:#0d1116;--surface:#151a21;--surface-2:#1b212a;--border:#29303a;--border-strong:#39414d;--text:#e7eaef;--text-2:#b7bfcb;--muted:#8c95a4;--accent:#5b9bf0;--accent-2:#7ab0f5;--accent-hover:#7aaef4;--accent-soft:#19283d;--on-accent:#0b1220;--positive:#3ec28a;--positive-soft:#12291f;color-scheme:dark}
+    .card input{color:var(--text)}}
+  *{box-sizing:border-box}
+  html,body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,sans-serif;font-size:14px;color:var(--text);-webkit-font-smoothing:antialiased}
+  /* Living light, as on the Welcome screen */
+  .flow{position:absolute;inset:-20%;filter:blur(60px);pointer-events:none}
+  .flow span{position:absolute;border-radius:50%}
+  .a{width:46vmax;height:46vmax;left:18%;top:8%;background:color-mix(in srgb,var(--accent) 34%,transparent)}
+  .b{width:38vmax;height:38vmax;right:12%;top:30%;background:color-mix(in srgb,var(--accent-2) 30%,transparent)}
+  .c{width:30vmax;height:30vmax;left:38%;bottom:6%;background:color-mix(in srgb,#2bb3c0 22%,transparent)}
+  .page{position:relative;height:900px;display:grid;grid-template-columns:1fr 440px;gap:56px;padding:56px 88px 64px;align-items:center}
+  .left{min-width:0}
+  .mark{width:72px;height:72px;border-radius:18px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:34px;font-weight:700;box-shadow:0 12px 40px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .greet{margin:28px 0 0;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+  h1{margin:10px 0 0;font-size:52px;line-height:1.05;font-weight:700;letter-spacing:-.04em;max-width:640px;text-wrap:balance}
+  .lead{margin:16px 0 0;font-size:16px;line-height:1.55;color:var(--text-2);max-width:560px}
+  /* Frosted panels */
+  .frost{border:1px solid color-mix(in srgb,var(--surface) 55%,transparent);border-radius:14px;background:color-mix(in srgb,var(--surface) 38%,transparent);backdrop-filter:blur(18px) saturate(1.4);box-shadow:0 8px 30px rgb(16 24 40/8%)}
+  .cal{margin-top:32px;padding:18px 20px}
+  .calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .calhead h2{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em}
+  .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden;font-size:12px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+  .seg span{padding:5px 12px;color:var(--text-2)}
+  .seg span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .week{display:grid;grid-template-columns:repeat(7,1fr)}
+  .col{padding:2px 10px;min-height:196px;display:flex;flex-direction:column;gap:6px;border-left:1px solid color-mix(in srgb,var(--border) 80%,transparent)}
+  .col:first-child{border-left:none;padding-left:0}
+  .dow{font-size:12px;color:var(--muted)}
+  .num{font-size:22px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .cnt{font-size:12px;color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+  .col.today .dow,.col.today .num{color:var(--accent)}
+  .pill{font-size:12px;padding:4px 8px;border-radius:6px;background:color-mix(in srgb,var(--surface-2) 80%,transparent);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill.f{background:var(--positive-soft);color:var(--positive)}
+  .pill.w{background:var(--accent-soft);color:var(--accent)}
+  .legend{margin-top:10px;font-size:12px;color:var(--muted)}
+  /* Sign-in card */
+  .card{padding:32px;background:color-mix(in srgb,var(--surface) 52%,transparent)}
+  .card h2{margin:0;font-size:22px;font-weight:650;letter-spacing:-.02em}
+  .card .s{margin:6px 0 24px;color:var(--text-2);font-size:13px}
+  label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:500;color:var(--text-2);margin-bottom:16px}
+  input{height:40px;padding:0 12px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);font:inherit;font-size:14px;color:var(--text)}
+  input.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{width:100%;height:46px;border-radius:999px;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);font:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 1px 2px rgb(31 95 191/25%)}
+  .ms{margin-top:12px;width:100%;height:44px;border-radius:999px;border:1px solid var(--border-strong);background:color-mix(in srgb,var(--surface) 60%,transparent);color:var(--muted);font:inherit;font-size:13px;font-weight:500}
+  .fine{margin:18px 0 0;font-size:12px;color:var(--muted);line-height:1.5;text-align:center}
+  .foot{position:absolute;left:0;right:0;bottom:14px;text-align:center;margin:0;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="flow" aria-hidden="true"><span class="a"></span><span class="b"></span><span class="c"></span></div>
+<div class="page">
+  <section class="left">
+    <div class="mark">A</div>
+    <p class="greet">Good afternoon</p>
+    <h1>The analyst's record, kept for you.</h1>
+    <p class="lead">Quarterly results for every NSE-listed company, read from the filings themselves and checked before they reach you.</p>
+    <div class="cal frost">
+      <div class="calhead">
+        <h2>Results calendar, week of 19 Oct</h2>
+        <div class="seg"><span>Day</span><span class="on">Week</span><span>Month</span></div>
+      </div>
+      <div class="week">
+        <div class="col"><div class="dow">Mon</div><div class="num">19</div><div class="cnt">4</div><div class="pill f">Tata Elxsi</div><div class="pill f">Jain Irrigation</div></div>
+        <div class="col"><div class="dow">Tue</div><div class="num">20</div><div class="cnt">6</div><div class="pill f">Muthoot Finance</div><div class="pill f">Arvind</div></div>
+        <div class="col today"><div class="dow">Wed</div><div class="num">21</div><div class="cnt">3</div><div class="pill f">Kaynes Tech</div><div class="pill w">Board meeting</div></div>
+        <div class="col"><div class="dow">Thu</div><div class="num">22</div><div class="cnt">·</div><div class="pill w">Board meeting</div></div>
+        <div class="col"><div class="dow">Fri</div><div class="num">23</div><div class="cnt">·</div></div>
+        <div class="col"><div class="dow">Sat</div><div class="num">24</div><div class="cnt">·</div></div>
+        <div class="col"><div class="dow">Sun</div><div class="num">25</div><div class="cnt">·</div></div>
+      </div>
+      <div class="legend">Illustrative counts. Green: results filed. Blue: board meeting.</div>
+    </div>
+  </section>
+  <form class="card frost" method="post" action="/api/auth/login">
+    <h2>Sign in</h2>
+    <p class="s">Use the account your Head of Research set up for you.</p>
+    <label>Work email<input class="focus" type="email" value="kaushal@firm.in" autocomplete="username"></label>
+    <label>Password<input type="password" value="" autocomplete="current-password"></label>
+    <button class="btn" type="submit">Sign in <span aria-hidden="true">→</span></button>
+    <button class="ms" type="button" disabled>Sign in with Microsoft (once connected)</button>
+    <p class="fine">Forgot your password? Ask your Head of Research to reset it.</p>
+  </form>
+</div>
+<p class="foot">End-of-day data from NSE filings. No ratings or target prices.</p>
+</body>
+</html>

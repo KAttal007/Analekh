@@ -162,6 +162,7 @@ class CalendarEventOut(BaseModel):
     watched: bool
     source_url: str | None
     status: Literal["scheduled", "filed"] = "scheduled"
+    revised: bool = False
 
 
 class UnscheduledOut(BaseModel):
