@@ -941,8 +941,11 @@ textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-input[type="checkbox"] {
+input[type="checkbox"],
+input[type="radio"] {
   height: auto;
+  padding: 0;
+  margin: 0;
   accent-color: var(--accent);
 }
 input[type="file"] {
@@ -963,6 +966,7 @@ input[type="file"] {
   font-weight: 500;
 }
 .field-inline {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: var(--s2);
@@ -2502,7 +2506,7 @@ table.glance tbody tr:last-child > * {
   align-items: center;
   justify-content: space-between;
   gap: var(--s3);
-  padding: var(--s3) 0;
+  padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--border);
 }
 .settings-row:last-child {

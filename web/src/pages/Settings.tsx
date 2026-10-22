@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { api, type ApiTokenCreated } from "../api/client";
 import { ErrorNote, PageHeader, Segmented, Skeleton } from "../components/ui";
-import { useMe, useSignOut } from "../lib/auth";
+import { useMe, useSignInOff, useSignOut } from "../lib/auth";
 import { crore, filedAt } from "../lib/format";
 import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
 import { setTheme, type ThemeChoice, useTheme } from "../lib/theme";
@@ -211,6 +211,8 @@ function BridgeTokens() {
 function Account() {
   const me = useMe().data;
   const signOut = useSignOut();
+  const signInOff = useSignInOff();
+  const offHint = signInOff ? "Sign-in is off in development" : undefined;
   const [confirming, setConfirming] = useState(false);
   if (!me) return null;
   return (
@@ -225,7 +227,13 @@ function Account() {
             {me.email} · {me.role === "admin" ? "Admin" : "Analyst"}
           </p>
         </div>
-        <button type="button" className="btn btn-sm" onClick={() => void signOut()}>
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={signInOff}
+          title={offHint}
+          onClick={() => void signOut()}
+        >
           Sign out
         </button>
       </div>
@@ -252,7 +260,13 @@ function Account() {
             </button>
           </div>
         ) : (
-          <button type="button" className="btn btn-sm" onClick={() => setConfirming(true)}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={signInOff}
+            title={offHint}
+            onClick={() => setConfirming(true)}
+          >
             Sign out everywhere
           </button>
         )}

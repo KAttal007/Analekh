@@ -73,3 +73,35 @@ test("a token can be revoked", async () => {
     expect(calls.some((c) => c.method === "DELETE" && c.url === "/api/auth/tokens/7")).toBe(true),
   );
 });
+
+test("with sign-in off (development) both sign-out buttons are disabled", async () => {
+  mockApi({
+    ...base(),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: false } }),
+  });
+  renderAt(<Settings />);
+  await screen.findByText("Office laptop");
+  await waitFor(() =>
+    expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    ),
+  );
+  const everywhere = screen.getByRole("button", { name: "Sign out everywhere" });
+  expect((everywhere as HTMLButtonElement).disabled).toBe(true);
+  expect(everywhere.getAttribute("title")).toBe("Sign-in is off in development");
+});
+
+test("with sign-in on, the sign-out buttons are enabled", async () => {
+  mockApi({
+    ...base(),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+  });
+  renderAt(<Settings />);
+  await screen.findByText("Office laptop");
+  expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(
+    false,
+  );
+  expect(
+    (screen.getByRole("button", { name: "Sign out everywhere" }) as HTMLButtonElement).disabled,
+  ).toBe(false);
+});

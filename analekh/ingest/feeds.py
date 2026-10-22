@@ -26,7 +26,6 @@ FEEDS: dict[str, tuple[str, str]] = {
     "financial_results": ("Financial_Results.xml", "fast"),
     "announcements": ("Online_announcements.xml", "fast"),
     "board_meetings": ("Board_Meetings.xml", "slow"),
-    "corporate_action": ("Corporate_action.xml", "slow"),
     "insider_trading": ("Insider_Trading.xml", "slow"),
     "related_party": ("Related_Party_Trans.xml", "slow"),
     "encumbrance": ("Sast_ReasonForEncumbrance.xml", "slow"),

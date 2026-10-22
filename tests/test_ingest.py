@@ -161,6 +161,109 @@ def test_ingest_dedupes_and_handles_restatement(db, store, company):
     assert store.exists(restated.filing.storage_key)
 
 
+def test_ingest_survives_another_run_storing_the_same_file_first(db, store, company, monkeypatch):
+    """Two runs (scheduled worker plus a manual one) can both pass the "already stored?" check.
+    The loser must report the file as skipped, not fail on the unique file hash."""
+    from analekh.ingest import pipeline
+    from analekh.ingest.storage import sha256
+
+    data = q1_instance()
+    real_validate = pipeline.validate
+
+    def validate_after_rival_insert(ctx):
+        db.add(
+            Filing(
+                company_id=company.id,
+                kind="results_xbrl",
+                file_sha256=sha256(data),
+                storage_key="rival",
+                status="validated",
+                meta={},
+            )
+        )
+        db.flush()  # the other run's row lands after our check, before our insert
+        return real_validate(ctx)
+
+    monkeypatch.setattr(pipeline, "validate", validate_after_rival_insert)
+    result = ingest_results_xbrl(db, store, company, data)
+    assert result.skipped
+    assert result.filing.storage_key == "rival"
+    assert db.scalar(select(func.count()).select_from(Filing)) == 1
+
+
+class _CountingClient:
+    """Stands in for PoliteClient: serves one body and counts the requests made."""
+
+    def __init__(self, body: bytes) -> None:
+        self.body, self.calls = body, []
+
+    def get(self, url, *a, **k):
+        from analekh.ingest.http import FetchResult
+
+        self.calls.append(url)
+        return FetchResult(200, self.body, None, None)
+
+
+def _feed_item(db, company, feed, link, key):
+    item = FeedItem(company_id=company.id, feed=feed, link=link, title="Demo Limited", item_key=key)
+    db.add(item)
+    db.flush()
+    return item
+
+
+def test_xml_links_on_other_feeds_are_closed_without_a_request(db, store, company):
+    from analekh.ingest.pipeline import process_feed_item
+
+    client = _CountingClient(b"<?xml version='1.0'?><x/>")
+    for feed in ("announcements", "board_meetings", "insider_trading", "related_party"):
+        item = _feed_item(
+            db, company, feed, f"https://nsearchives.nseindia.com/corporate/xbrl/{feed}.xml", feed
+        )
+        assert process_feed_item(db, store, client, item) is None
+        assert item.processed_at is not None and item.error is None
+    assert client.calls == []
+
+
+def test_xml_on_the_results_feed_is_still_fetched(db, store, company):
+    from analekh.ingest.pipeline import process_feed_item
+
+    client = _CountingClient(q1_instance())
+    item = _feed_item(
+        db, company, "financial_results", "https://nsearchives.nseindia.com/x/q1.xml", "fr-1"
+    )
+    filing = process_feed_item(db, store, client, item)
+    assert filing is not None and len(client.calls) == 1
+
+
+def test_a_link_already_stored_is_not_fetched_again(db, store, company):
+    from analekh.ingest.pipeline import process_feed_item
+
+    url = "https://nsearchives.nseindia.com/c/deck.pdf"
+    client = _CountingClient(b"%PDF-1.7 deck")
+    first = _feed_item(db, company, "announcements", url, "same-1")
+    second = _feed_item(db, company, "board_meetings", url, "same-2")
+    stored = process_feed_item(db, store, client, first)
+    again = process_feed_item(db, store, client, second)
+    assert len(client.calls) == 1
+    assert again is not None and stored is not None and again.id == stored.id
+    assert second.processed_at is not None
+
+
+def test_a_link_that_already_failed_is_not_fetched_again(db, store, company):
+    from analekh.ingest.pipeline import NotAPdf, process_feed_item
+
+    url = "https://nsearchives.nseindia.com/c/odd.zip"
+    client = _CountingClient(b"PK not a pdf")
+    first = _feed_item(db, company, "announcements", url, "bad-1")
+    with pytest.raises(NotAPdf):
+        process_feed_item(db, store, client, first)
+    first.error, first.processed_at = "NotAPdf: not a PDF (zip, 20 bytes)", datetime.now(UTC)
+    second = _feed_item(db, company, "board_meetings", url, "bad-2")
+    assert process_feed_item(db, store, client, second) is None
+    assert len(client.calls) == 1
+    assert second.processed_at is not None and second.error == first.error
+
+
 def test_newest_filed_value_wins_whatever_the_download_order(db, store, company):
     from datetime import UTC, datetime
 

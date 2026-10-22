@@ -17,9 +17,11 @@ recomputes from it and never applies a factor twice.
 
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, FeedItem, Filing
@@ -192,8 +194,17 @@ def ingest_results_xbrl(
             **({"scale": scale} if scale else {}),
         },
     )
-    session.add(filing)
-    session.flush()
+    try:
+        with session.begin_nested():
+            session.add(filing)
+            session.flush()
+    except IntegrityError:
+        # Another run (the scheduled worker and a manual run, say) stored this same file between
+        # our check above and this insert. The file hash is unique, so theirs stands: skip ours.
+        existing = session.scalar(select(Filing).where(Filing.file_sha256 == digest))
+        if existing is None:
+            raise
+        return IngestResult(existing, skipped=True)
 
     for f in stored.facts:
         session.add(
@@ -266,6 +277,30 @@ def process_feed_item(
     if not item.link:  # nothing to fetch: done, so it never holds a place in the queue
         item.processed_at = datetime.now().astimezone()
         return None
+    if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".xml"):
+        # Intimation XMLs on the other feeds are never PDFs, so storing them always fails, and
+        # nothing reads them (the calendar and alerts use the feed text). Close without a request.
+        item.processed_at = datetime.now().astimezone()
+        return None
+    # The same file can sit in several feeds or repeat within one: no second request to NSE for a
+    # link already stored, or already given up on.
+    stored = session.scalar(select(Filing).where(Filing.source_url == item.link).limit(1))
+    failed = None
+    if stored is None:
+        failed = session.scalar(
+            select(FeedItem.error)
+            .where(
+                FeedItem.link == item.link,
+                FeedItem.id != item.id,
+                FeedItem.processed_at.is_not(None),
+                FeedItem.error.is_not(None),
+            )
+            .limit(1)
+        )
+    if stored is not None or failed is not None:
+        item.processed_at = datetime.now().astimezone()
+        item.error = failed
+        return stored
     result = client.get(item.link)
     filing: Filing | None
     if item.feed == "financial_results":
@@ -380,8 +415,15 @@ def store_document(
         filed_at=filed_at,
         status="fetched",
     )
-    session.add(filing)
-    session.flush()
+    try:
+        with session.begin_nested():
+            session.add(filing)
+            session.flush()
+    except IntegrityError:  # stored by another run since the check above: theirs stands
+        existing = session.scalar(select(Filing).where(Filing.file_sha256 == digest))
+        if existing is None:
+            raise
+        return existing
     return filing
 
 

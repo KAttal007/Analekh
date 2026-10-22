@@ -62,3 +62,21 @@ test("the main nav has no Templates entry, and only admins see an Admin link", a
   await screen.findByRole("link", { name: "Admin" });
   expect(screen.queryByRole("link", { name: "Templates" })).toBeNull();
 });
+
+test("the sidebar Sign out button is hidden when sign-in is off, shown when on", async () => {
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ANALYST }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: false } }),
+  });
+  renderAt(app, "/");
+  await screen.findByText("the desk");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull());
+  cleanup();
+  vi.restoreAllMocks();
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ANALYST }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+  });
+  renderAt(app, "/");
+  await screen.findByRole("button", { name: "Sign out" });
+});

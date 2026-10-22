@@ -24,6 +24,13 @@ def _ensure_database(url: str) -> None:
             )
             if not exists:
                 conn.execute(text(f'CREATE DATABASE "{target.database}"'))
+            # Many tests provoke constraint errors on purpose (duplicate email, bad role, a
+            # race on the file hash) and the code handles them. The server log is shared with
+            # the working database and should show only errors that really happen, so the test
+            # database logs none; a test that fails says so through pytest.
+            conn.execute(
+                text(f"ALTER DATABASE \"{target.database}\" SET log_min_messages = 'fatal'")
+            )
     finally:
         admin.dispose()
 

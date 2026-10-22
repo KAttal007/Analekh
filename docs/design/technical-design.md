@@ -240,7 +240,7 @@ Verified while scoping on 11 and 12 October 2026 and extended during the Phase 0
 | Sector | NSE Indices constituent lists (NSE's 22 sector names), then the Excel Stocks data type (LSEG industry group via Microsoft 365); a user override wins | Curated map; company disclosures | Precedence recorded per company; the LSEG group kept separately (section 4.2) |
 | Results numbers | NSE integrated-filing lookup to XBRL: per company, plus one request every 2 hours for the latest filings | BSE results feed (paid) | Structured; no AI needed for core statements. The results RSS feed has been frozen since 24 August 2026 |
 | Presentations, transcripts, annual reports | NSE Online_announcements RSS to PDF; company IR pages | BSE announcements feed (paid) | AI extraction on selected pages |
-| Results calendar and events | Board_Meetings, Corporate_action, Insider_Trading, Related_Party_Trans RSS | None free | Alerts and red flags |
+| Results calendar and events | Board_Meetings, Insider_Trading, Related_Party_Trans RSS | None free | Alerts and red flags |
 | Historical backfill | Integrated-filing lookup (from the March 2025 quarter) and NSE's financial-results list (complete XBRL from March 2023), per company; company IR pages or the import folder for older periods | Licensed data | About 15 quarters and four years of annuals per company |
 | Prices and market cap | NSE's daily bhavcopy, one file per trading day after the close; market cap from the latest results filing's share count | Excel Stocks data type in the analyst's own workbook; Kite Connect (paid, not used) | End of day only; only the latest day kept (section 3.3) |
 | Embeddings for search | Hosted embedding API or local open-source model |  | Anthropic does not offer an embeddings model |
@@ -441,7 +441,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 
 *Figure 10. Events from NSE's published feeds: results calendar, red flags and alerts (sections 9.2, 26.2).*
 
-1. **The feed watcher polls** NSE's Board Meetings, corporate actions, insider trading, related-party and announcements feeds at their stated intervals (5 to 30 minutes) and keeps every item (built; Celery beat since 21 October 2026).
+1. **The feed watcher polls** NSE's Board Meetings, insider trading, related-party, encumbrance and announcements feeds at their stated intervals (5 to 30 minutes) and keeps every item (built; Celery beat since 21 October 2026).
 2. **Items are linked to companies** by name, symbol or ISIN; unmatched items wait for review.
 3. **Board meeting intimations** (at least two working days ahead, SEBI LODR 29) build the results calendar (built, GET /calendar): each intimation's purpose and meeting date are read from the item, results meetings are told apart from other board meetings, and a past day shows the companies that actually filed results that day instead of the announcement. The desk shows it in a day strip, a week or a month; the watchlist shows its companies' coming results and those not yet announced. Nothing is stored beyond the feed items: the calendar is a read over them. Earnings calls have a place in it but no source yet (that needs the owner's approval under rule 1). Later, the same dates can tell the results watcher which days matter.
 4. **Red flags** (pledges, insider trades, related-party deals, auditor changes) are picked out.
@@ -491,7 +491,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 | Sectors | NSE Indices constituent lists; Stocks data type workbook import | companies (sector, sector_source, sector_lseg) |
 | Results numbers (all filers) | Integrated-filing lookup to XBRL: per company on refresh and backfill, every 2 hours for the latest filings; the financial-results list for history | filings, facts |
 | Presentations, annual reports, transcripts | Online_announcements RSS to PDF; IR pages fallback | filings, documents, chunks, kpis |
-| Events | Board meeting, corporate action, insider, related party feeds | feed_items, alerts |
+| Events | Board meeting, insider, related party, encumbrance feeds | feed_items, alerts |
 | Prices | NSE's daily bhavcopy, once per trading day after the close (section 3.3) | prices (latest day only) |
 | History | On-demand and background backfill | Same tables |
 
@@ -574,7 +574,7 @@ PostgreSQL with pgvector is the single source of truth. Raw files live in MinIO;
 
 #### 9.2 Feed polling
 
-- Feeds: Financial_Results, Online_announcements, Board_Meetings, Corporate_action, Insider_Trading, Related_Party_Trans, Sast_ReasonForEncumbrance. Financial_Results has carried nothing since 24 August 2026; results come from the integrated-filing lookup (section 9.3).
+- Feeds: Financial_Results, Online_announcements, Board_Meetings, Insider_Trading, Related_Party_Trans, Sast_ReasonForEncumbrance. Corporate_action is not polled (dropped 22 October 2026: its items are dividend and other ex-date notices that link to an NSE web page, not a file, and nothing reads them). Financial_Results has carried nothing since 24 August 2026; results come from the integrated-filing lookup (section 9.3).
 - Running since 21 October 2026 (Celery beat, task poll_feed). Board_Meetings items feed the results calendar (workflow 6.9); each description holds the purpose and then `|Meeting Date: DD-Mon-YYYY`.
 - Interval: 5 minutes (published TTL) for results and announcements; 30 minutes for event feeds (FEED_POLL_SECONDS, EVENT_FEED_POLL_SECONDS).
 - Conditional requests where supported, descriptive User-Agent, timeouts, exponential backoff.

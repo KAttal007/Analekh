@@ -54,6 +54,18 @@ export function useMe() {
   });
 }
 
+/** Whether sign-in is on. False only when the API says so (ENV=dev without AUTH_ENABLED): there
+ * is nothing to sign out of. While unknown, or if the check fails, sign-out stays available. */
+export function useSignInOff(): boolean {
+  const status = useQuery({
+    queryKey: ["auth-status"],
+    queryFn: api.publicAuthStatus,
+    staleTime: Infinity,
+    retry: false,
+  });
+  return status.data?.auth_enabled === false;
+}
+
 /** Ends the session on the server, then clears everything this page holds from it.
  * `everywhere` also ends every other session of this user and revokes their bridge tokens. */
 export function useSignOut() {

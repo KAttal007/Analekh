@@ -165,4 +165,4 @@ Rules:
   `scripts/graphify_clean.py` strips them. A Claude Code hook runs it after Bash rebuilds. Git
   hooks are not versioned: after a fresh clone run `python scripts/graphify_clean.py --install-hooks`
   (installs graphify's hooks and adds the cleanup call; safe to repeat).
-- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+- graphify-out/ is gitignored (local reference only, about 15 MB): it is not committed, so it never appears in a pull request. Rebuild it locally with `graphify update .`.

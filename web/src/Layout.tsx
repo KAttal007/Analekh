@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { CompanySearch } from "./components/CompanySearch";
 import { Icon, type IconName } from "./components/Icon";
 import { SegmentThumb } from "./components/ui";
-import { useMe, useSignOut } from "./lib/auth";
+import { useMe, useSignInOff, useSignOut } from "./lib/auth";
 import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
 
 type NavItem = { to: string; label: string; icon: IconName; soon?: boolean };
@@ -152,15 +152,18 @@ function useNavHighlight(pathname: string, collapsed: boolean) {
 function SignOut() {
   const me = useMe().data;
   const signOut = useSignOut();
+  const signInOff = useSignInOff();
   if (!me) return null;
   return (
     <div className="signed-in">
       <span className="signed-in-name" title={me.email}>
         {me.name}
       </span>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-        Sign out
-      </button>
+      {!signInOff && (
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      )}
     </div>
   );
 }

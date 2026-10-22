@@ -874,7 +874,7 @@ sequence("coverage",
 (function events() {
   const g = graph("events");
   heading(g.svg, 20, 1200, "NSE PUBLISHED FEEDS", 16);
-  const feeds = [["bm", "Board Meetings"], ["ca", "Corporate actions"], ["it", "Insider trading"], ["rpt", "Related-party deals"], ["an", "Announcements"]];
+  const feeds = [["bm", "Board Meetings"], ["enc", "Encumbrance (SAST)"], ["it", "Insider trading"], ["rpt", "Related-party deals"], ["an", "Announcements"]];
   feeds.forEach(([k, t], i) => g.node(k, { x: 20 + i * 244, y: 34, w: 224, h: 44, title: t, sub: ["RSS · 5–30 min"], kind: "source" }));
   g.node("watcher", { x: 340, y: 130, w: 560, h: 58, title: "Feed watcher (Celery beat)", sub: ["polls every 5–30 min · dedupes · keeps every item · links to the company"] });
   feeds.forEach(([k], i) => g.link(`${k}.b`, `watcher.t@${[0.05, 0.27, 0.5, 0.73, 0.95][i]}`, { mid: 108 }));
