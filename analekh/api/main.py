@@ -56,9 +56,7 @@ def _warm_up() -> None:
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     check_auth_switch()
     if auth_is_off():
-        log.warning(
-            "sign_in_is_off", note="AUTH_ENABLED=false: every request acts as the dev admin"
-        )
+        log.warning("sign_in_is_off", note="ENV=dev: every request acts as the dev admin")
     # Pin the worker-thread count so the database pool can be sized against it.
     limiter = anyio.to_thread.current_default_thread_limiter()
     limiter.total_tokens = get_settings().api_thread_limit

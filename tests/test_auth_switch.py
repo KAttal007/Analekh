@@ -35,10 +35,26 @@ def switch(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_sign_in_is_on_by_default(raw):
-    assert get_settings().auth_enabled is True
+def test_env_prod_keeps_sign_in_on(raw, switch, monkeypatch):
+    monkeypatch.delenv("AUTH_ENABLED")
+    switch(ENV="prod")
     assert raw.get("/auth/me").status_code == 401
     assert raw.get("/public/auth-status").json() == {"auth_enabled": True}
+
+
+def test_env_dev_alone_keeps_sign_in_off(raw, switch, monkeypatch):
+    monkeypatch.delenv("AUTH_ENABLED")
+    switch(ENV="dev")
+    assert raw.get("/auth/me").json()["role"] == "admin"
+    assert raw.get("/public/auth-status").json() == {"auth_enabled": False}
+
+
+def test_default_env_is_prod_so_a_forgotten_setting_fails_safe(monkeypatch):
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("AUTH_ENABLED", raising=False)
+    from analekh.config import Settings
+
+    assert Settings(_env_file=None).sign_in_on is True
 
 
 def test_switch_off_in_dev_acts_as_the_dev_admin(raw, db, switch):

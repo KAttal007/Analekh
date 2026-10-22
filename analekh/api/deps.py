@@ -56,15 +56,14 @@ def _bearer_user(request: Request, db: Session) -> UserRow | None:
 
 
 def auth_is_off() -> bool:
-    """True only when AUTH_ENABLED=false AND ENV=dev. Anywhere else the switch is ignored."""
-    s = get_settings()
-    return (not s.auth_enabled) and s.env == "dev"
+    """True when ENV=dev (unless AUTH_ENABLED=true). ENV=prod always has sign-in on."""
+    return not get_settings().sign_in_on
 
 
 def check_auth_switch() -> None:
-    """Refuse to start with sign-in turned off outside development."""
+    """Refuse to start with sign-in explicitly turned off outside development."""
     s = get_settings()
-    if not s.auth_enabled and s.env != "dev":
+    if s.auth_enabled is False and s.env != "dev":
         raise RuntimeError("AUTH_ENABLED=false is only allowed when ENV=dev")
 
 

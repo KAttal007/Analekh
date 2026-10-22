@@ -55,10 +55,13 @@ class Settings(BaseSettings):
     cors_origins: str = "http://127.0.0.1:5173;https://127.0.0.1:3000"
 
     # Sign-in (auth design, stage 1)
-    env: str = "dev"  # "dev" lets the session cookie work over plain http
-    # Development switch: AUTH_ENABLED=false turns sign-in off and acts as a built-in admin. On by
-    # default, and honoured only when ENV=dev (check_auth_switch refuses to start otherwise).
-    auth_enabled: bool = True
+    # The one switch: ENV=dev keeps sign-in OFF (every request acts as the built-in admin; the
+    # session cookie works over plain http); anything else (ENV=prod) keeps it ON. Defaults to
+    # prod so a forgotten setting fails safe; local `.env` files say ENV=dev.
+    env: str = "prod"
+    # Optional override, dev only: AUTH_ENABLED=true tries the real sign-in while ENV=dev.
+    # AUTH_ENABLED=false outside dev is refused at start-up (check_auth_switch).
+    auth_enabled: bool | None = None
     session_idle_hours: int = 9
     password_min_length: int = 15
     session_max_hours: int = 24  # hard cap from sign-in, however active (a fresh sign-in each day)
@@ -116,6 +119,11 @@ class Settings(BaseSettings):
     watch_folders: str = "~/Models"
     save_mode: str = "versioned"  # versioned | in_place (with automatic backup)
     excel_bridge_port: int = 8765
+
+    @property
+    def sign_in_on(self) -> bool:
+        """Sign-in is on unless ENV=dev, where it is off unless AUTH_ENABLED=true."""
+        return self.env != "dev" or self.auth_enabled is True
 
     @property
     def cors_origin_list(self) -> list[str]:

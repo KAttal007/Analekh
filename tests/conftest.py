@@ -38,6 +38,9 @@ def _no_real_claude(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     from analekh.config import get_settings
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    # Tests run the real sign-in; ENV=dev alone would switch it off (test_auth_switch covers that).
+    monkeypatch.setenv("ENV", "dev")
+    monkeypatch.setenv("AUTH_ENABLED", "true")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
