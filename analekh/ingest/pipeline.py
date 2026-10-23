@@ -277,6 +277,11 @@ def process_feed_item(
     if not item.link:  # nothing to fetch: done, so it never holds a place in the queue
         item.processed_at = datetime.now().astimezone()
         return None
+    if item.feed == "corporate_action":
+        # Ex-date notices link to an NSE web page that rule 1 does not allow, and they are not
+        # filings: close without a request.
+        item.processed_at = datetime.now().astimezone()
+        return None
     if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".xml"):
         # Intimation XMLs on the other feeds are never PDFs, so storing them always fails, and
         # nothing reads them (the calendar and alerts use the feed text). Close without a request.

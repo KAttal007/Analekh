@@ -19,7 +19,7 @@ anyio==4.15.1
     #   httpx2
     #   starlette
     #   watchfiles
-arelle-release==2.46.1
+arelle-release==2.47.1
     # via analekh
 argon2-cffi==25.1.0
     # via analekh
@@ -43,7 +43,7 @@ camelot-py==2.0.0
     # via analekh
 celery==5.6.3
     # via analekh
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   arelle-release
     #   httpcore
@@ -193,7 +193,7 @@ pdfplumber==0.11.10
     # via analekh
 pgvector==0.5.1
     # via analekh
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   arelle-release
     #   camelot-py

@@ -6,6 +6,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
+from analekh.config import get_settings
 from analekh.db.models import Company, Filing
 from analekh.ingest.http import PoliteClient
 from tests.xbrl_factory import q2_instance
@@ -54,7 +55,7 @@ def test_truncated_page_is_detected_from_nses_total_count(db, store, company):
 
     rows = [row("DEMOFIN", i) for i in range(3)]
     client, _ = list_client(rows, total=1200)
-    out = fetch_latest(db, store, client, size=1000)
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
     assert out.truncated is True and out.total == 1200 and out.listed == 3
 
 
@@ -62,25 +63,25 @@ def test_page_holding_every_row_is_not_truncated(db, store, company):
     from analekh.ingest.integrated import fetch_latest
 
     client, _ = list_client([row("DEMOFIN", 1), row("DEMOFIN", 2)], total=2)
-    out = fetch_latest(db, store, client, size=1000)
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
     assert out.truncated is False and out.total == 2
 
 
 def test_nse_capping_the_page_below_what_we_asked_is_truncation(db, store, company):
-    """We ask for 1000, NSE returns 500 of 800: that is a truncated page, whatever it holds."""
+    """We ask for the default size, NSE returns 500 of 800: a truncated page, whatever it holds."""
     from analekh.ingest.integrated import fetch_latest
 
     rows = [row("DEMOFIN", i) for i in range(500)]
     client, sizes = list_client(rows, total=800)
-    out = fetch_latest(db, store, client, size=1000)
-    assert sizes == ["1000"] and out.truncated is True
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
+    assert sizes == [str(get_settings().latest_page_size)] and out.truncated is True
 
 
 def test_empty_list_with_zero_total_is_not_truncated(db, store, company):
     from analekh.ingest.integrated import fetch_latest
 
     client, _ = list_client([], total=0)
-    out = fetch_latest(db, store, client, size=1000)
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
     assert out.truncated is False and out.listed == 0
 
 
@@ -101,7 +102,7 @@ def test_truncated_run_still_stores_the_rows_it_received(db, store, company):
 
     rows = [row("DEMOFIN", 1)]
     client, _ = list_client(rows, total=50)
-    out = fetch_latest(db, store, client, size=1000)
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
     assert out.truncated and out.new == 1
     assert db.scalar(select(Filing).where(Filing.source_url == rows[0]["xbrl"])) is not None
 
@@ -110,42 +111,45 @@ def test_truncated_run_still_stores_the_rows_it_received(db, store, company):
 
 
 def test_first_run_asks_for_the_default_size():
-    from analekh.ingest.integrated import DEFAULT_PAGE_SIZE, next_page_size
+    from analekh.ingest.integrated import next_page_size
 
-    assert DEFAULT_PAGE_SIZE == 1000
-    assert next_page_size(None) == 1000
-    assert next_page_size({}) == 1000
+    default = get_settings().latest_page_size
+    assert next_page_size(None) == default
+    assert next_page_size({}) == default
 
 
 def test_a_truncated_run_doubles_the_size_for_the_next(db):
     from analekh.ingest.integrated import next_page_size
 
-    once = {"page_size": 1000, "truncated": True}
-    assert next_page_size(once) == 2000
-    assert next_page_size({"page_size": 2000, "truncated": True}) == 4000
+    s = get_settings()
+    once = {"page_size": s.latest_page_size, "truncated": True}
+    assert next_page_size(once) == min(s.latest_page_size * 2, s.latest_max_page_size)
 
 
 def test_size_never_goes_past_the_cap():
-    from analekh.ingest.integrated import MAX_PAGE_SIZE, next_page_size
+    from analekh.ingest.integrated import next_page_size
 
-    assert MAX_PAGE_SIZE == 4000
-    assert next_page_size({"page_size": 4000, "truncated": True}) == 4000
-    assert next_page_size({"page_size": 3000, "truncated": True}) == 4000
+    cap = get_settings().latest_max_page_size
+    assert next_page_size({"page_size": cap, "truncated": True}) == cap
+    assert next_page_size({"page_size": cap - 1, "truncated": True}) == cap
 
 
 def test_a_full_run_goes_back_to_the_default():
     from analekh.ingest.integrated import next_page_size
 
-    assert next_page_size({"page_size": 4000, "truncated": False}) == 1000
-    assert next_page_size({"page_size": 2000, "truncated": False}) == 1000
+    s = get_settings()
+    default = s.latest_page_size
+    assert next_page_size({"page_size": s.latest_max_page_size, "truncated": False}) == default
+    assert next_page_size({"page_size": default * 2, "truncated": False}) == default
 
 
 def test_a_damaged_summary_falls_back_to_the_default():
     from analekh.ingest.integrated import next_page_size
 
-    assert next_page_size({"truncated": True}) == 2000  # no size kept: start from the default
-    assert next_page_size({"page_size": "lots", "truncated": True}) == 2000
-    assert next_page_size({"page_size": -5, "truncated": False}) == 1000
+    default = get_settings().latest_page_size
+    assert next_page_size({"truncated": True}) == default * 2  # no size kept: start from default
+    assert next_page_size({"page_size": "lots", "truncated": True}) == default * 2
+    assert next_page_size({"page_size": -5, "truncated": False}) == default
 
 
 # --- at the cap -----------------------------------------------------------------------------
@@ -164,5 +168,5 @@ def test_truncated_below_the_cap_is_not_flagged_as_capped(db, store, company):
     from analekh.ingest.integrated import fetch_latest
 
     client, _ = list_client([row("DEMOFIN", 1)], total=900)
-    out = fetch_latest(db, store, client, size=1000)
+    out = fetch_latest(db, store, client, size=get_settings().latest_page_size)
     assert out.truncated and not out.capped and out.warning is None

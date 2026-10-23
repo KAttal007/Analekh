@@ -5,6 +5,7 @@ import httpx
 import pytest
 from sqlalchemy import func, select
 
+from analekh.config import get_settings
 from analekh.db.models import Company, Fact, FeedItem, Filing
 from analekh.ingest.backfill import run_backfill
 from analekh.ingest.feeds import item_key, parse_pub_date, parse_rss, store_items
@@ -264,6 +265,31 @@ def test_a_link_that_already_failed_is_not_fetched_again(db, store, company):
     assert second.processed_at is not None and second.error == first.error
 
 
+def test_corporate_action_items_are_marked_done_without_a_fetch(db, company):
+    """Dividend ex-date notices link to an NSE web page that rule 1 does not allow. They are not
+    filings, so they must be closed without any request."""
+    from analekh.db.models import FeedItem
+    from analekh.ingest.http import PoliteClient
+    from analekh.ingest.pipeline import process_feed_item
+    from analekh.ingest.storage import ObjectStore
+
+    class NoRequests(PoliteClient):
+        def get(self, *a, **k):  # pragma: no cover - the test fails if this is reached
+            raise AssertionError("a corporate-action item must not be fetched")
+
+    item = FeedItem(
+        company_id=company.id,
+        feed="corporate_action",
+        link="https://www.nseindia.com/companies-listing/corporate-filings-actions",
+        title="Demo Limited - Ex-Date: 23-Oct-2026",
+        item_key="corp-test-1",
+    )
+    db.add(item)
+    db.flush()
+    assert process_feed_item(db, ObjectStore.__new__(ObjectStore), NoRequests(), item) is None
+    assert item.processed_at is not None
+
+
 def test_newest_filed_value_wins_whatever_the_download_order(db, store, company):
     from datetime import UTC, datetime
 
@@ -458,7 +484,8 @@ def test_refused_tells_blocking_from_a_bad_file():
 
 
 def test_client_rate_can_be_set_per_run():
-    assert PoliteClient(rate_per_second=0.2).limiter.interval == 5.0
+    rate = 0.2
+    assert PoliteClient(rate_per_second=rate).limiter.interval == 1 / rate
 
 
 def test_no_filings_list_records_reason_and_drops_resolved(tmp_path):
@@ -528,7 +555,7 @@ def test_fetch_results_skips_a_broken_file_after_one_retry(db, store, company):
     client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
     outcome = fetch_results(db, store, client, company)
     assert outcome.missing == [broken] and outcome.new == 1 and outcome.gap is None
-    assert asked.count(broken) == 2  # fetched once more before giving up
+    assert asked.count(broken) == get_settings().integrated_file_attempts  # then given up
 
 
 def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, store, company):
@@ -552,7 +579,9 @@ def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, sto
     first = fetch_latest(db, store, client)
     assert first.new == 1 and first.unknown_symbols == ["NOTOURS"]
     (req,) = lookups
-    assert "symbol" not in req.url.params and req.url.params["size"] == "1000"
+    assert "symbol" not in req.url.params and req.url.params["size"] == str(
+        get_settings().latest_page_size
+    )
 
     second = fetch_latest(db, store, client)  # same list again: nothing new to download
     assert second.new == 0 and len(lookups) == 2

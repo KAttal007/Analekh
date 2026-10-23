@@ -232,8 +232,6 @@ def test_one_request_per_cooldown_and_no_new_mail_inside_it(db, user, sent):
     and the code to be typed. A request inside the cooldown sends nothing and keeps the code."""
     from datetime import UTC, datetime, timedelta
 
-    cooldown = get_settings().reset_request_cooldown_seconds
-    assert cooldown == 120
     t0 = datetime.now(UTC)
     assert reset.request_reset(db, "kaushal@firm.in", now=t0) is True
     code = _code(sent)

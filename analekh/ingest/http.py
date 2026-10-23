@@ -122,7 +122,7 @@ class PoliteClient:
         self,
         extra_allowed_hosts: set[str] | None = None,
         transport: httpx.BaseTransport | None = None,
-        max_attempts: int = 4,
+        max_attempts: int | None = None,
         backoff_base: float = 2.0,
         rate_per_second: float | None = None,
     ) -> None:
@@ -137,7 +137,7 @@ class PoliteClient:
         )
         self._get = retry(
             retry=retry_if_exception(_retryable),
-            stop=stop_after_attempt(max_attempts),
+            stop=stop_after_attempt(max_attempts or s.http_max_attempts),
             wait=wait_exponential(multiplier=backoff_base, max=60),
             reraise=True,
         )(self._get_once)

@@ -20,6 +20,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.orm import Session
 
+from analekh.config import get_settings
 from analekh.db.models import Company, Filing
 from analekh.ingest.feeds import IST
 from analekh.ingest.http import PoliteClient, refused
@@ -335,7 +336,8 @@ def _download_and_ingest(
     company's other filings are kept rather than all lost. A broken file is fetched once more in
     case the download itself was cut short."""
     assert f.xbrl_url is not None
-    for attempt in (1, 2):
+    attempts = get_settings().integrated_file_attempts
+    for attempt in range(1, attempts + 1):
         try:
             data = client.get(f.xbrl_url).content
         except httpx.HTTPStatusError as exc:
@@ -363,25 +365,24 @@ def _download_and_ingest(
         except IncompleteXbrl:
             return None  # the same file every time: no point fetching it again
         except etree.XMLSyntaxError:
-            if attempt == 2:
+            if attempt == attempts:
                 return None
     return None
 
 
-# The results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest day
-# on record: 692 filings, so 1000 covers a day of missed runs. A truncated page (fewer rows than
-# NSE's totalCount) makes the next run ask for double, up to MAX_PAGE_SIZE; a full one resets it.
-DEFAULT_PAGE_SIZE = 1000
-MAX_PAGE_SIZE = 4000
+# The results watcher reads NSE's latest-results list in ONE request per run (rule 1). A truncated
+# page (fewer rows than NSE's totalCount) makes the next run ask for double, up to
+# latest_max_page_size; a full one resets it. Sizes come from config.py.
 
 
 def next_page_size(last_summary: dict | None) -> int:
     """Page size for the next watcher run, from the last run's job-status summary."""
     last = (last_summary or {}).get("page_size")
+    s = get_settings()
     size = last if isinstance(last, int) and not isinstance(last, bool) and last > 0 else None
     if not (last_summary or {}).get("truncated"):
-        return DEFAULT_PAGE_SIZE
-    return min((size or DEFAULT_PAGE_SIZE) * 2, MAX_PAGE_SIZE)
+        return s.latest_page_size
+    return min((size or s.latest_page_size) * 2, s.latest_max_page_size)
 
 
 @dataclass
@@ -392,10 +393,10 @@ class LatestOutcome:
     missing: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)  # "url: error"; tried again next run
     stopped: str | None = None  # NSE refused or stalled: the rest waits for the next run
-    page_size: int = DEFAULT_PAGE_SIZE  # what we asked for
+    page_size: int = 0  # what we asked for (set from config.py by fetch_latest)
     total: int | None = None  # NSE's totalCount, when it gives one
     truncated: bool = False  # the page holds fewer rows than NSE has
-    capped: bool = False  # truncated even at MAX_PAGE_SIZE: only a bulk run can catch up
+    capped: bool = False  # truncated even at latest_max_page_size: only a bulk run can catch up
 
     @property
     def warning(self) -> str | None:
@@ -413,10 +414,12 @@ def is_truncated(returned: int, requested: int, total: int | None) -> bool:
 
 
 def fetch_latest(
-    session: Session, store: ObjectStore, client: PoliteClient, size: int = DEFAULT_PAGE_SIZE
+    session: Session, store: ObjectStore, client: PoliteClient, size: int | None = None
 ) -> LatestOutcome:
     """New results filings across all companies from ONE request to NSE's latest-results list
     (the integrated-filing lookup without a ticker), then the XBRL for each filing we lack."""
+    s = get_settings()
+    size = size or s.latest_page_size
     query = urlencode({"index": "equity", "type": FINANCIALS, "page": 1, "size": size})
     result = client.get(
         f"{LOOKUP_URL}?{query}", headers={"Accept": "application/json", "Referer": PAGE_URL}
@@ -434,7 +437,7 @@ def fetch_latest(
     }
     out = LatestOutcome(listed=len(listed), new=0, page_size=size, total=total)
     out.truncated = is_truncated(len(listed), size, total)
-    out.capped = out.truncated and size >= MAX_PAGE_SIZE
+    out.capped = out.truncated and size >= s.latest_max_page_size
     todo = [f for f in listed if f.xbrl_url and f.xbrl_url not in known]
     for f in select_filings(todo, set()):
         company = companies.get(f.symbol)

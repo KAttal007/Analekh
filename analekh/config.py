@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # address or a URL (seen 2026-10-14), so the contact never goes in the User-Agent.
     contact_email: str | None = None
     http_timeout_seconds: float = 30.0
+    # Tries per request (first try included) before the polite client gives up.
+    http_max_attempts: int = 4
+    # A listed XBRL file that arrives cut off is fetched this many times in all before it is
+    # skipped (seen on Laurus Labs: the XML stops partway through).
+    integrated_file_attempts: int = 2
+    # The results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest
+    # day on record: 692 filings, so 1000 covers a day of missed runs. A truncated page makes the
+    # next run ask for double, up to the cap; a full one resets it.
+    latest_page_size: int = 1000
+    latest_max_page_size: int = 4000
 
     import_dir: Path = Path("./import")
     # The id that pre-sign-in data (watchlist, templates) is keyed by; `analekh create-admin
