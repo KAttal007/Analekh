@@ -22,36 +22,81 @@ function Status({ u }: { u: AdminUserRow }) {
   return <Badge tone="ok">Active</Badge>;
 }
 
+type MailState = AdminUserRow["first_password_mail"];
+
+// The email goes after the reply (the mail server takes seconds): while any row is still
+// sending, the list is asked again this often until it says sent or failed.
+const MAIL_CHECK_MS = 1500;
+
+/** After a send: on its way, the email went, or it did not and the admin can try again. */
+function MailNote({ email, state, again }: { email: string; state: MailState; again: () => void }) {
+  if (state !== "failed")
+    return (
+      <p className="muted" role="status">
+        {state === "sent"
+          ? `A first password has been emailed to ${email}. It works for 24 hours.`
+          : `Emailing a first password to ${email}…`}
+      </p>
+    );
+  return (
+    <p className="error" role="alert">
+      The welcome email was not sent.{" "}
+      <button type="button" className="btn btn-sm" onClick={again}>
+        Send again
+      </button>
+    </p>
+  );
+}
+
 function AddUser({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("analyst");
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["users"] });
   const add = useMutation({
-    mutationFn: () =>
-      api.createUser({
-        name: name.trim(),
-        email: email.trim(),
-        role,
-        password: password || undefined,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["users"] });
-      onClose();
-    },
+    mutationFn: () => api.createUser({ name: name.trim(), email: email.trim(), role }),
+    onSuccess: refresh,
   });
+  const again = useMutation({
+    mutationFn: () => api.sendFirstPassword(add.data!.id),
+    onSuccess: refresh,
+  });
+  // How the email is going: the list (asked again while sending) knows best, then the replies.
+  const listed = useQuery({ queryKey: ["users"], queryFn: api.users, enabled: false }).data;
+  const state: MailState =
+    listed?.find((u) => u.id === add.data?.id)?.first_password_mail ??
+    again.data?.first_password_mail ??
+    add.data?.first_password_mail;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     add.mutate();
   };
+  if (add.data) {
+    return (
+      <aside className="admin-panel" role="dialog" aria-label="User added">
+        <h2>User added</h2>
+        <p>{add.data.name} can sign in once they have the first password.</p>
+        {again.isError && (
+          <p className="error" role="alert">
+            {again.error.message}
+          </p>
+        )}
+        <MailNote email={add.data.email} state={state} again={() => again.mutate()} />
+        <div className="admin-panel-actions">
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </aside>
+    );
+  }
   return (
     <aside className="admin-panel" role="dialog" aria-label="Add user">
       <form onSubmit={submit}>
         <h2>Add user</h2>
         <p className="muted">
-          They sign in with the email and the first password you set here, and can change it any
-          time with “Forgot password?”.
+          We email them a first password. They choose their own the first time they sign in.
         </p>
         {add.isError && (
           <p className="error" role="alert">
@@ -70,16 +115,6 @@ function AddUser({ onClose }: { onClose: () => void }) {
             onChange={(e) => setEmail(e.target.value)}
             maxLength={254}
             required
-          />
-        </label>
-        <label className="field">
-          First password
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            maxLength={128}
           />
         </label>
         <fieldset className="admin-roles">
@@ -110,49 +145,52 @@ function AddUser({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ResetPassword({ user, onClose }: { user: AdminUserRow; onClose: () => void }) {
-  const [password, setPassword] = useState("");
-  const reset = useMutation({
-    mutationFn: () => api.resetUserPassword(user.id, password),
-    onSuccess: onClose,
+// Waiting for the first sign-in: the welcome password goes again. Otherwise it is an admin reset.
+function sendLabel(u: AdminUserRow) {
+  return u.must_change_password ? "Send first password" : "Reset password";
+}
+
+function SendFirstPassword({ user, onClose }: { user: AdminUserRow; onClose: () => void }) {
+  const qc = useQueryClient();
+  const send = useMutation({
+    mutationFn: () => api.sendFirstPassword(user.id),
+    onSuccess: () => {
+      // The email goes after the reply; the row shows how it went.
+      void qc.invalidateQueries({ queryKey: ["users"] });
+      onClose();
+    },
   });
+  const label = sendLabel(user);
   return (
-    <aside className="admin-panel" role="dialog" aria-label="Reset password">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          reset.mutate();
-        }}
-      >
-        <h2>Reset password</h2>
-        <p className="muted">
-          Sets a new password for {user.name}, signs them out everywhere and clears any block.
+    <aside className="admin-panel" role="dialog" aria-label={label}>
+      <h2>
+        {user.must_change_password
+          ? `Send ${user.name} a new first password?`
+          : `Reset ${user.name}'s password?`}
+      </h2>
+      <p className="muted">
+        Their current password stops working, they are signed out everywhere and any block is
+        cleared. They get an email with a new first password and choose their own when they next
+        sign in.
+      </p>
+      {send.isError && (
+        <p className="error" role="alert">
+          {send.error.message}
         </p>
-        {reset.isError && (
-          <p className="error" role="alert">
-            {reset.error.message}
-          </p>
-        )}
-        <label className="field">
-          New password
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            maxLength={128}
-            required
-          />
-        </label>
-        <div className="admin-panel-actions">
-          <button type="button" className="btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={reset.isPending}>
-            Set password
-          </button>
-        </div>
-      </form>
+      )}
+      <div className="admin-panel-actions">
+        <button type="button" className="btn" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={send.isPending}
+          onClick={() => send.mutate()}
+        >
+          {label}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -160,10 +198,15 @@ function ResetPassword({ user, onClose }: { user: AdminUserRow; onClose: () => v
 export function Users() {
   const qc = useQueryClient();
   const me = useMe().data;
-  const users = useQuery({ queryKey: ["users"], queryFn: api.users });
+  const users = useQuery({
+    queryKey: ["users"],
+    queryFn: api.users,
+    refetchInterval: (q) =>
+      q.state.data?.some((u) => u.first_password_mail === "sending") ? MAIL_CHECK_MS : false,
+  });
   const [find, setFind] = useState("");
   const [adding, setAdding] = useState(false);
-  const [resetting, setResetting] = useState<AdminUserRow | null>(null);
+  const [sending, setSending] = useState<AdminUserRow | null>(null);
   const done = () => qc.invalidateQueries({ queryKey: ["users"] });
   const change = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UserChange }) => api.updateUser(id, body),
@@ -241,6 +284,13 @@ export function Users() {
                     <td className="muted">{u.last_seen_at ? filedAt(u.last_seen_at) : "Never"}</td>
                     <td>
                       <Status u={u} />
+                      {u.is_active && u.must_change_password && (
+                        <Badge tone="warn">Waiting for first sign-in</Badge>
+                      )}
+                      {u.first_password_mail === "sending" && <Badge>Emailing…</Badge>}
+                      {u.first_password_mail === "failed" && (
+                        <Badge tone="error">Email not sent</Badge>
+                      )}
                     </td>
                     <td>
                       <div className="admin-actions">
@@ -257,9 +307,9 @@ export function Users() {
                           <button
                             type="button"
                             className="btn btn-sm"
-                            onClick={() => setResetting(u)}
+                            onClick={() => setSending(u)}
                           >
-                            Reset password
+                            {sendLabel(u)}
                           </button>
                         )}
                         {u.is_active && u.id !== me?.id && (
@@ -296,7 +346,7 @@ export function Users() {
       )}
       <p className="muted admin-note">The last active admin cannot be disabled or demoted.</p>
       {adding && <AddUser onClose={() => setAdding(false)} />}
-      {resetting && <ResetPassword user={resetting} onClose={() => setResetting(null)} />}
+      {sending && <SendFirstPassword user={sending} onClose={() => setSending(null)} />}
     </div>
   );
 }

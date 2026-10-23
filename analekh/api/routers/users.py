@@ -1,15 +1,17 @@
 """User administration (admin only; plan task 6). Passwords and hashes never appear in a reply."""
 
 from datetime import UTC, datetime
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from analekh.api.deps import DB, AdminUser
-from analekh.auth import service
-from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD, PasswordTooLong, PasswordTooShort
+from analekh.api.deps import DB, AdminUser, SessionScope
+from analekh.auth import first_password, service
+from analekh.auth.passwords import MAX_EMAIL
 from analekh.auth.service import Role
+from analekh.config import get_settings
 from analekh.db.models import AuditEntry, User
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -30,13 +32,17 @@ class UserOut(BaseModel):
     paused_until: datetime | None = None
     # Latest activity in any session (to the minute); null when never signed in or purged.
     last_seen_at: datetime | None = None
+    # Still on the emailed first password: has not chosen their own yet.
+    must_change_password: bool = False
+    # The last first-password email: "sending" right after Add user or a reset (it goes after
+    # the reply), then "sent" or "failed"; null when none was ever sent.
+    first_password_mail: Literal["sending", "sent", "failed"] | None = None
 
 
 class UserIn(BaseModel):
     email: str = Field(max_length=MAX_EMAIL)
     name: str = Field(min_length=1, max_length=MAX_NAME)
     role: Role
-    password: str | None = Field(default=None, max_length=MAX_PASSWORD)
 
 
 class UserPatch(BaseModel):
@@ -45,8 +51,7 @@ class UserPatch(BaseModel):
     is_active: bool | None = None
 
 
-class PasswordIn(BaseModel):
-    new_password: str = Field(max_length=MAX_PASSWORD)
+NO_EMAIL = "Email is not set up. Contact the admin team."
 
 
 def _out(u: User, seen: dict[str, datetime] | None = None) -> UserOut:
@@ -62,6 +67,8 @@ def _out(u: User, seen: dict[str, datetime] | None = None) -> UserOut:
         created_at=u.created_at,
         paused_until=paused if paused is not None and paused > datetime.now(UTC) else None,
         last_seen_at=(seen or {}).get(u.id),
+        must_change_password=u.must_change_password,
+        first_password_mail=u.first_password_mail,  # type: ignore[arg-type]
     )
 
 
@@ -92,16 +99,22 @@ def list_users(db: DB, _: AdminUser) -> list[UserOut]:
 
 
 @router.post("", response_model=UserOut, status_code=201)
-def create(body: UserIn, db: DB, actor: AdminUser) -> UserOut:
+def create(
+    body: UserIn, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope
+) -> UserOut:
+    """Add a user. The server makes the first password and emails it after the reply (the mail
+    server takes seconds); `first_password_mail` tells how it went. The reply never carries the
+    password. Refused before anything is written when email is not set up."""
+    if not get_settings().smtp_url:
+        raise HTTPException(503, NO_EMAIL)
     try:
-        u = service.create_user(db, body.email, body.name, body.role, body.password)
-    except (PasswordTooShort, PasswordTooLong) as exc:
-        raise HTTPException(422, str(exc)) from exc
+        u, plain = service.create_user_with_first_password(db, body.email, body.name, body.role)
     except ValueError as exc:
         msg = str(exc)
         raise HTTPException(409 if "already exists" in msg else 422, msg) from exc
     _audit(db, actor, "user.create", target=u.id, role=u.role)
-    db.commit()
+    db.commit()  # the account exists whether or not the mail goes
+    background.add_task(first_password.deliver, scope, u.id, plain, first=True, actor_id=actor.id)
     return _out(u)
 
 
@@ -127,16 +140,25 @@ def update(user_id: str, body: UserPatch, db: DB, actor: AdminUser) -> UserOut:
     return _out(u)
 
 
-@router.post("/{user_id}/reset-password", status_code=204)
-def reset_password(user_id: str, body: PasswordIn, db: DB, actor: AdminUser) -> Response:
+@router.post("/{user_id}/send-first-password", response_model=UserOut, status_code=202)
+def send_first_password(
+    user_id: str, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope
+) -> UserOut:
+    """New first password for a user: ends their sessions, clears any pause or block, starts a
+    new expiry, and emails it after the reply. Used for "Send again" and for an admin reset."""
     u = _get(db, user_id)
-    try:
-        service.set_password(db, u, body.new_password)
-    except (PasswordTooShort, PasswordTooLong) as exc:
-        raise HTTPException(422, str(exc)) from exc
+    if u.auth_kind != "password":
+        raise HTTPException(400, "This account signs in with Microsoft and has no password.")
+    if not get_settings().smtp_url:  # nothing changes if the mail cannot go
+        raise HTTPException(503, NO_EMAIL)
+    # Still waiting for the first sign-in (flag on): the welcome wording. Someone who has already
+    # set their own password gets the "was reset" wording.
+    first = u.must_change_password
+    plain = first_password.issue(db, u)
     _audit(db, actor, "user.password_reset", target=u.id)
     db.commit()
-    return Response(status_code=204)
+    background.add_task(first_password.deliver, scope, u.id, plain, first=first, actor_id=actor.id)
+    return _out(u)
 
 
 @router.post("/{user_id}/unblock", status_code=204)

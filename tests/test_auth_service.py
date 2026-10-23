@@ -21,7 +21,7 @@ from analekh.config import get_settings
 from analekh.db.models import AuthSession, User
 
 T0 = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
-GOOD = "correct horse battery"
+GOOD = "Correct-Horse-Battery-9"
 
 
 def _pause() -> timedelta:
@@ -95,9 +95,9 @@ def test_fifth_failure_blocks_until_set_password(db):
         t += _pause() + timedelta(minutes=1)
     res = login(db, "kaushal@firm.in", GOOD, now=t)
     assert res.reason == "blocked" and not res.ok and res.token is None
-    set_password(db, user, "a brand new password")
+    set_password(db, user, "Brand-New-Password-7x")
     assert user.blocked is False and user.failed_count == 0 and user.paused_until is None
-    assert login(db, "kaushal@firm.in", "a brand new password", now=t).ok
+    assert login(db, "kaushal@firm.in", "Brand-New-Password-7x", now=t).ok
 
 
 def test_microsoft_account_blocked_cannot_password_login(db):
@@ -208,7 +208,7 @@ def test_logout_and_revoke_user_sessions(db):
 def test_set_password_revokes_sessions(db):
     user = _make(db)
     token = login(db, "kaushal@firm.in", GOOD, now=T0).token
-    set_password(db, user, "another password here")
+    set_password(db, user, "Another-Password-Here-3")
     assert user_for_token(db, token, now=T0) is None
 
 

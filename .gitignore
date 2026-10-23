@@ -55,3 +55,4 @@ graphify-out/
 .DS_Store
 .idea/
 .vscode/
+.superpowers/

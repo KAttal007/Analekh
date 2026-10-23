@@ -2,10 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import { ME_KEY, takeReturnPath, useMe } from "../lib/auth";
+import { NewPasswordField, usePasswordRules } from "../components/PasswordRules";
+import { ME_KEY, peekReturnPath, takeReturnPath, useMe } from "../lib/auth";
+import { prefetchHome } from "../lib/preload";
 import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
 
-type Mode = "signin" | "request" | "confirm";
+type Mode = "signin" | "request" | "confirm" | "first";
+
+// After sign-in, the longest the handoff waits for the home screen's data before it plays anyway.
+const HANDOFF_WAIT_MS = 800;
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -61,33 +66,74 @@ function WeekAhead() {
   );
 }
 
+function ConfirmField({
+  value,
+  onChange,
+  maxLength,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  maxLength: number | undefined;
+}) {
+  return (
+    <label className="field">
+      Confirm new password
+      <input
+        type="password"
+        name="confirm-password"
+        autoComplete="new-password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLength}
+        required
+      />
+    </label>
+  );
+}
+
 /** Sign-in, and the emailed-code password reset behind "Forgot password?". The password and the
  * code only ever leave in a POST body: nothing here puts them in an address, a title or storage. */
 export function Login() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const me = useMe();
-  const [mode, setMode] = useState<Mode>("signin");
+  const [chosen, setMode] = useState<Mode>("signin");
+  // A session that still holds the emailed first password can do nothing but choose a new one.
+  const mode: Mode = me.data?.must_change_password ? "first" : chosen;
+  const { maxLength, ready } = usePasswordRules();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { left, start: startWait } = useCountdown();
   const waiting = left > 0;
 
-  // Signed in (just now, or already): go to the page that was asked for.
+  // Signed in (just now, or already): go to the page that was asked for. The home screen's data
+  // is loaded first (waiting at most HANDOFF_WAIT_MS), so it does not fill in and change size
+  // during the short unlock animation.
   useEffect(() => {
-    if (!me.data) return;
-    // The same unlock animation as the welcome gesture: the mark flies to the sidebar.
-    markWelcomed();
-    tagTransition("welcome");
-    navigate(takeReturnPath(), { replace: true, viewTransition: true });
-  }, [me.data, navigate]);
+    if (!me.data || me.data.must_change_password) return;
+    let gone = false;
+    const ready = peekReturnPath() === "/" ? prefetchHome(client) : Promise.resolve();
+    const wait = new Promise((r) => window.setTimeout(r, HANDOFF_WAIT_MS));
+    void Promise.race([ready, wait]).then(() => {
+      if (gone) return;
+      markWelcomed();
+      tagTransition("enter"); // the mark flies to the sidebar, the desk settles in
+      navigate(takeReturnPath(), { replace: true, viewTransition: true });
+    });
+    return () => {
+      gone = true;
+    };
+  }, [me.data, navigate, client]);
 
   const go = (next: Mode, message: string | null = null) => {
     setMode(next);
+    setNewPassword("");
+    setAgain("");
     setError(null);
     setNotice(message);
   };
@@ -125,14 +171,31 @@ export function Login() {
     onError: fail,
   });
 
+  const setFirst = useMutation({
+    mutationFn: () => api.firstPassword(password, newPassword),
+    onSuccess: () => {
+      // The server ended every session: nothing is signed in until the new password is used.
+      setPassword("");
+      client.setQueryData(ME_KEY, null);
+      go("signin", "Password set. Sign in with your new password.");
+    },
+    onError: fail,
+  });
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if ((mode === "confirm" || mode === "first") && newPassword !== again) {
+      setError("The two passwords do not match.");
+      return;
+    }
     if (mode === "signin") signIn.mutate();
     else if (mode === "request") askCode.mutate();
-    else setNew.mutate();
+    else if (mode === "confirm") setNew.mutate();
+    else setFirst.mutate();
   };
-  const busy = signIn.isPending || askCode.isPending || setNew.isPending;
+  const busy = signIn.isPending || askCode.isPending || setNew.isPending || setFirst.isPending;
+  const needsRules = mode === "confirm" || mode === "first";
 
   return (
     <div className="login-screen">
@@ -160,7 +223,9 @@ export function Login() {
               ? "Sign in"
               : mode === "request"
                 ? "Reset your password"
-                : "Enter your code"}
+                : mode === "confirm"
+                  ? "Enter your code"
+                  : "Choose your password"}
           </h1>
           {notice && <p className="login-notice">{notice}</p>}
           {error && (
@@ -169,18 +234,20 @@ export function Login() {
             </p>
           )}
 
-          <label className="field">
-            Email
-            <input
-              type="email"
-              name="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              maxLength={254}
-              required
-            />
-          </label>
+          {mode !== "first" && (
+            <label className="field">
+              Email
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={254}
+                required
+              />
+            </label>
+          )}
 
           {mode === "signin" && (
             <label className="field">
@@ -191,10 +258,29 @@ export function Login() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                maxLength={128}
+                maxLength={maxLength}
                 required
               />
             </label>
+          )}
+
+          {mode === "first" && (
+            <>
+              <label className="field">
+                First password
+                <input
+                  type="password"
+                  name="first-password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  maxLength={maxLength}
+                  required
+                />
+              </label>
+              <NewPasswordField value={newPassword} onChange={setNewPassword} />
+              <ConfirmField value={again} onChange={setAgain} maxLength={maxLength} />
+            </>
           )}
 
           {mode === "confirm" && (
@@ -211,29 +297,25 @@ export function Login() {
                   required
                 />
               </label>
-              <label className="field">
-                New password
-                <input
-                  type="password"
-                  name="new-password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  maxLength={128}
-                  required
-                />
-              </label>
+              <NewPasswordField value={newPassword} onChange={setNewPassword} />
+              <ConfirmField value={again} onChange={setAgain} maxLength={maxLength} />
             </>
           )}
 
-          <button type="submit" className="btn btn-primary" disabled={busy || waiting}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || waiting || (needsRules && !ready)}
+          >
             {waiting
               ? `Try again in ${clock(left)}`
               : mode === "signin"
                 ? "Sign in"
                 : mode === "request"
                   ? "Send code"
-                  : "Set new password"}
+                  : mode === "confirm"
+                    ? "Set new password"
+                    : "Set password"}
           </button>
 
           {mode === "signin" ? (
@@ -245,6 +327,24 @@ export function Login() {
                 Forgot password?
               </button>
             </>
+          ) : mode === "first" ? (
+            <button
+              type="button"
+              className="login-link"
+              onClick={() => {
+                setPassword("");
+                // A session this limited holds nothing else, so only who-is-signed-in is reset.
+                void api
+                  .logout()
+                  .catch(() => undefined)
+                  .then(() => {
+                    client.setQueryData(ME_KEY, null);
+                    go("signin");
+                  });
+              }}
+            >
+              Sign out
+            </button>
           ) : (
             <>
               {mode === "confirm" && (

@@ -948,7 +948,12 @@ export interface paths {
     /** List Users */
     get: operations["list_users_users_get"];
     put?: never;
-    /** Create */
+    /**
+     * Create
+     * @description Add a user. The server makes the first password and emails it after the reply (the mail
+     *     server takes seconds); `first_password_mail` tells how it went. The reply never carries the
+     *     password. Refused before anything is written when email is not set up.
+     */
     post: operations["create_users_post"];
     delete?: never;
     options?: never;
@@ -973,7 +978,7 @@ export interface paths {
     patch: operations["update_users__user_id__patch"];
     trace?: never;
   };
-  "/users/{user_id}/reset-password": {
+  "/users/{user_id}/send-first-password": {
     parameters: {
       query?: never;
       header?: never;
@@ -982,8 +987,12 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Reset Password */
-    post: operations["reset_password_users__user_id__reset_password_post"];
+    /**
+     * Send First Password
+     * @description New first password for a user: ends their sessions, clears any pause or block, starts a
+     *     new expiry, and emails it after the reply. Used for "Send again" and for an admin reset.
+     */
+    post: operations["send_first_password_users__user_id__send_first_password_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1095,6 +1104,47 @@ export interface paths {
     get: operations["me_auth_me_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/password-rules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Password Rules Route
+     * @description The rules the web app shows and checks as the person types. Public; holds no secrets.
+     */
+    get: operations["password_rules_route_auth_password_rules_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/first-password": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * First Password
+     * @description Choose your own password in place of the emailed one. Committed after a wrong first
+     *     password too, so the failure count persists.
+     */
+    post: operations["first_password_auth_first_password_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1735,6 +1785,13 @@ export interface components {
       };
       revision?: components["schemas"]["RevisionOut"] | null;
     };
+    /** FirstPasswordIn */
+    FirstPasswordIn: {
+      /** Current Password */
+      current_password: string;
+      /** New Password */
+      new_password: string;
+    };
     /** GlanceLineOut */
     GlanceLineOut: {
       /** Key */
@@ -1912,6 +1969,11 @@ export interface components {
        * @enum {string}
        */
       role: "admin" | "analyst";
+      /**
+       * Must Change Password
+       * @default false
+       */
+      must_change_password: boolean;
     };
     /** ModelOut */
     ModelOut: {
@@ -1934,11 +1996,6 @@ export interface components {
       file_path: string | null;
       /** Last Seen */
       last_seen: string | null;
-    };
-    /** PasswordIn */
-    PasswordIn: {
-      /** New Password */
-      new_password: string;
     };
     /** PeerListIn */
     PeerListIn: {
@@ -2323,8 +2380,6 @@ export interface components {
        * @enum {string}
        */
       role: "admin" | "analyst";
-      /** Password */
-      password?: string | null;
     };
     /** UserOut */
     UserOut: {
@@ -2351,6 +2406,13 @@ export interface components {
       paused_until?: string | null;
       /** Last Seen At */
       last_seen_at?: string | null;
+      /**
+       * Must Change Password
+       * @default false
+       */
+      must_change_password: boolean;
+      /** First Password Mail */
+      first_password_mail?: ("sending" | "sent" | "failed") | null;
     };
     /** UserPatch */
     UserPatch: {
@@ -4289,7 +4351,7 @@ export interface operations {
       };
     };
   };
-  reset_password_users__user_id__reset_password_post: {
+  send_first_password_users__user_id__send_first_password_post: {
     parameters: {
       query?: never;
       header?: never;
@@ -4298,18 +4360,16 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["PasswordIn"];
-      };
-    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
-      204: {
+      202: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["UserOut"];
+        };
       };
       /** @description Validation Error */
       422: {
@@ -4489,6 +4549,57 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MeOut"];
+        };
+      };
+    };
+  };
+  password_rules_route_auth_password_rules_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  first_password_auth_first_password_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FirstPasswordIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

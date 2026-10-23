@@ -24,6 +24,14 @@ export type PublicCalendar = Schemas["PublicCalendarOut"];
 // Administration
 export type AdminUserRow = Schemas["UserOut"];
 export type NewUser = Schemas["UserIn"];
+// GET /auth/password-rules is a plain JSON reply (no OpenAPI model), so its shape is written here.
+export type PasswordRule = { id: string; label: string; pattern: string };
+export type PasswordRules = {
+  rules: PasswordRule[];
+  combined: string;
+  max_length: number;
+  min_length: number;
+};
 export type UserChange = Schemas["UserPatch"];
 export type UploadLimit = Schemas["UploadLimitOut"];
 export type ApiToken = Schemas["TokenOut"];
@@ -103,7 +111,10 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       /* not JSON */
     }
-    if (res.status === 401 && path !== "/auth/login") signedOutHandler?.();
+    // Sign-in and the first-password step answer 401 for a wrong password: that is not a lost session.
+    if (res.status === 401 && path !== "/auth/login" && path !== "/auth/first-password") {
+      signedOutHandler?.();
+    }
     const wait = Number(res.headers.get("Retry-After"));
     // FastAPI's bare "Not Found" means the route doesn't exist: the API process is older than
     // this page. Analekh's own 404s always say what is missing ("peer list not found").
@@ -154,12 +165,14 @@ export const api = {
   requestReset: (email: string) => post<{ detail: string }>("/auth/reset/request", { email }),
   confirmReset: (email: string, code: string, newPassword: string) =>
     post<void>("/auth/reset/confirm", { email, code, new_password: newPassword }),
+  passwordRules: () => call<PasswordRules>("/auth/password-rules"),
+  firstPassword: (current: string, next: string) =>
+    post<void>("/auth/first-password", { current_password: current, new_password: next }),
   // Administration (admins only; the server answers 403 to anyone else)
   users: () => call<AdminUserRow[]>("/users"),
   createUser: (body: NewUser) => post<AdminUserRow>("/users", body),
   updateUser: (id: string, body: UserChange) => patch<AdminUserRow>(`/users/${id}`, body),
-  resetUserPassword: (id: string, newPassword: string) =>
-    post<void>(`/users/${id}/reset-password`, { new_password: newPassword }),
+  sendFirstPassword: (id: string) => post<AdminUserRow>(`/users/${id}/send-first-password`),
   unblockUser: (id: string) => post<void>(`/users/${id}/unblock`),
   uploadLimit: () => call<UploadLimit>("/settings/upload-limit"),
   setUploadLimit: (bytes: number) => put<UploadLimit>("/settings/upload-limit", { bytes }),

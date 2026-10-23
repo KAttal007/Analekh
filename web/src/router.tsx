@@ -1,10 +1,11 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useLocation, type RouteObject } from "react-router-dom";
 import { AdminLayout } from "./AdminLayout";
 import { Layout } from "./Layout";
 import { RequireSignIn } from "./components/RequireSignIn";
 import { Loading } from "./components/ui";
 import { loadCompanyPage } from "./lib/preload";
+import { useMe } from "./lib/auth";
 import { hasWelcomed } from "./lib/welcome";
 import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
@@ -34,24 +35,31 @@ const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.R
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
-// Opening Analekh at its home page greets the visitor first, once per browser session. A link to
-// anything else (a company, a change set) goes straight there.
-function Home() {
-  return hasWelcomed() ? <SearchPage /> : <Navigate to="/welcome" replace />;
+// Opening Analekh at its home address lands on the welcome page first, unless a session is
+// already live (a new tab, or a reload after a quiet spell): then it opens the Results desk
+// directly. Signed out, the welcome page comes first (checked before sign-in, so the visitor is
+// not sent straight to /login). A link to anything else (a company, a change set) goes straight
+// there.
+function Landing() {
+  const { pathname } = useLocation();
+  const me = useMe();
+  if (pathname === "/" && me.isPending) return <Loading />;
+  if (pathname === "/" && !me.data && !hasWelcomed()) return <Navigate to="/welcome" replace />;
+  return <RequireSignIn />;
 }
 
 // Screens from design doc 19.1. Reports and Q&A land in Phase 4.
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   { path: "/welcome", element: <Welcome /> },
   { path: "/login", element: <Login /> },
   {
     path: "/",
-    element: <RequireSignIn />,
+    element: <Landing />,
     children: [
       {
         element: <Layout />,
         children: [
-          { index: true, element: <Home /> },
+          { index: true, element: <SearchPage /> },
           { path: "watchlist", element: page(<Watchlist />) },
           { path: "companies/:symbol", element: page(<CompanyPage />) },
           { path: "change-sets/:id", element: page(<ChangeSetReview />) },
@@ -76,4 +84,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);

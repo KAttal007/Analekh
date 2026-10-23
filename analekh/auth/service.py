@@ -15,7 +15,12 @@ from typing import Literal, NamedTuple, cast
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from analekh.auth.passwords import hash_password, normalize_email, verify_password
+from analekh.auth.passwords import (
+    hash_password,
+    normalize_email,
+    validate_new_password,
+    verify_password,
+)
 from analekh.config import get_settings
 from analekh.db.models import AuthSession, User
 
@@ -30,7 +35,7 @@ def role_of(user: User) -> Role:
 
 LAST_SEEN_WRITE_EVERY = timedelta(minutes=1)
 
-Reason = Literal["ok", "bad_credentials", "paused", "blocked"]
+Reason = Literal["ok", "bad_credentials", "paused", "blocked", "first_password_expired"]
 
 
 class LoginResult(NamedTuple):
@@ -39,6 +44,7 @@ class LoginResult(NamedTuple):
     user: User | None
     reason: Reason
     retry_after_seconds: int | None
+    must_change_password: bool = False
 
 
 _BAD = LoginResult(False, None, None, "bad_credentials", None)
@@ -54,6 +60,18 @@ def _hash_token(token: str) -> str:
 
 def _by_email(db: Session, email: str) -> User | None:
     return db.scalar(select(User).where(User.email == email))
+
+
+def _count_failure(db: Session, user: User, now: datetime) -> None:
+    """One wrong password: count it, pause at the Nth, block at the Mth (one pause; the block
+    still comes later)."""
+    cfg = get_settings()
+    user.failed_count += 1
+    if user.failed_count >= cfg.login_block_after:
+        user.blocked = True
+    elif user.failed_count == cfg.login_pause_after:
+        user.paused_until = now + timedelta(minutes=cfg.login_pause_minutes)
+    db.flush()
 
 
 def login(db: Session, email: str, password: str, now: datetime | None = None) -> LoginResult:
@@ -80,15 +98,18 @@ def login(db: Session, email: str, password: str, now: datetime | None = None) -
         wait = math.ceil((user.paused_until - now).total_seconds())
         return LoginResult(False, None, None, "paused", wait)
     if not verify_password(password, user.password_hash):
-        user.failed_count += 1
-        if user.failed_count >= cfg.login_block_after:
-            user.blocked = True
-        elif user.failed_count == cfg.login_pause_after:  # one pause; the block still comes later
-            user.paused_until = now + timedelta(minutes=cfg.login_pause_minutes)
-        db.flush()
+        _count_failure(db, user, now)
         return _BAD
     user.failed_count = 0
     user.paused_until = None
+    # Only someone holding the right password gets to see this, so it is safe to say.
+    if (
+        user.must_change_password
+        and user.first_password_expires_at is not None
+        and user.first_password_expires_at < now
+    ):
+        db.flush()
+        return LoginResult(False, None, None, "first_password_expired", None)
     # Housekeeping: drop this user's sessions that can no longer be used.
     db.execute(
         delete(AuthSession).where(
@@ -104,7 +125,7 @@ def login(db: Session, email: str, password: str, now: datetime | None = None) -
         )
     )
     db.flush()
-    return LoginResult(True, token, user, "ok", None)
+    return LoginResult(True, token, user, "ok", None, user.must_change_password)
 
 
 def user_for_token(db: Session, token: str, now: datetime | None = None) -> User | None:
@@ -168,7 +189,7 @@ def create_user(
     email: str,
     name: str,
     role: str,
-    password: str | None,
+    password: str | None = None,
     auth_kind: str = "password",
 ) -> User:
     key = normalize_email(email)
@@ -178,6 +199,8 @@ def create_user(
         raise ValueError("unknown auth kind")
     if _by_email(db, key) is not None:
         raise ValueError("a user with this email already exists")
+    if password:
+        validate_new_password(password)  # PasswordRuleError is a ValueError
     user = User(
         id=uuid.uuid4().hex,
         email=key,
@@ -191,10 +214,55 @@ def create_user(
     return user
 
 
+def create_user_with_first_password(
+    db: Session, email: str, name: str, role: str
+) -> tuple[User, str]:
+    """A password user with a generated first password (flag set, expiry set). Returns the user
+    and the plain password; the caller commits, then emails it with `first_password.send`
+    or `first_password.deliver`."""
+    from analekh.auth import first_password  # imported here: first_password imports this module
+
+    user = create_user(db, email, name, role)
+    return user, first_password.issue(db, user)
+
+
 def set_password(db: Session, user: User, plain: str) -> None:
+    """The person's own choice (or an emailed-code reset): checked against the rules, clears the
+    first-password flag, ends every session."""
+    validate_new_password(plain)
     user.password_hash = hash_password(plain)
+    user.must_change_password = False
+    user.first_password_expires_at = None
     user.blocked = False
     user.failed_count = 0
     user.paused_until = None
     revoke_user_sessions(db, user.id)
     db.flush()
+
+
+FirstChange = Literal["ok", "wrong_current", "same_as_first", "expired", "not_pending"]
+
+
+def change_first_password(
+    db: Session, user: User, current: str, new: str, now: datetime | None = None
+) -> FirstChange:
+    """The forced change. The new password must meet the rules (PasswordRuleError, raised before
+    anything is hashed or counted). The current one must be the first password: a wrong one counts
+    as a failed sign-in, and the block ends the session. The new one must differ from it."""
+    now = _now(now)
+    validate_new_password(new)
+    user = db.scalar(select(User).where(User.id == user.id).with_for_update()) or user
+    if not user.must_change_password:
+        return "not_pending"
+    if not verify_password(current, user.password_hash):
+        _count_failure(db, user, now)
+        if user.blocked:
+            revoke_user_sessions(db, user.id)
+        return "wrong_current"
+    user.failed_count = 0
+    if user.first_password_expires_at is not None and user.first_password_expires_at < now:
+        return "expired"
+    if new == current:
+        return "same_as_first"
+    set_password(db, user, new)  # clears the flag and expiry, ends every session
+    return "ok"

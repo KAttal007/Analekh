@@ -1,7 +1,8 @@
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
+import { RequireSignIn } from "./components/RequireSignIn";
 import { Layout } from "./Layout";
 import { ADMIN, ANALYST, mockApi, renderAt } from "./test-utils";
 
@@ -79,4 +80,43 @@ test("the sidebar Sign out button is hidden when sign-in is off, shown when on",
   });
   renderAt(app, "/");
   await screen.findByRole("button", { name: "Sign out" });
+});
+
+test("Sign out shows the sign-in page at once, with no other click", async () => {
+  let signedIn = true;
+  mockApi({
+    "GET /api/auth/me": () => (signedIn ? { status: 200, body: ANALYST } : { status: 401 }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+    "POST /api/auth/logout": () => {
+      signedIn = false;
+      return { status: 204 };
+    },
+  });
+  renderAt(
+    <Routes>
+      <Route path="/login" element={<p>sign-in page</p>} />
+      <Route element={<RequireSignIn />}>
+        <Route element={<Layout />}>
+          <Route path="*" element={<p>the desk</p>} />
+        </Route>
+      </Route>
+    </Routes>,
+    "/",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await screen.findByText("sign-in page");
+});
+
+test("the admin sidebar has Sign out too", async () => {
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ADMIN }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+  });
+  renderAt(app, "/admin/users");
+  await screen.findByText("users page");
+  expect(
+    within(screen.getByRole("navigation", { name: "Account" })).getByRole("button", {
+      name: "Sign out",
+    }),
+  ).toBeTruthy();
 });

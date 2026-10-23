@@ -85,6 +85,8 @@ export function Welcome() {
     let distance = 0;
     let idle = 0;
     let touchY: number | null = null;
+    let dragY: number | null = null; // a mouse held down and dragged, like a swipe
+    let dragged = false;
     let frame = 0;
 
     // Rubber band: the page moves freely at first and stiffens towards the end.
@@ -123,8 +125,31 @@ export function Welcome() {
       touchY = null;
       release();
     };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      dragY = e.clientY;
+      dragged = false;
+    };
+    const onDrag = (e: PointerEvent) => {
+      if (dragY === null) return;
+      if (Math.abs(dragY - e.clientY) > 5) dragged = true;
+      distance = (dragY - e.clientY) * 1.4;
+      follow();
+    };
+    const onUp = () => {
+      if (dragY === null) return;
+      dragY = null;
+      if (dragged) release();
+    };
+    // A drag decides on its own (opens past the threshold, springs back otherwise): the click
+    // that ends it must not open the app as a tap would.
+    const onClickCapture = (e: MouseEvent) => {
+      if (!dragged) return;
+      dragged = false;
+      e.stopPropagation();
+    };
     const onKey = (e: KeyboardEvent) => {
-      if (["ArrowDown", "PageDown", " "].includes(e.key)) {
+      if (["Enter", "ArrowDown", "PageDown", " "].includes(e.key)) {
         e.preventDefault();
         open();
       }
@@ -141,6 +166,10 @@ export function Welcome() {
     el.addEventListener("touchmove", onTouchMove, { passive: true });
     el.addEventListener("touchend", onTouchEnd);
     el.addEventListener("pointermove", onPointer);
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onDrag);
+    window.addEventListener("pointerup", onUp);
+    el.addEventListener("click", onClickCapture, true);
     window.addEventListener("keydown", onKey);
     return () => {
       el.removeEventListener("wheel", onWheel);
@@ -148,6 +177,10 @@ export function Welcome() {
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("pointermove", onPointer);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onDrag);
+      window.removeEventListener("pointerup", onUp);
+      el.removeEventListener("click", onClickCapture, true);
       window.removeEventListener("keydown", onKey);
       window.clearTimeout(idle);
       cancelAnimationFrame(frame);
@@ -198,7 +231,7 @@ export function Welcome() {
 
       <div className="welcome-hint" aria-hidden>
         <span className="welcome-chevron" />
-        Scroll, swipe up or tap to enter
+        Scroll, drag up or press Enter
       </div>
       <p className="welcome-foot">End-of-day data from NSE filings. No ratings or target prices.</p>
     </div>

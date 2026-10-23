@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     auth_enabled: bool | None = None
     session_idle_hours: int = 9
     password_min_length: int = 15
+    # Password rules (first-password design, section 5). The max also caps sign-in and every
+    # password input; the web app reads it from GET /auth/password-rules.
+    password_max_length: int = 30
+    password_min_letters: int = 8
+    password_min_digits: int = 1
+    password_min_specials: int = 1
+    password_min_upper: int = 1
+    password_min_lower: int = 1
+    first_password_hours: int = 24
+    first_password_length: int = 20
     session_max_hours: int = 24  # hard cap from sign-in, however active (a fresh sign-in each day)
     # Failed sign-ins per account: pause at the Nth, block (until a password reset) at the Mth.
     login_pause_after: int = 3
@@ -90,7 +100,7 @@ class Settings(BaseSettings):
     # The built-in admin used while AUTH_ENABLED=false (development only; it has no password).
     dev_user_email: str = "dev@analekh.local"
     dev_user_name: str = "Local development"
-    reset_code_minutes: int = 10
+    reset_code_minutes: int = 2
     reset_max_attempts: int = 5
     # One reset mail per account per cooldown: time for it to arrive and the code to be typed.
     reset_request_cooldown_seconds: int = 120
@@ -122,6 +132,8 @@ class Settings(BaseSettings):
     # Sender of reset mail; empty means the user name in SMTP_URL.
     smtp_from: str = ""
     alert_email_to: str = ""
+    # Bare sign-in address for the welcome email (no scheme); empty means the mail names none.
+    web_app_url: str = ""
 
     # Excel bridge (runs on the analyst's machine)
     analekh_api: str = "http://127.0.0.1:8000"
@@ -129,6 +141,18 @@ class Settings(BaseSettings):
     watch_folders: str = "~/Models"
     save_mode: str = "versioned"  # versioned | in_place (with automatic backup)
     excel_bridge_port: int = 8765
+
+    def check_password_settings(self) -> None:
+        """Refuse rule settings no password can meet."""
+        needed = self.password_min_letters + self.password_min_digits + self.password_min_specials
+        if needed > self.password_max_length:
+            raise ValueError("password rules need more characters than password_max_length allows")
+        if self.password_min_length > self.password_max_length:
+            raise ValueError("password_min_length is above password_max_length")
+        if not self.password_min_length <= self.first_password_length <= self.password_max_length:
+            raise ValueError("first_password_length must sit between the password min and max")
+        if self.password_min_upper + self.password_min_lower > self.password_min_letters:
+            raise ValueError("upper plus lower minimums exceed password_min_letters")
 
     @property
     def sign_in_on(self) -> bool:
@@ -146,4 +170,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    settings.check_password_settings()
+    return settings

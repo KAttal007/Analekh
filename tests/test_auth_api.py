@@ -16,7 +16,7 @@ from analekh.db.session import get_session
 from analekh.universe.loader import parse_equity_list, upsert_universe
 from tests.test_universe import EQUITY_L
 
-GOOD = "correct horse battery"
+GOOD = "Correct-Horse-Battery-9"
 CSRF = {"X-Analekh-CSRF": "1"}
 WRONG = "Email or password is incorrect."
 
@@ -46,6 +46,7 @@ def test_login_sets_httponly_samesite_strict_cookie(raw, user):
         "name": "Kaushal",
         "email": "kaushal@firm.in",
         "role": "analyst",
+        "must_change_password": False,
     }
     cookie = res.headers["set-cookie"].lower()
     assert "analekh_session=" in cookie
@@ -167,7 +168,16 @@ def test_admin_only_dependency_refuses_analyst(raw, user, db):
         ]
 
 
-_OPEN = ("/auth/login", "/auth/reset/", "/public/", "/docs", "/redoc", "/openapi.json", "/health")
+_OPEN = (
+    "/auth/login",
+    "/auth/reset/",
+    "/auth/password-rules",
+    "/public/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/health",
+)
 
 
 def test_every_non_public_route_requires_session(raw):
@@ -253,10 +263,10 @@ def test_access_log_has_no_secrets(raw, db, caplog):
 
 
 def test_form_limits_match_the_service_limits(raw, user):
-    from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD
+    from analekh.auth.passwords import MAX_EMAIL
 
     # one past the limit is refused at the door, without reaching the service
-    assert _login(raw, password="x" * (MAX_PASSWORD + 1)).status_code == 422
+    assert _login(raw, password="x" * (get_settings().password_max_length + 1)).status_code == 422
     assert _login(raw, email="a" * (MAX_EMAIL + 1)).status_code == 422
     # at the limit it is an ordinary wrong password
-    assert _login(raw, password="x" * MAX_PASSWORD).status_code == 401
+    assert _login(raw, password="x" * get_settings().password_max_length).status_code == 401

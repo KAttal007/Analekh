@@ -292,6 +292,23 @@ kbd {
 :root[data-vt="welcome"]::view-transition-new(content) {
   animation: unlock-in 720ms var(--spring) 220ms both;
 }
+/* Sign-in into the desk (Login.tsx, data-vt="enter"): the same unlock, about a third as long, so
+   a signed-in analyst is not kept waiting. The desk's data is loaded before it plays. */
+:root[data-vt="enter"]::view-transition-group(brand-mark) {
+  animation-duration: 340ms;
+}
+:root[data-vt="enter"]::view-transition-old(root) {
+  animation: unlock-out 220ms var(--ease-out) both;
+}
+:root[data-vt="enter"]::view-transition-new(root) {
+  animation: none;
+}
+:root[data-vt="enter"]::view-transition-new(sidebar) {
+  animation: vt-sidebar-in 300ms var(--spring) 40ms both;
+}
+:root[data-vt="enter"]::view-transition-new(content) {
+  animation: unlock-in 320ms var(--spring) 40ms both;
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
@@ -540,6 +557,10 @@ kbd {
 @media (min-width: 1500px) {
   .content {
     max-width: 1840px;
+  }
+  /* A collapsed sidebar gives its width to the page instead of leaving it empty on the right. */
+  .app.collapsed .content {
+    max-width: calc(1840px + var(--sidebar-w) - var(--sidebar-w-collapsed));
   }
 }
 
@@ -1449,9 +1470,13 @@ table.glance tbody tr:last-child > * {
   color: var(--text);
   font-weight: 600;
 }
+/* The filters stay one row and never shrink: when they don't fit beside the title, the whole row
+   moves below it (the header wraps), instead of breaking into two rows that push the title down.
+   Phones stack them (max-width: 640px, below). */
 .desk-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--s2);
 }
@@ -1710,6 +1735,9 @@ table.glance tbody tr:last-child > * {
   .desk-filters select {
     width: 100%;
     max-width: none;
+  }
+  .desk-filters {
+    flex-wrap: wrap; /* one filter per line on a phone */
   }
   .desk-main .card-header {
     flex-wrap: wrap;
@@ -3744,8 +3772,19 @@ table.glance tbody tr:last-child > * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.collapsed .signed-in-name {
+.sign-out {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Collapsed: the icon alone, centred like the nav icons above it. */
+.collapsed .signed-in-name,
+.collapsed .sign-out-label {
   display: none;
+}
+.collapsed .signed-in {
+  justify-content: center;
+  padding-inline: 0;
 }
 
 /* ---------- Admin area ---------- */
@@ -3946,4 +3985,21 @@ table.glance tbody tr:last-child > * {
   display: flex;
   gap: var(--s2);
   margin-top: var(--s2);
+}
+
+/* The live password rules under a new-password box */
+.password-rules {
+  margin: calc(var(--s2) * -1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.password-rules .rule-met {
+  color: var(--text-2);
+}
+.password-rules .rule-met > span:first-child {
+  color: var(--accent);
 }

@@ -11,7 +11,14 @@ from pydantic import BaseModel, Field
 from analekh.api.deps import DB, SESSION_COOKIE, CurrentUser
 from analekh.auth import ip_limit, reset, service
 from analekh.auth import tokens as api_tokens
-from analekh.auth.passwords import MAX_EMAIL, MAX_PASSWORD, PasswordTooLong, PasswordTooShort
+from analekh.auth.passwords import (
+    MAX_EMAIL,
+    PasswordRuleError,
+    check_password_rules,
+    combined_pattern,
+    password_rules,
+    validate_new_password,
+)
 from analekh.config import get_settings
 from analekh.db.models import AuditEntry
 
@@ -20,11 +27,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # The sign-in page must not be cached or leak its address in a Referer header.
 NO_STORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 BAD_CREDENTIALS = "Email or password is incorrect."
+FIRST_EXPIRED = "This first password has expired. Ask an admin to send a new one."
+# A cap on every password field so a huge body is refused on arrival. The rules' own maximum is
+# checked in the route (before any hashing) so every route gives the same message for it.
+FIELD_CAP = 128
 
 
 class LoginIn(BaseModel):
     email: str = Field(max_length=MAX_EMAIL)
-    password: str = Field(max_length=MAX_PASSWORD)
+    password: str = Field(max_length=get_settings().password_max_length)
 
 
 class MeOut(BaseModel):
@@ -32,6 +43,7 @@ class MeOut(BaseModel):
     name: str
     email: str
     role: service.Role
+    must_change_password: bool = False
 
 
 def _cookie_secure() -> bool:
@@ -65,6 +77,8 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
             status_code=429,
             headers=headers,
         )
+    if result.reason == "first_password_expired":  # only the holder of the right password sees it
+        return JSONResponse({"detail": FIRST_EXPIRED}, status_code=401, headers=NO_STORE)
     if result.reason == "blocked":
         return JSONResponse(
             {"detail": "Reset your password to continue.", "blocked": True},
@@ -84,7 +98,13 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
         path="/",
     )
     u = result.user
-    return MeOut(id=u.id, name=u.name, email=u.email, role=service.role_of(u))
+    return MeOut(
+        id=u.id,
+        name=u.name,
+        email=u.email,
+        role=service.role_of(u),
+        must_change_password=bool(result.must_change_password),
+    )
 
 
 def _signed_out() -> Response:
@@ -118,8 +138,69 @@ def logout_everywhere(db: DB, current: CurrentUser) -> Response:
 @router.get("/me", response_model=MeOut)
 def me(current: CurrentUser) -> MeOut:
     return MeOut(
-        id=current.id, name=current.name, email=current.email, role=service.role_of(current)
+        id=current.id,
+        name=current.name,
+        email=current.email,
+        role=service.role_of(current),
+        must_change_password=bool(current.must_change_password),
     )
+
+
+@router.get("/password-rules")
+def password_rules_route() -> JSONResponse:
+    """The rules the web app shows and checks as the person types. Public; holds no secrets."""
+    cfg = get_settings()
+    return JSONResponse(
+        {
+            "rules": password_rules(),
+            "combined": combined_pattern(),
+            "max_length": cfg.password_max_length,
+            "min_length": cfg.password_min_length,
+        },
+        headers=NO_STORE,
+    )
+
+
+class FirstPasswordIn(BaseModel):
+    current_password: str = Field(max_length=FIELD_CAP)
+    new_password: str = Field(max_length=FIELD_CAP)
+
+
+@router.post("/first-password", status_code=204)
+def first_password(body: FirstPasswordIn, db: DB, current: CurrentUser) -> Response:
+    """Choose your own password in place of the emailed one. Committed after a wrong first
+    password too, so the failure count persists."""
+    if not current.must_change_password:
+        return JSONResponse(
+            {"detail": "No password change is pending."}, status_code=400, headers=NO_STORE
+        )
+    try:  # the rules come first: nothing is hashed, verified or counted for a weak password
+        validate_new_password(body.new_password)
+    except PasswordRuleError as exc:
+        return JSONResponse(
+            {"detail": str(exc), "missing": check_password_rules(body.new_password)},
+            status_code=400,
+            headers=NO_STORE,
+        )
+    outcome = service.change_first_password(db, current, body.current_password, body.new_password)
+    if outcome == "ok":
+        db.add(AuditEntry(user_id=current.id, action="user.first_password_change", detail={}))
+    db.commit()
+    if outcome == "wrong_current":
+        return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
+    if outcome == "expired":
+        return JSONResponse({"detail": FIRST_EXPIRED}, status_code=401, headers=NO_STORE)
+    if outcome == "same_as_first":
+        return JSONResponse(
+            {"detail": "Choose a password different from the first one."},
+            status_code=400,
+            headers=NO_STORE,
+        )
+    if outcome == "not_pending":
+        return JSONResponse(
+            {"detail": "No password change is pending."}, status_code=400, headers=NO_STORE
+        )
+    return _signed_out()
 
 
 class ResetRequestIn(BaseModel):
@@ -129,7 +210,7 @@ class ResetRequestIn(BaseModel):
 class ResetConfirmIn(BaseModel):
     email: str = Field(max_length=MAX_EMAIL)
     code: str = Field(max_length=32)
-    new_password: str = Field(max_length=MAX_PASSWORD)
+    new_password: str = Field(max_length=FIELD_CAP)
 
 
 @router.post("/reset/request", status_code=202)
@@ -161,8 +242,12 @@ def reset_confirm(body: ResetConfirmIn, db: DB) -> Response:
     attempt count persists."""
     try:
         ok = reset.confirm_reset(db, body.email, body.code, body.new_password)
-    except (PasswordTooShort, PasswordTooLong) as exc:  # checked first: no attempt spent
-        return JSONResponse({"detail": str(exc)}, status_code=400, headers=NO_STORE)
+    except PasswordRuleError as exc:  # checked first: no attempt spent
+        return JSONResponse(
+            {"detail": str(exc), "missing": check_password_rules(body.new_password)},
+            status_code=400,
+            headers=NO_STORE,
+        )
     db.commit()
     if not ok:
         return JSONResponse(

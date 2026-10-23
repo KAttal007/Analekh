@@ -14,6 +14,7 @@ beforeEach(() => {
   routes = {
     "GET /api/auth/me": () => ({ status: 401, body: { detail: "Sign in required." } }),
     "GET /api/public/calendar": () => ({ status: 200, body: { start: "", end: "", events: [] } }),
+    "GET /api/auth/password-rules": () => ({ status: 200, body: RULES }),
   };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init = {}) => {
     const url = String(input);
@@ -32,6 +33,17 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
+const RULES = {
+  rules: [
+    { id: "length", label: "15 to 30 characters", pattern: String.raw`^[\s\S]{15,30}$` },
+    { id: "digits", label: "At least 1 number", pattern: "^(?:[^0-9]*[0-9]){1}" },
+  ],
+  combined: "",
+  max_length: 30,
+  min_length: 15,
+};
+const NEW_PASSWORD = "A-brand-new-passw0rd";
 
 const ME = { id: "u1", name: "Kaushal", email: "k@firm.in", role: "analyst" };
 
@@ -142,7 +154,9 @@ test("reset: ask for a code, then set a new password with it", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   expect(await screen.findByText(/if that account exists/i)).toBeTruthy();
   fill("Code", "123456");
+  await screen.findByText("At least 1 number");
   fill("New password", "a brand new long password");
+  fill("Confirm new password", "a brand new long password");
   fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
   expect(await screen.findByText(/password changed/i)).toBeTruthy();
   const confirm = calls.find((c) => c.url === "/api/auth/reset/confirm")!;
@@ -167,6 +181,7 @@ test("reset: the server's reason is shown for a short password or a bad code", a
   await screen.findByLabelText("Code");
   fill("Code", "123456");
   fill("New password", "short");
+  fill("Confirm new password", "short");
   fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
   expect((await screen.findByRole("alert")).textContent).toContain(
     "Password must be at least 15 characters.",
@@ -227,4 +242,137 @@ test("the public calendar is listed beside the form when there is something this
   });
   renderLogin();
   expect(await screen.findByText("Tata Consultancy Services")).toBeTruthy();
+});
+
+const FLAGGED = { ...ME, must_change_password: true };
+
+test("routes a flagged sign-in to the first-password step", async () => {
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: FLAGGED });
+  routes["GET /api/auth/me"] = () => ({ status: 200, body: FLAGGED });
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "the-emailed-first-pw");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeTruthy();
+  expect(screen.getByLabelText("First password")).toBeTruthy();
+  expect(screen.getByLabelText("New password")).toBeTruthy();
+  expect(screen.getByLabelText("Confirm new password")).toBeTruthy();
+  expect(screen.queryByText("the desk")).toBeNull();
+});
+
+test("first password: sets the new one, then asks to sign in again", async () => {
+  routes["GET /api/auth/me"] = () => ({ status: 200, body: FLAGGED });
+  routes["POST /api/auth/first-password"] = () => ({ status: 204 });
+  renderLogin();
+  await screen.findByLabelText("First password");
+  await screen.findByText("At least 1 number");
+  fill("First password", "the-emailed-first-pw");
+  fill("New password", NEW_PASSWORD);
+  fill("Confirm new password", NEW_PASSWORD);
+  fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+  expect(await screen.findByText("Password set. Sign in with your new password.")).toBeTruthy();
+  const post = calls.find((c) => c.url === "/api/auth/first-password")!;
+  expect(JSON.parse(String(post.init.body))).toEqual({
+    current_password: "the-emailed-first-pw",
+    new_password: NEW_PASSWORD,
+  });
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+});
+
+test("first password: two different new passwords are refused before sending", async () => {
+  routes["GET /api/auth/me"] = () => ({ status: 200, body: FLAGGED });
+  renderLogin();
+  await screen.findByLabelText("First password");
+  fill("First password", "the-emailed-first-pw");
+  fill("New password", NEW_PASSWORD);
+  fill("Confirm new password", NEW_PASSWORD + "x");
+  fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "The two passwords do not match.",
+  );
+  expect(calls.some((c) => c.url === "/api/auth/first-password")).toBe(false);
+});
+
+test("first password: the server's message for missing rules is shown", async () => {
+  routes["GET /api/auth/me"] = () => ({ status: 200, body: FLAGGED });
+  routes["POST /api/auth/first-password"] = () => ({
+    status: 400,
+    body: { detail: "Password needs: At least 1 number.", missing: ["digits"] },
+  });
+  renderLogin();
+  await screen.findByLabelText("First password");
+  fill("First password", "the-emailed-first-pw");
+  fill("New password", "short");
+  fill("Confirm new password", "short");
+  fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Password needs: At least 1 number.",
+  );
+  expect(screen.getByRole("heading", { name: "Choose your password" })).toBeTruthy();
+});
+
+test("first password: Sign out ends the session and returns to sign-in", async () => {
+  routes["GET /api/auth/me"] = () => ({ status: 200, body: FLAGGED });
+  routes["POST /api/auth/logout"] = () => {
+    routes["GET /api/auth/me"] = () => ({ status: 401, body: { detail: "Sign in required." } });
+    return { status: 204 };
+  };
+  renderLogin();
+  await screen.findByLabelText("First password");
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  expect(calls.some((c) => c.url === "/api/auth/logout")).toBe(true);
+});
+
+test("shows the server's expired message as given", async () => {
+  const detail = "This first password has expired. Ask an admin to send a new one.";
+  routes["POST /api/auth/login"] = () => ({ status: 401, body: { detail } });
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "the-emailed-first-pw");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect((await screen.findByRole("alert")).textContent).toBe(detail);
+});
+
+test("reset step uses the shared rules field", async () => {
+  routes["POST /api/auth/reset/request"] = () => ({ status: 202, body: { detail: "sent" } });
+  renderLogin();
+  fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+  fill("Email", "k@firm.in");
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  expect(await screen.findByText("15 to 30 characters")).toBeTruthy();
+  expect(screen.getByText("At least 1 number")).toBeTruthy();
+  fill("New password", "abc1");
+  expect(screen.getByText("At least 1 number").closest("li")!.getAttribute("data-met")).toBe(
+    "true",
+  );
+});
+
+test("refuses 31 characters with maxLength in the DOM", async () => {
+  routes["POST /api/auth/reset/request"] = () => ({ status: 202, body: { detail: "sent" } });
+  renderLogin();
+  fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+  fill("Email", "k@firm.in");
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  await screen.findByText("15 to 30 characters");
+  await waitFor(() => {
+    for (const label of ["New password", "Confirm new password"])
+      expect((screen.getByLabelText(label) as HTMLInputElement).maxLength).toBe(30);
+  });
+});
+
+test("after sign-in the desk's data is asked for before the page changes", async () => {
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  let deskAskedWhileOnLogin = false;
+  routes["GET /api/desk"] = () => {
+    deskAskedWhileOnLogin = screen.getByTestId("where").textContent === "/login";
+    return { status: 200, body: { rows: [], rows_total: 0 } };
+  };
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "a-long-secret-password");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/"));
+  expect(deskAskedWhileOnLogin).toBe(true);
+  expect(document.documentElement.dataset.vt).toBe("enter");
 });

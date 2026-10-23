@@ -19,8 +19,8 @@ from analekh.config import get_settings
 from analekh.db.models import AuditEntry, AuthSession, PasswordReset
 from analekh.db.session import get_session
 
-GOOD = "correct horse battery"
-NEW = "a brand new passphrase"
+GOOD = "Correct-Horse-Battery-9"
+NEW = "Brand-New-Passphrase-4"
 CSRF = {"X-Analekh-CSRF": "1"}
 T0 = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
 

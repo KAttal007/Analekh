@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type CalendarEvent, type CalendarKind } from "../api/client";
+import { type CalendarEvent, type CalendarKind } from "../api/client";
 import {
   addDays,
   addMonths,
@@ -17,6 +17,7 @@ import {
   startOfWeek,
   weekdayShort,
 } from "../lib/calendar";
+import { calendarQuery, dayStrip } from "../lib/preload";
 import { Icon } from "./Icon";
 import { Avatar, Badge, EmptyState, ErrorNote, Segmented, SegmentThumb, Skeleton } from "./ui";
 
@@ -40,9 +41,6 @@ const KIND_LABEL: Record<CalendarKind, string> = {
 };
 const KIND_TONE = { results: "accent", meeting: "neutral", concall: "ok" } as const;
 
-const STRIP_BEFORE = 7; // days of history the day strip keeps
-const STRIP_DAYS = 68; // and how many in all: a week back, the season ahead
-
 const reducedMotion = () =>
   typeof window !== "undefined" &&
   !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -59,7 +57,7 @@ export function ResultsCalendar({
   const [selected, setSelected] = useState(today);
   const [kind, setKind] = useState<KindFilter>("all");
 
-  const strip = useMemo(() => daysFrom(addDays(today, -STRIP_BEFORE), STRIP_DAYS), [today]);
+  const strip = useMemo(() => dayStrip(today), [today]);
   const range = useMemo(() => {
     if (view === "week") {
       const start = startOfWeek(selected);
@@ -73,10 +71,8 @@ export function ResultsCalendar({
   }, [view, selected, strip]);
 
   const query = useQuery({
-    queryKey: ["calendar", range.start, range.end, watchlistOnly],
-    queryFn: () => api.calendar(range.start, range.end, watchlistOnly),
+    ...calendarQuery(range.start, range.end, watchlistOnly),
     placeholderData: keepPreviousData, // the old days stay up while the next range loads
-    staleTime: 60_000,
   });
   const data = query.data;
 

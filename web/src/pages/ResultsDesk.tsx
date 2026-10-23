@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, type Desk, type DeskQuery, type DeskRow, type DeskSort } from "../api/client";
+import { type Desk, type DeskQuery, type DeskRow, type DeskSort } from "../api/client";
 import {
   BasisCell,
   BasisHeader,
@@ -23,9 +23,9 @@ import {
   tone,
 } from "../lib/format";
 import { ResultsCalendar } from "../components/ResultsCalendar";
+import { deskFilters, deskQuery, DESK_PAGE as PAGE } from "../lib/preload";
 import { usePrefs } from "../lib/prefs";
 
-const PAGE = 10;
 const PERIODS = [
   { days: 1, label: "Today" },
   { days: 3, label: "3 days" },
@@ -277,13 +277,7 @@ export function ResultsDesk() {
   const { deskSort } = usePrefs();
   const askedSort = params.get("sort");
   const sort: DeskSort = askedSort === "market_cap" || askedSort === "filed" ? askedSort : deskSort;
-  const query: DeskQuery = {
-    quarter_end: params.get("quarter") ?? undefined,
-    sector: params.get("sector") ?? undefined,
-    watchlist: params.get("watchlist") === "1" || undefined,
-    days: Number(params.get("days")) || undefined,
-    sort: sort === "market_cap" ? "market_cap" : undefined,
-  };
+  const query: DeskQuery = deskFilters(params, sort);
   const page = Math.max(1, Number(params.get("page")) || 1);
   const set = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -294,8 +288,7 @@ export function ResultsDesk() {
   };
 
   const desk = useQuery({
-    queryKey: ["desk", query, page],
-    queryFn: () => api.desk({ ...query, limit: PAGE, offset: (page - 1) * PAGE }),
+    ...deskQuery(query, page),
     placeholderData: keepPreviousData, // the old page stays up while the next one loads
   });
   if (desk.isError) return <ErrorNote error={desk.error} />;

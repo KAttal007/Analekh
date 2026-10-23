@@ -3,6 +3,22 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-23** Sign-in and landing, after the live test. Opening Analekh always lands on the
+  welcome page when signed out (a live session opens the Results desk directly; Enter and a mouse drag now open it too), which hands off to
+  sign-in. After sign-in the desk's data loads first and a short (~0.35 s) unlock plays, so the
+  table no longer fills in mid-animation. Results desk: 10 database queries instead of one per
+  company (the blank year-ago notes in one query), and its filters stay on one row instead of
+  wrapping and pushing the title down. The auth-switch tests no longer read the developer's .env.
+- **2026-10-23** First password by email and password rules. Adding a user needs only email,
+  name and role: Analekh makes a random first password (20 characters, hashed, valid 24 hours), emails
+  it inline after the reply (the user row shows sending, sent or failed; migration 0011); the first sign-in allows nothing but choosing a new
+  password, which ends all sessions. Admin "Send first password" replaces the typed reset (503 when
+  email is off). New rules on every chosen password: 15 to 30 characters, 8 letters, a number, a
+  special, upper and lower case, no spaces, published at `GET /auth/password-rules` and shown live in
+  the web app; the 30 cap also limits sign-in. Migration 0010 adds the two account columns.
+  Reset codes now last 2 minutes (was 10), matching the 2-minute wait to resend. Unblocks the live
+  test with real mail and onboarding analysts without passing passwords by hand. Sign out now
+  shows the sign-in page at once (it waited for another click).
 - **2026-10-23** OCR for scanned pages moves from Tesseract to RapidOCR (`rapidocr` + `onnxruntime`,
   models in the package): no system binary, so scans are read on Windows too and the image drops
   the tesseract apt packages. Model routing and limits in `analekh/docs/rapidocr.yaml` (bundled

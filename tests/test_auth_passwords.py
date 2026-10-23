@@ -4,18 +4,18 @@ import pytest
 
 from analekh.auth import passwords
 from analekh.auth.passwords import (
-    MAX_PASSWORD,
     PasswordTooLong,
     hash_password,
     normalize_email,
     verify_password,
 )
+from analekh.config import get_settings
 
 
 def test_verify_roundtrip():
-    h = hash_password("correct horse battery")
+    h = hash_password("Correct-Horse-Battery-9")
     assert h.startswith("$argon2id$")
-    assert verify_password("correct horse battery", h) is True
+    assert verify_password("Correct-Horse-Battery-9", h) is True
     assert verify_password("wrong", h) is False
 
 
@@ -26,7 +26,10 @@ def test_too_long_password_refused_before_hashing(monkeypatch):
     monkeypatch.setattr(passwords, "_hasher", type("H", (), {"hash": boom, "verify": boom})())
     with pytest.raises(PasswordTooLong):
         hash_password("x" * 10_000)
-    assert verify_password("x" * (MAX_PASSWORD + 1), "$argon2id$whatever") is False
+    assert (
+        verify_password("x" * (get_settings().password_max_length + 1), "$argon2id$whatever")
+        is False
+    )
 
 
 def test_none_hash_still_does_work(monkeypatch):

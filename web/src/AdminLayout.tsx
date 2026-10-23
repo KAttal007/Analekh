@@ -1,4 +1,5 @@
 import { Link, Navigate, NavLink, Outlet } from "react-router-dom";
+import { SignOut } from "./Layout";
 import { Loading } from "./components/ui";
 import { useMe } from "./lib/auth";
 
@@ -34,6 +35,9 @@ export function AdminLayout() {
           <Link to="/" className="admin-back">
             ← Back to Analekh
           </Link>
+        </nav>
+        <nav className="nav nav-bottom" aria-label="Account">
+          <SignOut />
         </nav>
       </aside>
       <div className="workspace">

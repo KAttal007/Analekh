@@ -3,13 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Welcome } from "./Welcome";
-import { hasWelcomed } from "../lib/welcome";
+import { hasWelcomed, resetWelcomed } from "../lib/welcome";
 
 const ME = { id: "u1", name: "Kaushal", email: "k@firm.in", role: "analyst" };
 let signedIn: boolean;
 
 beforeEach(() => {
-  sessionStorage.clear();
+  resetWelcomed();
   signedIn = false;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = String(input);
@@ -95,4 +95,36 @@ test("the unlock animation is tagged on the page for the transition styles", asy
   await new Promise((r) => setTimeout(r, 20));
   fireEvent.click(screen.getByRole("button", { name: /open the results desk/i }));
   expect(document.documentElement.dataset.vt).toBe("reveal");
+});
+
+const settled = async () => {
+  await waitFor(() =>
+    expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true),
+  );
+  await new Promise((r) => setTimeout(r, 20));
+};
+
+test("Enter opens the way in", async () => {
+  renderWelcome();
+  await settled();
+  fireEvent.keyDown(window, { key: "Enter" });
+  await waitFor(() => expect(where()).toBe("/login"));
+});
+
+const drag = (from: number, to: number) => {
+  const page = document.querySelector(".welcome")!;
+  fireEvent.pointerDown(page, { pointerType: "mouse", button: 0, clientY: from });
+  fireEvent.pointerMove(window, { pointerType: "mouse", clientY: to });
+  fireEvent.pointerUp(window, { pointerType: "mouse", clientY: to });
+  fireEvent.click(page);
+};
+
+test("a short mouse drag springs back; a long one opens the way in", async () => {
+  renderWelcome();
+  await settled();
+  drag(600, 560);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(where()).toBe("/welcome");
+  drag(800, 100);
+  await waitFor(() => expect(where()).toBe("/login"));
 });

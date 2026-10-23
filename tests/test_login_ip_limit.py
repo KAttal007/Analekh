@@ -10,7 +10,7 @@ from analekh.auth.service import create_user
 from analekh.config import get_settings
 from analekh.db.session import get_session
 
-GOOD = "correct horse battery"
+GOOD = "Correct-Horse-Battery-9"
 
 
 @pytest.fixture(autouse=True)

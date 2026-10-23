@@ -19,7 +19,7 @@ from analekh.glance import (
     change,
     derive,
     is_financial,
-    missing_quarter_note,
+    missing_quarter_notes,
     quarter_label,
     raw_value,
     suspect_filings,
@@ -126,18 +126,22 @@ def desk(
     sort: str = "filed",
     now: datetime | None = None,
 ) -> Desk:
+    # Each query is a round trip to the database: the counts share one, and the companies in
+    # scope (active, with a sector) are the sum of the per-sector totals.
     quarters = recent_quarters(session)
     end = quarter_end or (quarters[0][0] if quarters else None)
-    in_scope = select(Company.id).where(Company.is_active, Company.sector.is_not(None))
+    totals = sector_totals(session)
+    filings_total, latest_filed_at = session.execute(
+        select(func.count(), func.max(Filing.filed_at)).select_from(Filing)
+    ).one()
     out = Desk(
         quarter_end=end,
         quarter_label=quarter_label(end) if end else None,
         quarters=quarters,
-        companies_in_scope=session.scalar(select(func.count()).select_from(in_scope.subquery()))
-        or 0,
+        companies_in_scope=sum(totals.values()),
         reported=0,
-        filings_total=session.scalar(select(func.count()).select_from(Filing)) or 0,
-        latest_filed_at=session.scalar(select(func.max(Filing.filed_at))),
+        filings_total=filings_total or 0,
+        latest_filed_at=latest_filed_at,
         rows=[],
         rows_total=0,
     )
@@ -218,6 +222,7 @@ def desk(
 
     prices = latest_prices(session, list(by_company))
     rows: list[DeskRow] = []
+    needs_note: dict[tuple[int, bool], DeskRow] = {}  # no year-ago figures: say why, below
     for company_id, company_filings in by_company.items():
         c = companies[company_id]
         basis = any(f.consolidated for f in company_filings)
@@ -279,10 +284,13 @@ def desk(
                 "left out until its PDF is checked"
             )
         elif rev_prev is None and pat_prev is None:
-            rows[-1].yoy_note = missing_quarter_note(session, company_id, basis, year_ago)
+            needs_note[(company_id, basis)] = rows[-1]
+
+    for key, note in missing_quarter_notes(session, list(needs_note), year_ago).items():
+        needs_note[key].yoy_note = note
 
     _movers(out, rows)
-    _sectors(session, out, rows)
+    _sectors(out, rows, totals)
     out.reported = len(rows)
 
     if days:
@@ -340,14 +348,20 @@ def _movers(out: Desk, rows: list[DeskRow]) -> None:
     out.turned_loss = [r for _, r in sorted(turned_loss, key=lambda t: t[0])][:MOVERS]
 
 
-def _sectors(session: Session, out: Desk, rows: list[DeskRow]) -> None:
-    totals = dict(
-        session.execute(
+def sector_totals(session: Session) -> dict[str, int]:
+    """Active companies per sector (companies without a sector are outside the desk)."""
+    return {
+        name: n
+        for name, n in session.execute(
             select(Company.sector, func.count())
             .where(Company.is_active, Company.sector.is_not(None))
             .group_by(Company.sector)
         ).all()
-    )
+        if name is not None  # the query excludes them; this tells the type checker
+    }
+
+
+def _sectors(out: Desk, rows: list[DeskRow], totals: dict[str, int]) -> None:
     grouped: dict[str, list[DeskRow]] = {}
     for r in rows:
         if r.sector:

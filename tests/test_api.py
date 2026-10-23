@@ -406,6 +406,58 @@ def test_missing_comparison_quarter_says_why(client, db, store):
     assert mine["revenue_yoy"] is None and mine["yoy_note"] == g["year_ago_note"]
 
 
+def test_results_desk_query_count_does_not_grow_with_companies(db, store):
+    """The desk's database round trips are a fixed handful, however many companies reported (each
+    costs milliseconds on the way to the database); the blank-year-ago notes come in one query."""
+    from sqlalchemy import event
+
+    from analekh.desk import desk
+
+    sector = "Query Count Sector"
+
+    def add(n: int) -> None:
+        for i in range(n):
+            c = Company(
+                nse_symbol=f"QC{n}X{i}",
+                name=f"Qc {n} {i} Ltd",
+                isin=f"INE{n:03d}Q{i:02d}011",
+                sector=sector,
+            )
+            db.add(c)
+            db.flush()
+            revenue = 1_000_000_000 + (n * 100 + i) * 1000  # each file unique
+            q = pnl(revenue, 0, 500_000_000, 100_000_000)
+            start, end = date(2026, 7, 1), date(2026, 9, 30)
+            ingest_results_xbrl(
+                db, store, c, build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
+            )
+
+    def count() -> tuple[int, list[str | None]]:
+        seen: list[str] = []
+        conn = db.connection()
+
+        def log(*args: object) -> None:
+            seen.append("q")
+
+        event.listen(conn, "before_cursor_execute", log)
+        try:
+            d = desk(db, quarter_end=date(2026, 9, 30), sector=sector, limit=50)
+        finally:
+            event.remove(conn, "before_cursor_execute", log)
+        return len(seen), [r.yoy_note for r in d.rows]
+
+    add(2)
+    few, notes = count()
+    assert (
+        notes == ["No consolidated results for Q2 FY26 on record"] * 2
+        or notes == ["No standalone results for Q2 FY26 on record"] * 2
+    )
+    add(6)
+    many, notes = count()
+    assert len(notes) == 8 and len(set(notes)) == 1
+    assert many == few  # no query per company
+
+
 def test_results_desk_rows_movers_and_sector_progress(client, db, store):
     from datetime import UTC, datetime
 

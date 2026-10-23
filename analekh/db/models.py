@@ -474,6 +474,12 @@ class User(Base):
     failed_count: Mapped[int] = mapped_column(Integer, server_default="0")
     paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     blocked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # First password (first-password design): set until the person chooses their own.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    first_password_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The last first-password email: "sending" until the mail is handed on after the reply, then
+    # "sent" or "failed". Null for accounts that never had one.
+    first_password_mail: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

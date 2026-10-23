@@ -8,12 +8,11 @@ import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useStat
 import { useNavigate } from "react-router-dom";
 import { api, type CompanyIndexEntry } from "../api/client";
 import { prepareIndex, searchIndex } from "../lib/companySearch";
-import { companyQuery, loadCompanyPage } from "../lib/preload";
+import { companyIndexQuery, companyQuery, loadCompanyPage } from "../lib/preload";
 import { Icon } from "./Icon";
 
 const DEBOUNCE_MS = 120; // server searches only
 const PAGE = 20;
-const INDEX_FRESH_MS = 10 * 60_000;
 const PREFETCH_MS = 150; // pause on a highlighted result before fetching its company page
 
 export type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
@@ -70,11 +69,7 @@ export function CompanySearch({
   }, [q]);
 
   // Local search: the whole universe, prepared once.
-  const indexQuery = useQuery({
-    queryKey: ["company-index"],
-    queryFn: api.companyIndex,
-    staleTime: INDEX_FRESH_MS,
-  });
+  const indexQuery = useQuery(companyIndexQuery);
   const index = useMemo(
     () => (indexQuery.data ? prepareIndex(indexQuery.data) : null),
     [indexQuery.data],

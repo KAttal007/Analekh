@@ -102,7 +102,7 @@ Excel bridge token, sign-out) stay in the main app's Settings for everyone.
 - **Password reset without a link.** Reset links normally carry a secret in the URL, which this
   design forbids. Instead the user asks for a reset on the sign-in page, receives a 6-digit
   one-time code by email (the existing email alert channel), and types it into the page. The
-  code is single-use, expires in 10 minutes, is stored hashed, and has its own attempt limit.
+  code is single-use, expires in 2 minutes (the same as the resend wait), is stored hashed, and has its own attempt limit.
   The reply to "request a reset" is the same whether or not the email is known. If email
   delivery is not configured, the page says to contact the admin team and an admin resets the
   password instead. Resetting ends all of that user's other sessions.
@@ -227,7 +227,7 @@ each user's own address, so stage 1 includes:
   codes are switched on. Until mail is verified, "Forgot your password?" tells the user to
   contact the admin team.
 - A sender address that is not a personal mailbox, and a plain message that names the app and
-  the code's 10-minute life but no links.
+  the code's 2-minute life but no links.
 
 ## 10. Other screens still to be mocked
 

@@ -25,6 +25,15 @@ export function rememberReturnPath(path: string): void {
   }
 }
 
+/** The page sign-in will return to, without forgetting it. */
+export function peekReturnPath(): string {
+  try {
+    return safeReturnPath(sessionStorage.getItem(RETURN_KEY));
+  } catch {
+    return "/";
+  }
+}
+
 export function takeReturnPath(): string {
   try {
     const path = sessionStorage.getItem(RETURN_KEY);
@@ -74,8 +83,11 @@ export function useSignOut() {
     try {
       await (everywhere ? api.logoutEverywhere() : api.logout());
     } finally {
-      client.clear(); // nothing from this session stays in the page
+      // Signed out first, on the live entry, so the open page sees it at once. client.clear()
+      // would drop that entry too, leaving the page watching a copy nobody updates.
       client.setQueryData(ME_KEY, null);
+      // Nothing else from this session stays in the page.
+      client.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
     }
   };
 }

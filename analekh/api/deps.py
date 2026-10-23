@@ -1,5 +1,7 @@
 """Shared API dependencies. Tests override get_session and get_store."""
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from functools import lru_cache
 from typing import Annotated, Any
 
@@ -12,7 +14,7 @@ from analekh.auth import tokens as api_tokens
 from analekh.config import get_settings
 from analekh.db.models import Company
 from analekh.db.models import User as UserRow
-from analekh.db.session import get_session
+from analekh.db.session import get_session, session_scope
 from analekh.ingest.storage import ObjectStore, default_store
 from analekh.universe.search import get as get_company
 
@@ -82,12 +84,29 @@ def _dev_user(db: Session) -> UserRow:
     return user
 
 
+# While a user must still choose their own password, these are the only routes that answer
+# (first-password design, section 6). Matched on the route's path template, not the URL.
+FIRST_PASSWORD_ALLOWED: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/auth/me"),
+        ("POST", "/auth/logout"),
+        ("GET", "/auth/password-rules"),
+        ("POST", "/auth/first-password"),
+    }
+)
+
+
 def get_current(request: Request, db: Annotated[Session, Depends(get_session)]) -> UserRow:
-    if auth_is_off():
+    if auth_is_off():  # the flag is ignored with sign-in off (development only)
         return _dev_user(db)
     user = _session_user(request, db) or _bearer_user(request, db)
     if user is None:
         raise HTTPException(401, "Sign in required.")
+    if user.must_change_password:
+        route = request.scope.get("route")
+        key = (request.method, getattr(route, "path", ""))
+        if key not in FIRST_PASSWORD_ALLOWED:  # an unmatched route is refused too
+            raise HTTPException(403, {"code": "password_change_required"})
     return user
 
 
@@ -103,6 +122,17 @@ def require_admin(current: Annotated[UserRow, Depends(get_current)]) -> UserRow:
 
 
 DB = Annotated[Session, Depends(get_session)]
+
+OpenSession = Callable[[], AbstractContextManager[Session]]
+
+
+def get_session_scope() -> OpenSession:
+    """A way to open a session after the reply, for work done in the background (the request's
+    own session is closed by then)."""
+    return session_scope
+
+
+SessionScope = Annotated[OpenSession, Depends(get_session_scope)]
 Store = Annotated[ObjectStore, Depends(get_store)]
 User = Annotated[str, Depends(get_user)]
 CurrentUser = Annotated[UserRow, Depends(get_current)]

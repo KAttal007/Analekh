@@ -15,8 +15,8 @@ from analekh.config import get_settings
 from analekh.db.models import AuthSession, PasswordReset
 from analekh.db.session import get_session
 
-OLD = "correct horse battery"
-NEW = "a brand new passphrase"
+OLD = "Correct-Horse-Battery-9"
+NEW = "Brand-New-Passphrase-4"
 SAME = {"detail": "If that account exists, a code has been sent."}
 NOT_SET_UP = {"detail": "Email is not set up. Contact the admin team."}
 
@@ -98,7 +98,7 @@ def test_five_wrong_codes_burn_the_reset(db, user, sent):
     assert service.login(db, "kaushal@firm.in", OLD).user is not None  # password unchanged
 
 
-def test_code_expires_after_ten_minutes(db, user, sent):
+def test_code_expires_after_configured_minutes(db, user, sent):
     minutes = get_settings().reset_code_minutes
     start = datetime.now(UTC)
     reset.request_reset(db, "kaushal@firm.in", now=start)
@@ -115,7 +115,7 @@ def test_code_single_use(db, user, sent):
     reset.request_reset(db, "kaushal@firm.in")
     code = _code(sent)
     assert reset.confirm_reset(db, "kaushal@firm.in", code, NEW) is True
-    assert reset.confirm_reset(db, "kaushal@firm.in", code, "another passphrase ok") is False
+    assert reset.confirm_reset(db, "kaushal@firm.in", code, "Another-Passphrase-Ok-5") is False
 
 
 def test_code_is_stored_only_as_sha256(db, user, sent):
@@ -262,9 +262,9 @@ def test_confirm_short_password_says_so_and_spends_no_attempt(client, user, sent
         json={"email": "kaushal@firm.in", "code": code, "new_password": "x" * 14},
     )
     assert short.status_code == 400
-    assert short.json() == {"detail": "Password must be at least 15 characters."}
+    assert short.json()["detail"].startswith("Password needs: 15 to 30 characters")
     ok = client.post(
         "/auth/reset/confirm",
-        json={"email": "kaushal@firm.in", "code": code, "new_password": "y" * 15},
+        json={"email": "kaushal@firm.in", "code": code, "new_password": "Valid-Passw0rd-Here"},
     )
     assert ok.status_code == 204

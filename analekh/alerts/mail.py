@@ -34,6 +34,8 @@ def send_mail(to: str, subject: str, body: str) -> bool:
                 smtp.login(unquote(url.username), unquote(url.password or ""))
             smtp.send_message(msg)
     except (OSError, smtplib.SMTPException) as exc:
-        log.warning("mail not sent: %s", type(exc).__name__)
+        # Type and numeric SMTP code only (535 = bad login, etc.): never the message text, which
+        # could carry mail content such as a reset code.
+        log.warning("mail not sent: %s %s", type(exc).__name__, getattr(exc, "smtp_code", ""))
         return False
     return True

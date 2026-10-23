@@ -149,7 +149,7 @@ function useNavHighlight(pathname: string, collapsed: boolean) {
   return { aside, highlight };
 }
 
-function SignOut() {
+export function SignOut() {
   const me = useMe().data;
   const signOut = useSignOut();
   const signInOff = useSignInOff();
@@ -160,8 +160,14 @@ function SignOut() {
         {me.name}
       </span>
       {!signInOff && (
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-          Sign out
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm sign-out"
+          title="Sign out"
+          onClick={() => void signOut()}
+        >
+          <Icon name="logout" />
+          <span className="sign-out-label">Sign out</span>
         </button>
       )}
     </div>

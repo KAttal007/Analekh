@@ -17,7 +17,7 @@ from analekh.config import get_settings
 from analekh.db.models import AuditEntry
 from analekh.db.session import get_session
 
-GOOD = "correct horse battery"
+GOOD = "Correct-Horse-Battery-9"
 CSRF = {"X-Analekh-CSRF": "1"}
 MB = 1024 * 1024
 

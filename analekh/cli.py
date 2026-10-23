@@ -542,14 +542,14 @@ def create_admin(
     ),
 ) -> None:
     """Create the first admin. The password is asked for, never taken as an argument."""
-    from analekh.auth.passwords import PasswordTooLong, PasswordTooShort
+    from analekh.auth.passwords import PasswordRuleError
     from analekh.auth.service import create_user
 
     password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
     with _session() as s:
         try:
             user = create_user(s, email, name, "admin", password)
-        except (PasswordTooShort, PasswordTooLong, ValueError) as exc:
+        except (PasswordRuleError, ValueError) as exc:
             typer.echo(f"Not created: {exc}")
             raise typer.Exit(1) from exc
         moved = adopt_local(s, user) if adopt_local_data else 0

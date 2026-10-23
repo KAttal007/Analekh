@@ -31,3 +31,11 @@ def test_new_user_starts_active_and_unblocked(db):
     db.refresh(u)
     assert u.is_active is True and u.blocked is False and u.failed_count == 0
     assert u.paused_until is None and u.password_hash is None
+
+
+def test_first_password_columns_default_off(db):
+    u = _user("fp@firm.in")
+    db.add(u)
+    db.flush()
+    db.refresh(u)
+    assert u.must_change_password is False and u.first_password_expires_at is None

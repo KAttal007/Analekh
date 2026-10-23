@@ -1,23 +1,20 @@
-// The welcome screen greets a visitor once per browser session: opening Analekh shows it, moving
-// around inside the app does not. Session storage can be unavailable (private windows, blocked
-// site data): the visitor then sees the welcome once per page load, never an error.
+// The welcome screen is the landing page: every time Analekh is opened at its home address (a new
+// tab, a reload, typing the address), signed in or not. Moving around inside the app does not bring
+// it back, so this is remembered for the page's lifetime only.
 
-const KEY = "analekh.welcomed";
+let welcomed = false;
 
 export function hasWelcomed(): boolean {
-  try {
-    return sessionStorage.getItem(KEY) === "1";
-  } catch {
-    return true; // storage blocked: don't stand between the visitor and the app
-  }
+  return welcomed;
 }
 
 export function markWelcomed(): void {
-  try {
-    sessionStorage.setItem(KEY, "1");
-  } catch {
-    /* storage unavailable: nothing to remember */
-  }
+  welcomed = true;
+}
+
+/** Tests only: a fresh page load. */
+export function resetWelcomed(): void {
+  welcomed = false;
 }
 
 /** Good morning / afternoon / evening, by the visitor's own clock. */
@@ -27,8 +24,9 @@ export function greeting(now = new Date()): string {
 }
 
 /** Names the next route change for the transition styles (styles.css): "reveal" brings the sign-in
- * screen up from the welcome page; "welcome" unlocks into the desk. Cleared once it has played. */
-export function tagTransition(kind: "reveal" | "welcome"): void {
+ * screen up from the welcome page; "welcome" unlocks into the desk; "enter" is the short unlock
+ * from sign-in into the desk. Cleared once it has played. */
+export function tagTransition(kind: "reveal" | "welcome" | "enter"): void {
   document.documentElement.dataset.vt = kind;
   window.setTimeout(() => delete document.documentElement.dataset.vt, 1400);
 }

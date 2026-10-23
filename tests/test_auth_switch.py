@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from analekh.api.main import app
-from analekh.config import get_settings
+from analekh.config import Settings, get_settings
 from analekh.db.models import User
 from analekh.db.session import get_session
 
@@ -23,7 +23,9 @@ def raw(db):
 
 @pytest.fixture
 def switch(monkeypatch):
-    """Set the environment, clear the settings cache before and after."""
+    """Set the environment, clear the settings cache before and after. The developer's own .env
+    is not read, so its ENV or AUTH_ENABLED cannot change what these tests see."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
 
     def set_env(**env: str) -> None:
         for key, value in env.items():

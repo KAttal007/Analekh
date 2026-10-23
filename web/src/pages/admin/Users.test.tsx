@@ -96,35 +96,108 @@ test("a role can be changed from the row", async () => {
   );
 });
 
-test("adding a user posts name, email, first password and role", async () => {
-  const calls = mockApi({
-    ...base(),
-    "POST /api/users": () => ({
-      status: 201,
-      body: row({ id: "n1", name: "Meera Kapoor", email: "meera@firm.in" }),
-    }),
-  });
+test("has no password box in Add user", async () => {
+  mockApi(base());
+  renderAt(<Users />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add user" }));
+  expect(screen.queryByLabelText(/password/i)).toBeNull();
+  expect(
+    screen.getByText(
+      "We email them a first password. They choose their own the first time they sign in.",
+    ),
+  ).toBeTruthy();
+});
+
+// After Add user the email goes in the background: the list says "sending", then how it went.
+const added = (final: "sent" | "failed") => {
+  let listed = false;
+  let mail: string = "sending";
+  return {
+    "GET /api/users": () => {
+      const now = listed
+        ? [
+            ...USERS,
+            row({
+              id: "n1",
+              name: "Meera Kapoor",
+              email: "meera@firm.in",
+              first_password_mail: mail,
+            }),
+          ]
+        : USERS;
+      if (listed) mail = final; // the next look finds it done
+      return { status: 200, body: now };
+    },
+    "POST /api/users": () => {
+      listed = true;
+      return {
+        status: 201,
+        body: row({
+          id: "n1",
+          name: "Meera Kapoor",
+          email: "meera@firm.in",
+          first_password_mail: "sending",
+        }),
+      };
+    },
+  };
+};
+
+const addMeera = async () => {
   renderAt(<Users />);
   fireEvent.click(await screen.findByRole("button", { name: "Add user" }));
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Meera Kapoor" } });
   fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "meera@firm.in" } });
-  fireEvent.change(screen.getByLabelText("First password"), {
-    target: { value: "a long first password" },
-  });
+};
+
+test("adding a user posts name, email and role, then says the email went", async () => {
+  const calls = mockApi({ ...base(), ...added("sent") });
+  await addMeera();
   fireEvent.click(screen.getByRole("radio", { name: "Admin" }));
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add user" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.method === "POST" && c.url === "/api/users")).toBe(true),
-  );
+  expect(await screen.findByText(/emailing a first password to meera@firm.in/i)).toBeTruthy();
+  expect(
+    await screen.findByText(
+      /first password has been emailed to meera@firm.in/i,
+      {},
+      { timeout: 4000 },
+    ),
+  ).toBeTruthy();
   expect(calls.find((c) => c.method === "POST" && c.url === "/api/users")?.body).toEqual({
     name: "Meera Kapoor",
     email: "meera@firm.in",
     role: "admin",
-    password: "a long first password",
   });
+  expect(screen.queryByText(/welcome email was not sent/i)).toBeNull();
 });
 
-test("add user shows the server's reason (duplicate, short password)", async () => {
+test("shows the not-sent warning and Send again", async () => {
+  const calls = mockApi({
+    ...base(),
+    ...added("failed"),
+    "POST /api/users/n1/send-first-password": () => ({
+      status: 202,
+      body: row({
+        id: "n1",
+        name: "Meera Kapoor",
+        email: "meera@firm.in",
+        first_password_mail: "sending",
+      }),
+    }),
+  });
+  await addMeera();
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add user" }));
+  expect((await screen.findByRole("alert", {}, { timeout: 4000 })).textContent).toContain(
+    "The welcome email was not sent.",
+  );
+  expect(within(rowOf("Meera Kapoor")).getByText("Email not sent")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Send again" }));
+  await waitFor(() =>
+    expect(calls.some((c) => c.url === "/api/users/n1/send-first-password")).toBe(true),
+  );
+});
+
+test("add user shows the server reason (duplicate, email not set up)", async () => {
   mockApi({
     ...base(),
     "POST /api/users": () => ({
@@ -136,28 +209,80 @@ test("add user shows the server's reason (duplicate, short password)", async () 
   fireEvent.click(await screen.findByRole("button", { name: "Add user" }));
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "A" } });
   fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "a@firm.in" } });
-  fireEvent.change(screen.getByLabelText("First password"), { target: { value: "x" } });
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add user" }));
   expect((await screen.findByRole("alert")).textContent).toContain("already exists");
 });
 
-test("reset password asks for a new password and posts it", async () => {
+test("an active user gets Reset password, and it posts on confirm", async () => {
   const calls = mockApi({
     ...base(),
-    "POST /api/users/u1/reset-password": () => ({ status: 204 }),
+    "POST /api/users/u1/send-first-password": () => ({ status: 202, body: USERS[3] }),
+  });
+  renderAt(<Users />);
+  await screen.findByText("Kaushal Attal");
+  expect(screen.queryByRole("button", { name: "Send first password" })).toBeNull();
+  fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Reset password" }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("Reset Kaushal Attal's password?")).toBeTruthy();
+  expect(within(dialog).getByText(/current password stops working/i)).toBeTruthy();
+  expect(calls.some((c) => c.url === "/api/users/u1/send-first-password")).toBe(false);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Reset password" }));
+  await waitFor(() =>
+    expect(calls.some((c) => c.url === "/api/users/u1/send-first-password")).toBe(true),
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+test("sending a first password says so when email is not set up", async () => {
+  mockApi({
+    ...base(),
+    "POST /api/users/u1/send-first-password": () => ({
+      status: 503,
+      body: { detail: "Email is not set up. Contact the admin team." },
+    }),
   });
   renderAt(<Users />);
   await screen.findByText("Kaushal Attal");
   fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Reset password" }));
-  fireEvent.change(screen.getByLabelText("New password"), {
-    target: { value: "a replacement password" },
-  });
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Set password" }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/users/u1/reset-password")?.body).toEqual({
-      new_password: "a replacement password",
-    }),
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Reset password" }),
   );
+  expect((await screen.findByRole("alert")).textContent).toContain("Email is not set up");
+});
+
+test("a user waiting for the first sign-in gets Send first password", async () => {
+  mockApi({
+    ...base(),
+    "GET /api/users": () => ({
+      status: 200,
+      body: [row({ id: "w1", name: "Waiting Now", must_change_password: true })],
+    }),
+  });
+  renderAt(<Users />);
+  await screen.findByText("Waiting Now");
+  fireEvent.click(
+    within(rowOf("Waiting Now")).getByRole("button", { name: "Send first password" }),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByText("Send Waiting Now a new first password?"),
+  ).toBeTruthy();
+});
+
+test("an account still on its first password is tagged", async () => {
+  mockApi({
+    ...base(),
+    "GET /api/users": () => ({
+      status: 200,
+      body: [
+        row({ id: "w1", name: "Waiting Now", must_change_password: true }),
+        row({ id: "w2", name: "Settled Down", must_change_password: false }),
+      ],
+    }),
+  });
+  renderAt(<Users />);
+  await screen.findByText("Waiting Now");
+  expect(within(rowOf("Waiting Now")).getByText("Waiting for first sign-in")).toBeTruthy();
+  expect(within(rowOf("Settled Down")).queryByText("Waiting for first sign-in")).toBeNull();
 });
 
 test("shows when each user was last seen, and a current pause", async () => {

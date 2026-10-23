@@ -9,7 +9,7 @@ margins) are computed here in Decimal and say how. Nothing is shown that the fil
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -149,26 +149,47 @@ def _day(d: date) -> str:
     return f"{d.day} {d:%b %Y}"
 
 
-def missing_quarter_note(session: Session, company_id: int, consolidated: bool, end: date) -> str:
-    """Why a comparison quarter has no figures, for the tooltip on its dash. A company's first
-    results after listing can cover a half-year only (Canara Robeco AMC, September 2025), and
-    the quarter inside it is then never filed on its own."""
+def _missing_note(consolidated: bool, end: date, covering: Any) -> str:
     label = quarter_label(end)
     basis = "consolidated" if consolidated else "standalone"
-    covering = session.execute(
-        select(Filing.period_start, Filing.period_type).where(
-            Filing.company_id == company_id,
-            Filing.kind == "results_xbrl",
-            Filing.consolidated == consolidated,
-            Filing.period_end == end,
-        )
-    ).first()
     if covering is not None and covering.period_type != "Q" and covering.period_start:
         return (
             f"{label} wasn't filed as a quarter: the {basis} results for {_day(end)} cover "
             f"{_day(covering.period_start)} to {_day(end)} only"
         )
     return f"No {basis} results for {label} on record"
+
+
+def missing_quarter_note(session: Session, company_id: int, consolidated: bool, end: date) -> str:
+    """Why a comparison quarter has no figures, for the tooltip on its dash. A company's first
+    results after listing can cover a half-year only (Canara Robeco AMC, September 2025), and
+    the quarter inside it is then never filed on its own."""
+    return missing_quarter_notes(session, [(company_id, consolidated)], end)[
+        (company_id, consolidated)
+    ]
+
+
+def missing_quarter_notes(
+    session: Session, keys: list[tuple[int, bool]], end: date
+) -> dict[tuple[int, bool], str]:
+    """`missing_quarter_note` for many (company id, consolidated) pairs in one query."""
+    if not keys:
+        return {}
+    wanted = set(keys)
+    covering: dict[tuple[int, bool], Any] = {}
+    for row in session.execute(
+        select(
+            Filing.company_id, Filing.consolidated, Filing.period_start, Filing.period_type
+        ).where(
+            Filing.company_id.in_({cid for cid, _ in wanted}),
+            Filing.kind == "results_xbrl",
+            Filing.period_end == end,
+        )
+    ):
+        key = (row.company_id, bool(row.consolidated))
+        if key in wanted:
+            covering.setdefault(key, row)  # the first match, as .first() gave before
+    return {k: _missing_note(k[1], end, covering.get(k)) for k in keys}
 
 
 def _latest_revision(
