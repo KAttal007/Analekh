@@ -87,7 +87,7 @@ unit_and_integration:
 
 web:
   stage: test
-  image: node:24-alpine
+  image: node:24.22.1-alpine
   cache:
     key:
       files: [pnpm-lock.yaml]

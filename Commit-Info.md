@@ -3,6 +3,8 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-23** Node 24.22.1 (latest 24.x LTS) pinned exactly in `.node-version`, the CI web
+  job and the web Docker image. Node 26 becomes LTS on 2026-10-28; planned for later.
 - **2026-10-21** v0.0.5: design document, deviations log and architecture diagrams brought up to
   date (V11, scheduler and feeds in Docker, results calendar, results history, Reports, the
   owner's amendment on ratings). Code version 0.0.5.

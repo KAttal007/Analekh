@@ -1,5 +1,5 @@
 # Built from the repository root (pnpm workspace): docker build -f web/Dockerfile .
-FROM node:24-alpine AS build
+FROM node:24.22.1-alpine AS build
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json web/
