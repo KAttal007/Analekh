@@ -167,7 +167,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Scheduler (Celery beat, worker, Redis in Docker) | ✅ | Since 2026-10-21; the Windows scheduled tasks are disabled |
 | Integrated filing lookup (`ingest/integrated.py`, `analekh refresh`) | ✅ | Rule 1 amended 2026-10-14. 2,537 companies stored; integrated filings start with the March 2025 quarter; SME companies through `index=sme` |
 | Results history (`analekh results-backfill --history [--sector …]`, NSE's financial-results list; rule 1 amended 2026-10-15) | ✅ | From March 2023: NSE's older `_WEB` files lack the main contexts and are skipped (`pipeline.IncompleteXbrl`; owner's call, no rebuilding by id). Full run S-Z still going; Banking Services stored for the owner's walkthrough |
-| Results watcher (`analekh results-watch`, beat `watch-results`) | ✅ | ONE request to the latest-results list per run, by season: every 2 hours from 09:00 to 23:00 IST in SEBI's results windows, once a day at 21:00 otherwise (`analekh/seasons.py`; `--force` to ask now). Celery beat in Docker since 2026-10-21 |
+| Results watcher (`analekh results-watch`, beat `watch-results`) | ✅ | ONE request to the latest-results list per run, by season: every hour from 09:00 to 23:00 IST in SEBI's results windows, once a day at 21:00 otherwise (`analekh/seasons.py`; `--force` to ask now). Celery beat in Docker since 2026-10-21 |
 | Broken and missing XBRL files | ✅ | A 404, or a file cut off partway (fetched once more), is skipped and noted; the company's other filings are kept (Laurus Labs) |
 | XBRL parser, validation V1-V11 | ✅ | Integrated filings (`in-capmkt` taxonomy) parse: all 18 Ind-AS names match; typed dimensions read. V11 corrects amounts tagged in the wrong unit when two signals agree (28 corrected, 44 suspects); `analekh revalidate` reapplies it offline |
 | Sectors: NSE's taxonomy (`analekh universe sectors`) | ✅ | Owner's choice 2026-10-16. 11 NSE Indices lists (found among all 116) cover every indexed company: 1,430 with NSE's exact sector (22 current names; stale pre-2022 labels ignored). Precedence user > NSE > LSEG |
@@ -305,8 +305,7 @@ See [`office-addin/README.md`](office-addin/README.md).
 | [pnpm](https://pnpm.io/) | pinned in `package.json` (`npm install -g pnpm`) | Front-end workspace and lockfile |
 | Excel | desktop | Excel bridge (xlwings), optional |
 
-LibreOffice and Tesseract are only needed when running the API outside Docker; the Docker
-image installs both.
+LibreOffice is only needed when running the API outside Docker; the Docker image installs it.
 
 ### Everyday commands
 

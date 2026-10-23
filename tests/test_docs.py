@@ -27,6 +27,29 @@ def test_read_and_subset_pdf():
     assert len(sub) == 1 and "82,000" in sub[0].text
 
 
+def test_scanned_page_is_read_by_ocr():
+    # A scan: the page carries only an image of the text, no text layer.
+    text_pdf = pymupdf.open()
+    text_pdf.new_page().insert_text((72, 72), "Gold loan AUM 82,000 crore", fontsize=20)
+    image = text_pdf[0].get_pixmap(dpi=200).tobytes("png")
+    scan = pymupdf.open()
+    scan.new_page().insert_image(scan[0].rect, stream=image)
+    pages = read_pages(scan.tobytes())
+    assert pages[0].ocr is True
+    assert "82,000" in pages[0].text and "Gold" in pages[0].text
+
+
+def test_ocr_uses_analekhs_config():
+    from analekh.docs.pdf import OCR_CONFIG, ocr_engine
+
+    engine = ocr_engine()
+    assert OCR_CONFIG.is_file()
+    # Our file, not RapidOCR's defaults: threads are capped and the bundled models are used.
+    assert engine.cfg.EngineConfig.onnxruntime.intra_op_num_threads == 2
+    assert engine.cfg.Det.model_type.value == "small"
+    assert engine.cfg.Rec.ocr_version.value == "PP-OCRv6"
+
+
 def test_classifier_selects_kpi_and_statement_pages():
     pages = [
         PageText(1, "Investor presentation cover"),

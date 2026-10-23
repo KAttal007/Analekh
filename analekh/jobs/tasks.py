@@ -356,7 +356,7 @@ def purge_sessions() -> dict:
 @app.task
 def watch_results(force: bool = False) -> dict:
     """New results filings for every company, from one request to NSE's latest list. Runs only
-    when the season schedule says so (analekh.seasons): every 2 hours from 09:00 to 23:00 IST in
+    when the season schedule says so (analekh.seasons): every hour from 09:00 to 23:00 IST in
     a results season, at 21:00 otherwise. `force` asks NSE regardless."""
     from analekh import seasons
     from analekh.db.models import JobStatus

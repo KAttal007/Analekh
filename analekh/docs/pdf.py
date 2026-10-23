@@ -2,6 +2,8 @@
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import pymupdf
 
@@ -46,10 +48,30 @@ def subset(data: bytes, page_numbers: list[int]) -> bytes:
         return out.tobytes()
 
 
+OCR_DPI = 200
+# Model routing, threads and logging for RapidOCR (see the file's header).
+OCR_CONFIG = Path(__file__).with_name("rapidocr.yaml")
+_engine: Any = None
+
+
+def ocr_engine() -> Any:
+    """The RapidOCR engine, built once per process from OCR_CONFIG. RapidOCR silently falls back
+    to its own defaults when the file is missing, so a missing file is an error here."""
+    global _engine
+    if _engine is None:
+        if not OCR_CONFIG.is_file():
+            raise FileNotFoundError(OCR_CONFIG)
+        from rapidocr import RapidOCR
+
+        _engine = RapidOCR(config_path=str(OCR_CONFIG))
+    return _engine
+
+
 def _ocr(page: "pymupdf.Page") -> str:
-    """Tesseract fallback for scanned pages; empty when tesseract is not installed."""
+    """RapidOCR fallback for scanned pages (ONNX models ship in the package; no system binary).
+    Empty when OCR fails, so a bad scan never stops a document from being read."""
     try:
-        tp = page.get_textpage_ocr(full=True)
-        return page.get_text("text", textpage=tp)
-    except Exception:  # noqa: BLE001 - tesseract missing or failed
+        result = ocr_engine()(page.get_pixmap(dpi=OCR_DPI).tobytes("png"))
+        return "\n".join(result.txts or ())
+    except Exception:  # noqa: BLE001 - OCR failed; the page is kept without text
         return ""

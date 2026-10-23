@@ -3,6 +3,13 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-23** OCR for scanned pages moves from Tesseract to RapidOCR (`rapidocr` + `onnxruntime`,
+  models in the package): no system binary, so scans are read on Windows too and the image drops
+  the tesseract apt packages. Model routing and limits in `analekh/docs/rapidocr.yaml` (bundled
+  PP-OCRv6 small models, 2 threads per task). `requirements.txt` re-exported; tests cover the OCR
+  path and the config.
+- **2026-10-23** Results watcher hourly in season (was every 2 hours; owner's call, rule 1 and
+  design doc 9.6 updated). Off season it still asks once a day at 21:00. Restart beat to apply.
 - **2026-10-23** Node 24.22.1 (latest 24.x LTS) pinned exactly in `.node-version`, the CI web
   job and the web Docker image. Node 26 becomes LTS on 2026-10-28; planned for later.
 - **2026-10-21** v0.0.5: design document, deviations log and architecture diagrams brought up to

@@ -126,7 +126,7 @@
     <span><b class="plan"></b>core built or planned, not running yet</span>
   </div>
   <p class="note">
-    Results come from NSE’s integrated-filing lookup (per company, and one request every 2 hours without a
+    Results come from NSE’s integrated-filing lookup (per company, and one request every hour in season without a
     ticker for the latest filings) and its financial-results list for 2023–2024. When a quarter is refiled,
     the most recently filed values are used and the older ones kept as history. Sectors follow NSE’s own
     taxonomy first. Prices: one bhavcopy per trading day; only the latest close is kept. Celery beat runs
@@ -286,8 +286,8 @@
     (60 for the year end). NSE showed integrated filings a median of one second after the company filed
     (299 filings, 24 companies), so any delay is the watcher’s interval. Since 2023, every first filing of
     those companies fell between day 8 and day 59, inside the windows; under 1% were filed between
-    midnight and 09:00. The watcher polls every 2 hours from 09:00 to 23:00 in season and once a day at
-    21:00 otherwise: about 60% fewer requests than every 2 hours all year.
+    midnight and 09:00. The watcher polls every hour from 09:00 to 23:00 in season and once a day at
+    21:00 otherwise: about 45% fewer requests than every hour all year.
   </p>
 </section>
 
@@ -299,7 +299,7 @@
     <div class="card"><h3>Numbers come from data</h3><p>Figures in drafts are fetched from the database or
       the model through tool calls, and each one carries its XBRL tag or PDF page reference.</p></div>
     <div class="card"><h3>Data rights</h3><p>NSE’s published RSS feeds and lists, two lookups (owner-approved;
-      per company, plus one request every 2 hours), one bhavcopy a day, NSE Indices’ constituent CSVs.
+      per company, plus one request every hour in season), one bhavcopy a day, NSE Indices’ constituent CSVs.
       Requests identify as Analekh, never as a browser. Written confirmation or a licence before any public
       release.</p></div>
     <div class="card"><h3>Stack</h3><p class="mono">Python 3.12 · FastAPI · Celery + Redis · lxml · PyMuPDF ·
@@ -469,7 +469,7 @@ function graph(id) {
   const [ix, iw] = col.ing;
   box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["beat · seasons · prices"] });
   box(svg, { x: ix, y: 100, w: iw, h: 42, title: "Feed Watcher", sub: ["all filers, keep history"] });
-  box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Results Fetcher", sub: ["per company + 2-hourly", "hash once · allow-list"] });
+  box(svg, { x: ix, y: 160, w: iw, h: 54, title: "Results Fetcher", sub: ["per company + hourly", "hash once · allow-list"] });
   box(svg, { x: ix, y: 248, w: iw, h: 42, title: "Universe Loader", sub: ["all NSE cos · weekly"] });
   box(svg, { x: ix, y: 322, w: iw, h: 54, title: "Sector Import", sub: ["user > NSE > LSEG", "per-company source"] });
   box(svg, { x: ix, y: 408, w: iw, h: 54, title: "Price Fetcher", sub: ["close + market cap", "latest day only"] });
@@ -566,7 +566,7 @@ function graph(id) {
 (function results() {
   const g = graph("results");
   heading(g.svg, 20, 1200, "TRIGGERS", 16);
-  g.node("watch", { x: 20, y: 34, w: 210, h: 58, title: "Results watcher", sub: ["no ticker · latest 500", "every 2 h (scheduled task)"] });
+  g.node("watch", { x: 20, y: 34, w: 210, h: 58, title: "Results watcher", sub: ["no ticker · latest 500", "hourly in season (beat)"] });
   g.node("refresh", { x: 250, y: 34, w: 210, h: 58, title: "Refresh", sub: ["one company", "analekh refresh · API"] });
   g.node("backfill", { x: 480, y: 34, w: 210, h: 58, title: "Backfill", sub: ["every company · resumable", "skips no-filings list"] });
   g.node("history", { x: 710, y: 34, w: 210, h: 58, title: "History backfill", sub: ["--history · by sector", "quarters from Mar 2023"] });
@@ -833,7 +833,7 @@ sequence("coverage",
   g.link("ir.b", "fetch.t@0.8");
   g.link("rec.b", "gate.t@0.8", { kind: "plan", label: "transcript", at: [520, 104] });
   g.link("fetch.r", "gate.l", { kind: "plan" });
-  g.node("read", { x: 20, y: 210, w: 260, h: 56, title: "Read + classify pages", sub: ["PyMuPDF · Tesseract · top pages"], kind: "plan" });
+  g.node("read", { x: 20, y: 210, w: 260, h: 56, title: "Read + classify pages", sub: ["PyMuPDF · RapidOCR · top pages"], kind: "plan" });
   g.node("claude1", { x: 320, y: 210, w: 260, h: 56, title: "Claude extraction", sub: ["JSON schema · page + quote"], kind: "aiPlan" });
   g.link("gate.b@0.3", "read.t@0.7", { kind: "plan" });
   g.link("read.r", "claude1.l", { kind: "claude", label: "10–25 pages", at: [300, 228] });
@@ -920,7 +920,7 @@ sequence("coverage",
     el(svg, "text", { x: a + 4, y: 56, "font-family": MONO, "font-size": 8.5, fill: C.amber }, `due ${due}`);
   });
   const lanes = [
-    ["Results watcher", "2-hourly 09–23 in season · 21:00 off", "solid", "season"],
+    ["Results watcher", "hourly 09–23 in season · 21:00 off", "solid", "season"],
     ["Daily prices", "weekdays 19:00, until stored", "solid", "weekdays"],
     ["Universe refresh", "weekly, Monday 06:00", "solid", "weekly"],
     ["Feed watcher", "every 5–30 min, all year", "solid", "all"],
@@ -951,7 +951,7 @@ sequence("coverage",
     }
   });
   el(svg, "text", { x: 16, y: 352, "font-family": MONO, "font-size": 8.8, fill: C.muted },
-    "Requests a year for the results watcher: about 1,650 by season (it was about 4,400 at every 2 hours). Windows: day 5 to two days past each deadline.");
+    "Requests a year for the results watcher: about 3,000 by season (it was about 5,500 hourly all year). Windows: day 5 to two days past each deadline.");
 
   // Time of day (share of filings, 24 established companies, 2019–2026)
   const hist = [[9, 0.7], [10, 2.7], [11, 4.0], [12, 4.8], [13, 3.1], [14, 5.3], [15, 6.0], [16, 8.6], [17, 10.4], [18, 15.8], [19, 16.0], [20, 10.5], [21, 5.5], [22, 3.3], [23, 2.3]];

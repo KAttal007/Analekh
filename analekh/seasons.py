@@ -6,10 +6,10 @@ since the XBRL can follow a last-day board meeting by up to 24 hours:
 
     Q1  5 Jul - 16 Aug     Q2  5 Oct - 16 Nov     Q3  5 Jan - 16 Feb     Q4  5 Apr - 1 Jun
 
-In a season the watcher runs every 2 hours from 09:00 to 23:00 IST; outside one, once a day at
+In a season the watcher runs every hour from 09:00 to 23:00 IST; outside one, once a day at
 21:00, for late filers and revisions. NSE shows a filing about a second after it is filed and
 fewer than 1% of filings come between midnight and 09:00 (checked on 2026-10-18), so this misses
-almost nothing and makes about 60% fewer requests than polling every 2 hours all year.
+almost nothing and makes about 45% fewer requests than polling every hour all year.
 """
 
 from dataclasses import dataclass
@@ -80,9 +80,9 @@ def watch_due(now: datetime | None = None) -> tuple[bool, str]:
     return False, f"off season: one run a day at 21:00 IST until {upcoming.opens}"
 
 
-# The hours the watcher is started (results_watch_cron, "0 9-23/2 * * *", IST); each start either
+# The hours the watcher is started (results_watch_cron, "0 9-23 * * *", IST); each start either
 # asks NSE or records a skip, as watch_due decides.
-RUN_HOURS = tuple(range(9, 24, 2))
+RUN_HOURS = tuple(range(9, 24))
 
 
 def _slots(day: date) -> list[datetime]:

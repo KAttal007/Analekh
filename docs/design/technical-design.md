@@ -38,7 +38,7 @@ Technical Design Document
 | Results history | NSE's financial-results list (owner-approved on 15 October 2026) adds results from March 2023 to the integrated filings, about 15 quarters and four years of annuals per company. Older files leave out their main contexts and are rejected, never half-stored; a broken file is retried once and then skipped (sections 3.1, 4.1, 9.3, 10.1). |
 | Daily prices | NSE's bhavcopy, one file per trading day after the close (owner-approved on 17 October 2026): close, previous close, open, high, low, volume and a market cap from the latest results filing's share count. Only the latest day is kept (owner's rule, 18 October 2026). Shown on the company page and the Results desk (sections 3.3, 9.5, 19.1, 20). |
 | Sectors | NSE's own taxonomy first: NSE Indices' lists set 22 NSE sector names, which outrank the LSEG groups from the Stocks data type; the LSEG group is kept in its own column (sections 4.2, 8.2). |
-| Results watcher | One request every 2 hours (owner's choice, 16 October 2026). A schedule that follows SEBI's results seasons is proposed, backed by a check of when NSE shows filings and when companies file (sections 3.1, 9.6). |
+| Results watcher | One request every hour in season (owner's choice, 23 October 2026; every 2 hours from 16 October 2026). A schedule that follows SEBI's results seasons is proposed, backed by a check of when NSE shows filings and when companies file (sections 3.1, 9.6). |
 | Web app | A welcome screen on the first visit of a session; share price and market cap on the company page; a market-cap column and sort on the desk; a scrolling filings box. Motion only on what is clicked (tab highlight, switches); data appears at once and stays fresh in the browser for five minutes (section 19.1). |
 | Hosting | Oracle Cloud and Azure for Students could not be set up; the plan is a server in India (a VPS, or an always-on home machine with Cloudflare Tunnel), after a test that NSE serves its address (section 22.7). |
 | Status and next steps | Section 26 updated for 18 October 2026. |
@@ -238,7 +238,7 @@ Verified while scoping on 11 and 12 October 2026 and extended during the Phase 0
 |---|---|---|---|
 | Company universe | NSE EQUITY_L.csv (plus SME list), weekly | BSE scrip master (paid) | No sector column; classification needs a separate source |
 | Sector | NSE Indices constituent lists (NSE's 22 sector names), then the Excel Stocks data type (LSEG industry group via Microsoft 365); a user override wins | Curated map; company disclosures | Precedence recorded per company; the LSEG group kept separately (section 4.2) |
-| Results numbers | NSE integrated-filing lookup to XBRL: per company, plus one request every 2 hours for the latest filings | BSE results feed (paid) | Structured; no AI needed for core statements. The results RSS feed has been frozen since 24 August 2026 |
+| Results numbers | NSE integrated-filing lookup to XBRL: per company, plus one request every hour in season for the latest filings | BSE results feed (paid) | Structured; no AI needed for core statements. The results RSS feed has been frozen since 24 August 2026 |
 | Presentations, transcripts, annual reports | NSE Online_announcements RSS to PDF; company IR pages | BSE announcements feed (paid) | AI extraction on selected pages |
 | Results calendar and events | Board_Meetings, Insider_Trading, Related_Party_Trans RSS | None free | Alerts and red flags |
 | Historical backfill | Integrated-filing lookup (from the March 2025 quarter) and NSE's financial-results list (complete XBRL from March 2023), per company; company IR pages or the import folder for older periods | Licensed data | About 15 quarters and four years of annuals per company |
@@ -308,7 +308,7 @@ Six layers read left to right: sources, ingestion, processing, core data, engine
 | Sources | NSE bhavcopy | One file per trading day after the close: every traded security's prices (section 3.3). |
 | Ingestion | Scheduler | Celery beat (in Docker since 21 October 2026): the results watcher by SEBI's results seasons, the price download after the close on weekdays, the weekly universe refresh and feed polling every 5 to 30 minutes (section 9.6). |
 | Ingestion | Feed Watcher | Fetches NSE's published feeds for all companies, dedupes items, stores them permanently, links items to companies; the Board Meetings items feed the results calendar. |
-| Ingestion | Results Fetcher | Reads the integrated-filing lookup per company (refresh, backfill) and every 2 hours without a ticker, and the financial-results list per company for history; downloads each XBRL file once, hashes it, stores it in MinIO, with NSE's revision flag and source links. |
+| Ingestion | Results Fetcher | Reads the integrated-filing lookup per company (refresh, backfill) and every hour in season without a ticker, and the financial-results list per company for history; downloads each XBRL file once, hashes it, stores it in MinIO, with NSE's revision flag and source links. |
 | Ingestion | Filing Fetcher | Downloads announcement PDFs once, hashes them, stores them in MinIO. |
 | Ingestion | Universe Loader | Loads and refreshes the company universe; assigns sector by source precedence and the results taxonomy from strong signals (section 4.2). |
 | Ingestion | Price Fetcher | Downloads the day's bhavcopy once, matches companies by ISIN, works out market cap from the latest filing's share count and replaces the previous day's prices (section 9.5). |
@@ -335,7 +335,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 
 *Figure 2. Results collection: four triggers, two NSE lookups, one pipeline (sections 9.3, 9.4, 10).*
 
-1. **A trigger starts a run:** the results watcher (one request without a ticker, every 2 hours, for the latest 500 filings), a refresh of one company (analekh refresh, or the API), the backfill of every company with a sector, or the history backfill (--history, by sector).
+1. **A trigger starts a run:** the results watcher (one request without a ticker, every hour in season, for the latest 500 filings), a refresh of one company (analekh refresh, or the API), the backfill of every company with a sector, or the history backfill (--history, by sector).
 2. **The lookup answers:** the integrated-filing lookup for the watcher, refreshes and the backfill; NSE's financial-results list for history. Each row gives the quarter end, basis, NSE's Original or Revision flag, the filing time and links.
 3. **Files to fetch are chosen:** links of "-", null or undefined are no links; _WEB.xml files are never fetched; files already stored are skipped. Originals come before revisions, oldest first.
 4. **Each XBRL file is downloaded once** from nsearchives through the polite client (host and path allow-list, honest headers, one request every 2 seconds in bulk). A refusal or a stall stops the run at once.
@@ -428,7 +428,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 
 1. **Documents arrive** from the announcements feed (PDFs), company IR pages or the import folder; call recordings are transcribed locally.
 2. **Each file is fetched once** and hashed into MinIO; only watchlist or on-demand companies' documents are read further.
-3. **Pages are read locally** (PyMuPDF, Tesseract for scans) and classified; only the top pages per category are selected.
+3. **Pages are read locally** (PyMuPDF, RapidOCR for scans) and classified; only the top pages per category are selected.
 4. **Claude extracts** KPIs, guidance and red flags against a JSON schema, each value with its page, quote and confidence.
 5. **V10 compares** them with XBRL: XBRL wins and the AI value is flagged.
 6. **KPIs and text chunks** (with embeddings) are stored for search and Q&A.
@@ -489,7 +489,7 @@ Nine workflows, each with its data flow. The first four are built and run on rea
 |---|---|---|
 | Company universe | EQUITY_L.csv and SME list, weekly | companies |
 | Sectors | NSE Indices constituent lists; Stocks data type workbook import | companies (sector, sector_source, sector_lseg) |
-| Results numbers (all filers) | Integrated-filing lookup to XBRL: per company on refresh and backfill, every 2 hours for the latest filings; the financial-results list for history | filings, facts |
+| Results numbers (all filers) | Integrated-filing lookup to XBRL: per company on refresh and backfill, every hour in season for the latest filings; the financial-results list for history | filings, facts |
 | Presentations, annual reports, transcripts | Online_announcements RSS to PDF; IR pages fallback | filings, documents, chunks, kpis |
 | Events | Board meeting, insider, related party, encumbrance feeds | feed_items, alerts |
 | Prices | NSE's daily bhavcopy, once per trading day after the close (section 3.3) | prices (latest day only) |
@@ -615,7 +615,7 @@ Every job runs from Celery beat in Docker (since 21 October 2026; the Windows sc
 
 | **Job** | **Now** | **Planned** |
 |---|---|---|
-| Results watcher | Every 2 hours from 09:00 to 23:00 during the four results seasons, once a day at 21:00 otherwise (built 18 October 2026) | Narrow to the days board meetings are announced for (workflow 6.9) |
+| Results watcher | Every hour from 09:00 to 23:00 during the four results seasons, once a day at 21:00 otherwise (by season 18 October 2026; hourly in season 23 October 2026) | Narrow to the days board meetings are announced for (workflow 6.9) |
 | Daily prices | Weekdays, hourly from 19:00 to 23:00 until the day is stored | Unchanged |
 | Universe refresh | Weekly, Monday 06:00 | Unchanged |
 | Feed watcher | Every 5 minutes (announcements) or 30 minutes (event feeds) | Unchanged |
@@ -668,7 +668,7 @@ Insurers' balance sheets are not mapped yet, so V4 skips for them. A filing wher
 
 XBRL covers statutory statements but not sector KPIs or management commentary. Those come from presentations, annual reports and transcripts, processed for watchlist or on-demand companies. The user never selects pages.
 
-- **Local read** of every page with PyMuPDF; Tesseract for scanned pages.
+- **Local read** of every page with PyMuPDF; RapidOCR (ONNX, no system binary) for scanned pages.
 - **Page classification** by keyword patterns, table density and position; ambiguous pages may go to a smaller Claude model as text.
 - **Selection** of the top pages per category (typically 10 to 25 of a 300-page annual report).
 - **Extraction** by Claude against a JSON schema; each value with page, quote and confidence.
@@ -951,7 +951,7 @@ Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense
 | Database | PostgreSQL + pgvector; SQLAlchemy; Alembic | See section 8 |
 | Object storage | MinIO | Immutable raw files and generated outputs |
 | XBRL | Arelle; lxml | Taxonomy support; fast parsing |
-| PDF | PyMuPDF, pdfplumber, Camelot; Tesseract | Local text, tables, OCR |
+| PDF | PyMuPDF, pdfplumber, Camelot; RapidOCR | Local text, tables, OCR |
 | AI | Claude API (PDF input, tool use, structured output, Batch API, prompt caching) | Irregular tables, label matching, grounded writing |
 | Embeddings | Hosted API or local sentence-transformers model | Search and Q&A |
 | Excel | xlwings; openpyxl; formulas or pycel; LibreOffice for headless recalc | Live writes, structure reading, dependency graphs |
@@ -988,7 +988,7 @@ Until hosting is set up, the stack runs on the owner's laptop: PostgreSQL (share
 - Microsoft Excel desktop for the xlwings route; LibreOffice for headless recalculation. Microsoft 365 (Excel for the web is enough) for the Stocks data type used by the sector import.
 - Anthropic API key.
 - Indian network or VM in an Indian region for NSE access.
-- Optional: Tesseract; SMTP or Telegram bot token.
+- Optional: SMTP or Telegram bot token.
 - Every library by language, with versions, and every system package: Appendix G.
 
 #### 22.3 Environment variables
@@ -1012,7 +1012,7 @@ UNIVERSE_REFRESH_CRON=0 6 * * 1
 BACKFILL_PRIORITY=NIFTY500
 USER_AGENT=Analekh/0.1
 CONTACT_EMAIL=you@example.com         # sent in the From header; NSE stalls a User-Agent with an email
-RESULTS_WATCH_CRON=0 9-23/2 * * *      # seasons.py decides: every run in season, 21:00 otherwise
+RESULTS_WATCH_CRON=0 9-23 * * *        # seasons.py decides: every run in season, 21:00 otherwise
 PRICES_CRON=0 19-23 * * 1-5            # bhavcopy after the close; skipped once stored
 DOWNLOAD_RATE_PER_SECOND=1.0
 IMPORT_DIR=./import
@@ -1719,7 +1719,8 @@ lxml>=6.1,<7
 pymupdf>=1.28,<2
 pdfplumber>=0.11,<1.0
 camelot-py>=2.0,<3
-pytesseract>=0.3.13,<1.0          # needs the Tesseract binary (see system packages)
+rapidocr>=3.10,<4                 # OCR for scanned pages; ONNX models ship in the package
+onnxruntime>=1.31,<2              # runs the RapidOCR models on the CPU
 # AI
 anthropic>=1.13,<2
 # Excel and documents
@@ -1886,7 +1887,6 @@ Office.js itself is not an npm dependency: Microsoft requires add-ins to load it
 | PostgreSQL + pgvector | 16 (pgvector/pgvector:pg16) | Database |
 | Redis | 7 | Celery broker |
 | MinIO | Current | Local S3-compatible object storage |
-| Tesseract OCR + English data | 5.x (apt: tesseract-ocr) | OCR for scanned pages |
 | LibreOffice | Current, headless | Recalculating workbooks without Excel |
 | nginx | Stable | Serving the web build |
 | Docker Engine + Compose | Current | Running all services |

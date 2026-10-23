@@ -48,12 +48,15 @@ certifi==2026.10.19
     #   arelle-release
     #   httpcore
     #   httpx
+    #   requests
 cffi==2.1.1
     # via
     #   argon2-cffi-bindings
     #   cryptography
 charset-normalizer==3.5.2
-    # via pdfminer-six
+    # via
+    #   pdfminer-six
+    #   requests
 click==8.5.0
     # via
     #   camelot-py
@@ -71,8 +74,11 @@ click-repl==0.4.1
     # via celery
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
+    #   colorlog
     #   tqdm
     #   typer
+colorlog==6.12.0
+    # via rapidocr
 contourpy==1.4.0
     # via matplotlib
 cryptography==50.0.2
@@ -91,6 +97,8 @@ feedparser-sgmllib==2.1.0
     # via feedparser
 filelock==4.1.1
     # via arelle-release
+flatbuffers==25.12.19
+    # via onnxruntime
 fonttools==4.66.1
     # via matplotlib
 formulas==1.3.4
@@ -117,6 +125,7 @@ idna==3.20
     #   anyio
     #   httpx
     #   httpx2
+    #   requests
 isodate==0.7.2
     # via arelle-release
 jaconv==0.5.0
@@ -162,15 +171,24 @@ numpy==2.5.4
     #   formulas
     #   matplotlib
     #   numpy-financial
+    #   onnxruntime
     #   opencv-python-headless
     #   pandas
+    #   rapidocr
     #   scipy
+    #   shapely
 numpy-financial==1.0.0 ; python_full_version < '3.13'
     # via formulas
 numpy-financial==1.1.0 ; python_full_version >= '3.13'
     # via formulas
+omegaconf==2.4.0
+    # via rapidocr
+onnxruntime==1.31.0
+    # via analekh
 opencv-python-headless==5.0.0.93
-    # via camelot-py
+    # via
+    #   camelot-py
+    #   rapidocr
 openpyxl==3.1.5
     # via
     #   analekh
@@ -182,7 +200,7 @@ packaging==26.3
     # via
     #   kombu
     #   matplotlib
-    #   pytesseract
+    #   onnxruntime
 pandas==3.0.6
     # via
     #   analekh
@@ -199,16 +217,20 @@ pillow==13.0.0
     #   camelot-py
     #   matplotlib
     #   pdfplumber
-    #   pytesseract
     #   python-pptx
+    #   rapidocr
 playa-pdf==1.1.0
     # via camelot-py
 prompt-toolkit==3.0.53
     # via click-repl
+protobuf==7.36.2
+    # via onnxruntime
 psycopg==3.3.6
     # via analekh
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'
     # via psycopg
+pyclipper==1.4.0
+    # via rapidocr
 pycparser==3.11 ; implementation_name != 'PyPy'
     # via cffi
 pydantic==2.14.1
@@ -233,8 +255,6 @@ pypdfium2==5.14.0
     # via
     #   camelot-py
     #   pdfplumber
-pytesseract==0.3.13
-    # via analekh
 python-dateutil==2.9.0.post0
     # via
     #   analekh
@@ -257,8 +277,12 @@ python-pptx==1.0.2
 pyyaml==6.0.3
     # via
     #   analekh
+    #   omegaconf
+    #   rapidocr
     #   uvicorn
 rapidfuzz==3.14.6
+    # via analekh
+rapidocr==3.10.0
     # via analekh
 redis==6.4.0
     # via kombu
@@ -270,6 +294,8 @@ regex==2026.9.29
     # via
     #   arelle-release
     #   formulas
+requests==2.34.2
+    # via rapidocr
 rich==15.0.0
     # via typer
 rpds-py==2026.9.1
@@ -282,10 +308,14 @@ schedula==1.6.15
     # via formulas
 scipy==1.18.1
     # via formulas
+shapely==2.2.0
+    # via rapidocr
 shellingham==1.5.4
     # via typer
 six==1.17.0
-    # via python-dateutil
+    # via
+    #   python-dateutil
+    #   rapidocr
 sniffio==1.3.1
     # via anthropic
 sqlalchemy==2.1.4
@@ -301,7 +331,9 @@ tabulate==0.10.0
 tenacity==9.2.1
     # via analekh
 tqdm==4.70.1
-    # via formulas
+    # via
+    #   formulas
+    #   rapidocr
 truststore==0.10.4
     # via
     #   arelle-release
@@ -342,7 +374,9 @@ tzdata==2026.5
 tzlocal==5.4.4
     # via celery
 urllib3==2.8.0
-    # via botocore
+    # via
+    #   botocore
+    #   requests
 uvicorn==0.54.0
     # via analekh
 uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'

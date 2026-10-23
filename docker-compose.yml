@@ -38,7 +38,9 @@ services:
     volumes: [minio:/data]
 
   api:
+    # The one build of the application image; worker and beat reuse it (`docker compose build api`).
     build: .
+    image: analekh-app:dev
     command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
     env_file: .env
     environment: *container-network
@@ -50,7 +52,7 @@ services:
       minio: { condition: service_started }
 
   worker:
-    build: .
+    image: analekh-app:dev
     command: celery -A analekh.jobs worker -l info
     env_file: .env
     environment: *container-network
@@ -61,7 +63,7 @@ services:
       minio: { condition: service_started }
 
   beat:
-    build: .
+    image: analekh-app:dev
     command: celery -A analekh.jobs beat -l info -s /tmp/celerybeat-schedule
     env_file: .env
     environment: *container-network

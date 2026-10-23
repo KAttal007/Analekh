@@ -68,9 +68,9 @@ def test_watcher_skips_without_touching_nse_or_the_database(monkeypatch):
 def test_next_ask_and_previous_start():
     from analekh.seasons import next_ask, previous_start
 
-    # In season at 10:30: next ask 11:00, last start 09:00.
+    # In season at 10:30: next ask 11:00, last start 10:00 (hourly).
     assert next_ask(ist(2026, 10, 20, 10).replace(minute=30)) == ist(2026, 10, 20, 11)
-    assert previous_start(ist(2026, 10, 20, 10).replace(minute=30)) == ist(2026, 10, 20, 9)
+    assert previous_start(ist(2026, 10, 20, 10).replace(minute=30)) == ist(2026, 10, 20, 10)
     # Off season after 21:00: tomorrow at 21:00; at 02:00 the last start was 23:00 yesterday.
     assert next_ask(ist(2026, 9, 10, 22)) == ist(2026, 9, 11, 21)
     assert previous_start(ist(2026, 9, 10, 2)) == ist(2026, 9, 9, 23)
