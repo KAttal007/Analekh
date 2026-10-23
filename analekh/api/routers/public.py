@@ -101,7 +101,12 @@ def welcome(db: DB) -> WelcomeOut:
 
 
 @router.get("/calendar", response_model=PublicCalendarOut)
-def calendar(db: DB, start: date | None = None, end: date | None = None) -> PublicCalendarOut:
+def calendar(
+    db: DB,
+    start: date | None = None,
+    end: date | None = None,
+    kind: Literal["results", "meeting", "concall"] | None = None,
+) -> PublicCalendarOut:
     today = date.today()
     start = start or today - timedelta(days=2)
     end = end or start + timedelta(days=45)
@@ -113,9 +118,11 @@ def calendar(db: DB, start: date | None = None, end: date | None = None) -> Publ
         found = schedule.events(db, start, end)  # no watchlist user: nothing personal
         rows = []
         for e in found:
+            if kind and e.kind != kind:
+                continue  # the sign-in screen asks for results only: a smaller reply
             data = asdict(e)
             data.pop("watched")
             rows.append(PublicEventOut(**data))
         return PublicCalendarOut(start=start, end=end, events=rows)
 
-    return _cached(("calendar", start, end), build)
+    return _cached(("calendar", start, end, kind), build)

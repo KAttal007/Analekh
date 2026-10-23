@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { api, type DeskQuery } from "../api/client";
-import { addDays, daysFrom, iso } from "./calendar";
+import { addDays, daysFrom, iso, startOfWeek } from "./calendar";
 import { readPrefs } from "./prefs";
 
 // Code-split screens that the search box can warm up before the user picks a result.
@@ -45,6 +45,19 @@ export const calendarQuery = (start: string, end: string, watchlistOnly: boolean
   queryFn: () => api.calendar(start, end, watchlistOnly),
   staleTime: 60_000,
 });
+
+/** The signed-out "Results this week" list on the login page. Shared with the welcome page,
+ * which warms it so the list is already there when the login page opens. */
+export const publicWeekQuery = () => {
+  const monday = startOfWeek(iso(new Date()));
+  const sunday = addDays(monday, 6);
+  return {
+    queryKey: ["public-calendar", monday] as const,
+    queryFn: () => api.publicCalendar(monday, sunday),
+    staleTime: 60_000,
+    retry: false as const,
+  };
+};
 
 export const companyIndexQuery = {
   queryKey: ["company-index"] as const,

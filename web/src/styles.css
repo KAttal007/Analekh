@@ -3628,7 +3628,7 @@ table.glance tbody tr:last-child > * {
   align-items: center;
   gap: clamp(var(--s5), 6vw, 96px);
   width: 100%;
-  max-width: 1080px;
+  max-width: 1340px; /* room for the week card, 860px wide, beside the sign-in card */
   margin: 0 auto;
 }
 .login-intro {
@@ -3691,7 +3691,7 @@ table.glance tbody tr:last-child > * {
 }
 .login-week {
   width: 100%;
-  max-width: 460px;
+  max-width: 860px;
   margin-top: var(--s4);
   padding: var(--s3) var(--s4);
 }
@@ -3701,31 +3701,68 @@ table.glance tbody tr:last-child > * {
   font-weight: 600;
   color: var(--text-2);
 }
-.login-week ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.login-week-loading {
+  min-height: 200px;
 }
-.login-week li {
+.login-week-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(96px, 1fr);
+  gap: var(--s2);
+  overflow-x: auto;
+}
+.login-week-day {
   display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  padding: var(--s2) 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s2);
+  border: 1px solid transparent;
+  border-radius: 10px;
 }
-.login-week li:last-child {
-  border-bottom: 0;
+.login-week-day.is-today {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .login-week-date {
-  flex: none;
-  width: 52px;
-  color: var(--muted);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
   font-variant-numeric: tabular-nums;
 }
-.login-week-name {
-  min-width: 0;
+.login-week-num {
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1;
+}
+.login-week-mon {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.login-week-month {
+  margin: 0 0 var(--s3);
+  font-size: 12px;
+  color: var(--muted);
+}
+.login-week ul {
+  margin: 0;
+  padding: 0 0 0 var(--s3);
+  list-style: disc;
+}
+.login-week li {
+  padding: 2px 0;
+  font-size: 12px;
   overflow-wrap: anywhere;
+}
+.login-week li::marker {
+  color: var(--muted);
+}
+.login-week-more {
+  padding-left: var(--s3);
+  font-size: 12px;
+  color: var(--muted);
 }
 @media (max-width: 760px) {
   .login-screen {

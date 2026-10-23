@@ -183,7 +183,7 @@ export const api = {
   publicAuthStatus: () => call<{ auth_enabled: boolean }>("/public/auth-status"),
   publicWelcome: () => call<PublicWelcome>("/public/welcome"),
   publicCalendar: (start: string, end: string) =>
-    call<PublicCalendar>(`/public/calendar?start=${start}&end=${end}`),
+    call<PublicCalendar>(`/public/calendar?start=${start}&end=${end}&kind=results`),
   companyIndex: () => call<CompanyIndexEntry[]>("/companies/index"),
   search: (q: string, offset = 0, limit = 20) =>
     call<SearchHit[]>(

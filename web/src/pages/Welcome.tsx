@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { filedAt } from "../lib/format";
 import { useMe } from "../lib/auth";
+import { publicWeekQuery } from "../lib/preload";
 import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
 
 // The welcome screen is Analekh's lock screen: the page follows a scroll or swipe up, with some
@@ -52,6 +53,11 @@ export function Welcome() {
   const root = useRef<HTMLDivElement>(null);
   const enter = useRef<HTMLButtonElement>(null);
   const opened = useRef(false);
+  const client = useQueryClient();
+  // Warm the login page's calendar while the visitor is still here.
+  useEffect(() => {
+    void client.prefetchQuery(publicWeekQuery());
+  }, [client]);
   const desk = useQuery({
     queryKey: ["public-welcome"],
     queryFn: api.publicWelcome,

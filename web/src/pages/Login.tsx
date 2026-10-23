@@ -3,20 +3,15 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { NewPasswordField, usePasswordRules } from "../components/PasswordRules";
+import { dayNumber, daysFrom, iso, startOfWeek, weekdayShort } from "../lib/calendar";
 import { ME_KEY, peekReturnPath, takeReturnPath, useMe } from "../lib/auth";
-import { prefetchHome } from "../lib/preload";
+import { prefetchHome, publicWeekQuery } from "../lib/preload";
 import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
 
 type Mode = "signin" | "request" | "confirm" | "first";
 
 // After sign-in, the longest the handoff waits for the home screen's data before it plays anyway.
 const HANDOFF_WAIT_MS = 800;
-
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-const day = (value: string) =>
-  new Date(`${value}T00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
 /** A wait of N seconds that counts down once a second. `start` begins it; `left` is 0 when idle. */
 function useCountdown(): { left: number; start: (seconds: number) => void } {
@@ -39,29 +34,63 @@ function useCountdown(): { left: number; start: (seconds: number) => void } {
 const clock = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-/** Results this week, public: what a signed-out visitor can see of the calendar. */
+// Companies listed under a date before "+N more".
+const PER_DAY = 4;
+
+/** The month the week is in, e.g. "October 2026", or "October – November 2026" when it crosses one. */
+const weekMonths = (first: string, last: string): string => {
+  const a = new Date(`${first}T00:00`);
+  const b = new Date(`${last}T00:00`);
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-IN", opts);
+  if (a.getMonth() === b.getMonth()) return fmt(a, { month: "long", year: "numeric" });
+  const from = fmt(a, { month: "long" });
+  const to = fmt(b, { month: "long", year: "numeric" });
+  return a.getFullYear() === b.getFullYear()
+    ? `${from} – ${to}`
+    : `${fmt(a, { month: "long", year: "numeric" })} – ${to}`;
+};
+
+/** Results this week, public: Monday to Sunday of the current week, a column per date with that
+ * day's companies as bullets, and today highlighted. */
 function WeekAhead() {
-  const today = new Date();
-  const week = new Date(today.getTime() + 7 * 86_400_000);
-  const calendar = useQuery({
-    queryKey: ["public-calendar", iso(today)],
-    queryFn: () => api.publicCalendar(iso(today), iso(week)),
-    retry: false,
-  });
-  const events = (calendar.data?.events ?? []).filter((e) => e.kind === "results").slice(0, 8);
+  const calendar = useQuery(publicWeekQuery());
+  if (calendar.isPending) {
+    // Holds the card's place while the list loads, so the page does not shift when it arrives.
+    return <section className="login-week login-week-loading" aria-hidden />;
+  }
+  const events = (calendar.data?.events ?? []).filter((e) => e.kind === "results");
   if (events.length === 0) return null;
+  const today = iso(new Date());
+  const week = daysFrom(startOfWeek(today), 7);
   return (
     <section className="login-week" aria-label="Results this week">
       <h2>Results this week</h2>
-      <ul>
-        {events.map((e) => (
-          <li key={`${e.date}-${e.symbol}-${e.kind}`}>
-            <span className="login-week-date">{day(e.date)}</span>
-            <span className="login-week-name">{e.name}</span>
-            {e.status === "filed" && <span className="badge">Filed</span>}
-          </li>
-        ))}
-      </ul>
+      <p className="login-week-month">{weekMonths(week[0], week[6])}</p>
+      <div className="login-week-cols">
+        {week.map((date) => {
+          const items = events.filter((e) => e.date === date);
+          return (
+            <div
+              className={`login-week-day${date === today ? " is-today" : ""}`}
+              key={date}
+              aria-current={date === today ? "date" : undefined}
+            >
+              <time className="login-week-date" dateTime={date}>
+                <span className="login-week-num">{dayNumber(date)}</span>
+                <span className="login-week-mon">{weekdayShort(date)}</span>
+              </time>
+              <ul>
+                {items.slice(0, PER_DAY).map((e) => (
+                  <li key={`${e.date}-${e.symbol}`}>{e.name}</li>
+                ))}
+              </ul>
+              {items.length > PER_DAY && (
+                <span className="login-week-more">+{items.length - PER_DAY} more</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
