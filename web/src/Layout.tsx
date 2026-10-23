@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { CompanySearch } from "./components/CompanySearch";
 import { Icon, type IconName } from "./components/Icon";
-import { SegmentThumb } from "./components/ui";
+import { ErrorNote, SegmentThumb } from "./components/ui";
 import { useMe, useSignInOff, useSignOut } from "./lib/auth";
 import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
 
@@ -153,6 +153,7 @@ export function SignOut() {
   const me = useMe().data;
   const signOut = useSignOut();
   const signInOff = useSignInOff();
+  const [failed, setFailed] = useState<unknown>(null);
   if (!me) return null;
   return (
     <div className="signed-in">
@@ -164,12 +165,16 @@ export function SignOut() {
           type="button"
           className="btn btn-ghost btn-sm sign-out"
           title="Sign out"
-          onClick={() => void signOut()}
+          onClick={() => {
+            setFailed(null);
+            signOut().catch(setFailed);
+          }}
         >
           <Icon name="logout" />
           <span className="sign-out-label">Sign out</span>
         </button>
       )}
+      {failed !== null && <ErrorNote error={failed} />}
     </div>
   );
 }

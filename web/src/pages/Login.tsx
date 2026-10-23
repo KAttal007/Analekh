@@ -122,8 +122,8 @@ export function Login() {
     void Promise.race([ready, wait]).then(() => {
       if (gone) return;
       markWelcomed();
-      tagTransition("enter"); // the mark flies to the sidebar, the desk settles in
-      navigate(takeReturnPath(), { replace: true, viewTransition: true });
+      tagTransition("enter"); // the desk settles in (a plain animation: the page stays clickable)
+      navigate(takeReturnPath(), { replace: true });
     });
     return () => {
       gone = true;

@@ -292,21 +292,14 @@ kbd {
 :root[data-vt="welcome"]::view-transition-new(content) {
   animation: unlock-in 720ms var(--spring) 220ms both;
 }
-/* Sign-in into the desk (Login.tsx, data-vt="enter"): the same unlock, about a third as long, so
-   a signed-in analyst is not kept waiting. The desk's data is loaded before it plays. */
-:root[data-vt="enter"]::view-transition-group(brand-mark) {
-  animation-duration: 340ms;
-}
-:root[data-vt="enter"]::view-transition-old(root) {
-  animation: unlock-out 220ms var(--ease-out) both;
-}
-:root[data-vt="enter"]::view-transition-new(root) {
-  animation: none;
-}
-:root[data-vt="enter"]::view-transition-new(sidebar) {
+/* Sign-in into the desk (Login.tsx, data-vt="enter"): the same unlock, about a third as long. It
+   is a plain animation on the live page, not a view transition: a view transition lays snapshots
+   over the page and swallows every click until it ends, so Sign out right after signing in did
+   nothing. The desk's data is loaded before it plays. */
+:root[data-vt="enter"] .sidebar {
   animation: vt-sidebar-in 300ms var(--spring) 40ms both;
 }
-:root[data-vt="enter"]::view-transition-new(content) {
+:root[data-vt="enter"] .content {
   animation: unlock-in 320ms var(--spring) 40ms both;
 }
 @media (prefers-reduced-motion: reduce) {

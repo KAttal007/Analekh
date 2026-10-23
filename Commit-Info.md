@@ -18,7 +18,10 @@ Newest first. One entry per major update: what moved, and what it unblocks. Kept
   the web app; the 30 cap also limits sign-in. Migration 0010 adds the two account columns.
   Reset codes now last 2 minutes (was 10), matching the 2-minute wait to resend. Unblocks the live
   test with real mail and onboarding analysts without passing passwords by hand. Sign out now
-  shows the sign-in page at once (it waited for another click).
+  goes to the welcome page as soon as the server confirms (it used to wait for another click);
+  a failed sign-out stays put and shows the error. The sign-in unlock is now a plain animation on
+  the live page: as a view transition it covered the page and swallowed clicks (Sign out right after
+  signing in did nothing).
 - **2026-10-23** OCR for scanned pages moves from Tesseract to RapidOCR (`rapidocr` + `onnxruntime`,
   models in the package): no system binary, so scans are read on Windows too and the image drops
   the tesseract apt packages. Model routing and limits in `analekh/docs/rapidocr.yaml` (bundled

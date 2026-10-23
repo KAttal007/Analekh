@@ -107,6 +107,55 @@ test("Sign out shows the sign-in page at once, with no other click", async () =>
   await screen.findByText("sign-in page");
 });
 
+function signOutApp() {
+  return (
+    <Routes>
+      <Route path="/welcome" element={<p>welcome page</p>} />
+      <Route element={<RequireSignIn />}>
+        <Route element={<Layout />}>
+          <Route path="*" element={<p>the desk</p>} />
+        </Route>
+      </Route>
+    </Routes>
+  );
+}
+
+test("Sign out waits for the server's reply, then goes to the welcome page", async () => {
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ANALYST }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+    "POST /api/auth/logout": () => ({ status: 204 }),
+  });
+  // Hold back only the sign-out reply until the test lets it through.
+  const spy = vi.mocked(globalThis.fetch);
+  const real = spy.getMockImplementation()!;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  spy.mockImplementation(async (input, init) => {
+    if (String(input).endsWith("/auth/logout")) await gate;
+    return real(input, init);
+  });
+  renderAt(signOutApp(), "/");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await new Promise((r) => setTimeout(r, 100));
+  expect(screen.queryByText("welcome page")).toBeNull();
+  release();
+  await screen.findByText("welcome page");
+});
+
+test("a failed sign-out stays put and says so", async () => {
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ANALYST }),
+    "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
+    "POST /api/auth/logout": () => ({ status: 500, body: { detail: "Server error" } }),
+  });
+  renderAt(signOutApp(), "/");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await screen.findByRole("alert");
+  expect(screen.queryByText("welcome page")).toBeNull();
+  expect(screen.getByText("the desk")).toBeTruthy();
+});
+
 test("the admin sidebar has Sign out too", async () => {
   mockApi({
     "GET /api/auth/me": () => ({ status: 200, body: ADMIN }),

@@ -214,6 +214,11 @@ function Account() {
   const signInOff = useSignInOff();
   const offHint = signInOff ? "Sign-in is off in development" : undefined;
   const [confirming, setConfirming] = useState(false);
+  const [failed, setFailed] = useState<unknown>(null);
+  const run = (everywhere: boolean) => {
+    setFailed(null);
+    signOut(everywhere).catch(setFailed);
+  };
   if (!me) return null;
   return (
     <section className="card">
@@ -232,11 +237,16 @@ function Account() {
           className="btn btn-sm"
           disabled={signInOff}
           title={offHint}
-          onClick={() => void signOut()}
+          onClick={() => run(false)}
         >
           Sign out
         </button>
       </div>
+      {failed !== null && (
+        <div className="card-body">
+          <ErrorNote error={failed} />
+        </div>
+      )}
       <div className="card-body settings-row">
         <div className="settings-row-text">
           <strong>Sign out everywhere</strong>
@@ -251,11 +261,7 @@ function Account() {
             <button type="button" className="btn btn-sm" onClick={() => setConfirming(false)}>
               Cancel
             </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger"
-              onClick={() => void signOut(true)}
-            >
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => run(true)}>
               Sign out everywhere
             </button>
           </div>

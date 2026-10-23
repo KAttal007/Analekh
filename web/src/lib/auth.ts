@@ -1,5 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Me } from "../api/client";
+import { resetWelcomed } from "./welcome";
 
 export type { Me };
 
@@ -79,15 +81,21 @@ export function useSignInOff(): boolean {
  * `everywhere` also ends every other session of this user and revokes their bridge tokens. */
 export function useSignOut() {
   const client = useQueryClient();
+  const navigate = useNavigate();
   return async (everywhere = false) => {
     try {
       await (everywhere ? api.logoutEverywhere() : api.logout());
-    } finally {
-      // Signed out first, on the live entry, so the open page sees it at once. client.clear()
-      // would drop that entry too, leaving the page watching a copy nobody updates.
-      client.setQueryData(ME_KEY, null);
-      // Nothing else from this session stays in the page.
-      client.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
+    } catch (error) {
+      // A 401 means the session was already over: that is signed out. Any other failure (server
+      // down, network) means it is NOT: stay where we are and let the caller say so.
+      if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
+    resetWelcomed();
+    // Signed out first, on the live entry, so the open page sees it at once. client.clear()
+    // would drop that entry too, leaving the page watching a copy nobody updates.
+    client.setQueryData(ME_KEY, null);
+    // Nothing else from this session stays in the page.
+    client.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
+    navigate("/welcome", { replace: true });
   };
 }
