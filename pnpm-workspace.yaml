@@ -17,3 +17,7 @@ minimumReleaseAgeExclude:
   - '@vitest/mocker@5.0.4'
   - '@vitest/spy@5.0.4'
   - vitest@5.0.4
+
+# adm-zip is not ours: office-addin tooling pulls several 0.5.x and 0.6.x copies. Pin one.
+overrides:
+  adm-zip: 0.6.1
