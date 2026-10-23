@@ -18,6 +18,9 @@ proper testing. "v1" in the design doc means that first release.
 GitLab (`kaushal-self/Kaushal-Analekh`) is the source of truth. GitHub is a read-only mirror
 fed only by the `mirror_to_github` CI job: never push to GitHub directly (design doc 22.5).
 
+The change history lives in `Commit-Info.md` (newest first, one short entry per major update:
+what moved, what it unblocks). Add new entries there, never to `README.md`, which only links it.
+
 ## Commands
 
 ```bash
