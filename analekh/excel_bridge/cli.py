@@ -30,16 +30,37 @@ def _api() -> httpx.Client:
     return httpx.Client(base_url=s.analekh_api, timeout=60, headers=headers)
 
 
+def _ok(resp: httpx.Response) -> httpx.Response:
+    """Stop with a plain message instead of a traceback when the server says no."""
+    if resp.status_code == 401:
+        typer.echo(
+            "Not signed in: set ANALEKH_TOKEN to a token made in Settings (it may be missing, "
+            "mistyped or revoked).",
+            err=True,
+        )
+        raise typer.Exit(1)
+    if resp.is_error:
+        detail = resp.json().get("detail") if "json" in resp.headers.get("content-type", "") else ""
+        typer.echo(
+            f"The server refused ({resp.status_code}): {detail or resp.reason_phrase}", err=True
+        )
+        raise typer.Exit(1)
+    return resp
+
+
 @app.command()
 def scan() -> None:
     """Index watched folders and ask the server which company each workbook belongs to."""
-    hints = indexer.scan(get_settings().watch_folder_paths)
+    skipped: list[tuple[Path, str]] = []
+    hints = indexer.scan(get_settings().watch_folder_paths, skipped)
+    for path, reason in skipped:
+        typer.echo(f"{path}: skipped ({reason})")
     if not hints:
-        typer.echo("No workbooks found in WATCH_FOLDERS.")
+        if not skipped:
+            typer.echo("No workbooks found in WATCH_FOLDERS.")
         return
     with _api() as api:
-        resp = api.post("/models/discover", json={"workbooks": [asdict(h) for h in hints]})
-        resp.raise_for_status()
+        resp = _ok(api.post("/models/discover", json={"workbooks": [asdict(h) for h in hints]}))
     for c in resp.json()["candidates"]:
         status = (
             "linked"
@@ -58,11 +79,14 @@ def link(path: Path, symbol: str) -> None:
     """Confirm that a workbook is the model for SYMBOL; writes the hidden tag into it."""
     h = indexer.hints_for(path)
     with _api() as api:
-        resp = api.post("/models/link", json={"symbol": symbol, "workbook": asdict(h)})
-        resp.raise_for_status()
+        resp = _ok(api.post("/models/link", json={"symbol": symbol, "workbook": asdict(h)}))
     model = resp.json()
-    writer.link_tag(path, Tag(uuid.UUID(model["doc_tag"]), symbol.upper()))
+    how = writer.link_tag(path, Tag(uuid.UUID(model["doc_tag"]), symbol.upper()))
     typer.echo(f"Linked {path.name} to {symbol.upper()} as model {model['id']}.")
+    if how == "open":
+        typer.echo(
+            "The workbook is open in Excel: the link is in the open copy. Save it to keep it."
+        )
 
 
 @app.command()
@@ -98,7 +122,7 @@ def watch(interval: int = 30) -> None:
 def apply(change_set_id: int, path: Path) -> None:
     """Write an approved change set into the workbook (versioned copy by default)."""
     with _api() as api:
-        cs = api.get(f"/change-sets/{change_set_id}").json()
+        cs = _ok(api.get(f"/change-sets/{change_set_id}")).json()
     if cs["status"] != "approved":
         raise typer.BadParameter(f"change set is {cs['status']}; decide every item first")
     writes = [

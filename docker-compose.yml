@@ -31,6 +31,8 @@ services:
   redis:
     image: redis:7
     ports: ["6379:6379"]
+    # The image declares VOLUME /data; naming it stops Docker making an anonymous volume.
+    volumes: [redisdata:/data]
 
   minio:
     # Built from source (deploy/minio/Dockerfile): MinIO no longer publishes community images.
@@ -109,3 +111,4 @@ networks:
 volumes:
   pgdata:
   minio:
+  redisdata:

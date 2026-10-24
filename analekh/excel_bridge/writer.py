@@ -6,6 +6,7 @@ versioned copy next to the original (default), or in place after an automatic ba
 original is never silently overwritten.
 """
 
+import contextlib
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,8 +14,9 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from analekh.excel_bridge import live
 from analekh.modelsync.apply import coerce
-from analekh.workbook.tags import Tag, write_tag
+from analekh.workbook.tags import MODEL_ID, SYMBOL, Tag, WorkbookLocked, write_tag, write_tag_file
 
 
 @dataclass
@@ -89,8 +91,31 @@ def apply(src: Path, writes: list[Write], save_mode: str, label: str) -> Path:
         return apply_openpyxl(src, writes, save_mode, label)
 
 
-def link_tag(path: Path, tag: Tag) -> None:
-    """Write the hidden tag after the user confirms a link (custom document properties)."""
-    wb = load_workbook(path, keep_vba=path.suffix.lower() == ".xlsm")
-    write_tag(wb, tag)
-    wb.save(path)
+def _tag_open_book(path: Path, tag: Tag) -> bool:  # pragma: no cover - needs desktop Excel
+    """Put the tag into a workbook that is open in Excel. Returns False if it is not open."""
+    book = live.find_open_book(path)
+    if book is None:
+        return False
+    props = book.api.CustomDocumentProperties
+    for name, value in ((MODEL_ID, str(tag.model_id)), (SYMBOL, tag.symbol)):
+        with contextlib.suppress(Exception):  # the property may not exist yet
+            props(name).Delete()
+        props.Add(name, False, 4, value)  # 4 = text
+    return True
+
+
+def link_tag(path: Path, tag: Tag) -> str:
+    """Write the hidden tag after the user confirms a link (custom document properties).
+
+    Only the tag parts of the file change; the rest is copied as it is. If Excel has the file
+    open the tag goes into the open workbook instead ("open": the analyst saves to keep it).
+    """
+    try:
+        write_tag_file(path, tag)
+        return "file"
+    except WorkbookLocked:
+        if _tag_open_book(path, tag):
+            return "open"
+        raise RuntimeError(
+            f"{path.name} is open in another program. Close it and run the link again."
+        ) from None

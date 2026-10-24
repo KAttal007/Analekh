@@ -16,6 +16,12 @@ TEST_DB = os.environ.get(
 )
 
 
+# Tests must never reach the working database: its id sequences advance even when a test rolls
+# back (this is how model ids reached 243 before the first real link).
+if not (make_url(TEST_DB).database or "").endswith("_test"):
+    raise RuntimeError(f"TEST_DATABASE_URL must name a database ending in _test, not {TEST_DB!r}")
+
+
 def _ensure_database(url: str) -> None:
     """Create the test database on first use (from the server's postgres database)."""
     target = make_url(url)

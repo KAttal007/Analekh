@@ -3,6 +3,24 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-24** Excel bridge: linking no longer rewrites the model, and open files are no longer
+  dropped. `link` used to load and save the whole workbook with openpyxl, which lost parts of the
+  analyst's file (a real model went from 99 package parts to 73: printer settings, calc chain,
+  sheet relationships, image encoding). The tag is now written by patching only
+  `docProps/custom.xml`, `[Content_Types].xml` and `_rels/.rels` inside the zip
+  (`workbook/tags.py: write_tag_file`); every other part is copied byte for byte and the swap is
+  atomic. A model open in Excel used to be skipped silently by `scan`: it now reads a copy of the
+  saved file, and anything unreadable is listed with its reason. `link` on an open model puts the
+  tag into the open workbook through Excel (the analyst saves to keep it) or says to close it.
+  Unblocks using the bridge while the analyst works. Not yet seen against live Excel.
+
+- **2026-10-24** Excel bridge tested on a real workbook (Lemon Tree test model, desktop Excel).
+  Verified: link with the file closed; link and scan with the file open in Excel (Excel makes a
+  copy when Windows refuses a read; the tag goes into the open book and is saved by the analyst).
+  Pending: `apply` (writing an approved change set into the workbook), not yet tested on a real
+  model. Model ids restart from 1 on the working database; the test database holds the live
+  tables with no data.
+
 - **2026-10-24** LibreOffice in its own container. Headless recalculation on Apply moves out of the
   API, worker and beat image into a `recalc` service (`deploy/recalc`) on an internal Docker
   network with no published port; the app image no longer carries LibreOffice and its Debian

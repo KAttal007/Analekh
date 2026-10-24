@@ -5,12 +5,15 @@ collects the hidden tag, header and cover text, modified time and fingerprint, a
 those hints to the server: workbooks themselves stay on the user's machine (section 23).
 """
 
+import shutil
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from analekh.discovery import WorkbookHints
+from analekh.excel_bridge import live
 from analekh.workbook.fingerprint import fingerprint
 from analekh.workbook.tags import read_tag
 
@@ -23,14 +26,42 @@ def iter_workbooks(folders: list[Path]) -> Iterator[Path]:
         if not folder.exists():
             continue
         for path in folder.rglob("*"):
-            if path.suffix.lower() in EXTENSIONS and not path.name.startswith("~$"):
+            if (
+                path.suffix.lower() in EXTENSIONS
+                and not path.name.startswith(("~$", "."))  # Excel lock files, our own temp files
+            ):
                 yield path
 
 
-def hints_for(path: Path) -> WorkbookHints:
-    wb = load_workbook(
+def _load(path: Path) -> Workbook:
+    return load_workbook(
         path, read_only=False, keep_vba=path.suffix.lower() == ".xlsm", data_only=True
     )
+
+
+def _load_even_if_open(path: Path) -> Workbook:
+    """Read the workbook; if another program holds it, read a copy instead.
+
+    First a plain copy of the saved file; if Windows refuses that too (Excel often holds a file
+    exclusively), Excel itself is asked for a copy of the open workbook, which includes unsaved
+    edits. Nothing is written back to the original.
+    """
+    try:
+        return _load(path)
+    except PermissionError:
+        pass
+    with tempfile.TemporaryDirectory(prefix="analekh-") as tmp:
+        copy = Path(tmp) / path.name
+        try:
+            shutil.copyfile(path, copy)
+        except PermissionError:
+            if not live.save_copy(path, copy):
+                raise
+        return _load(copy)
+
+
+def hints_for(path: Path) -> WorkbookHints:
+    wb = _load_even_if_open(path)
     tag = read_tag(wb)
     text: list[str] = []
     for ws in wb.worksheets[:SCAN_SHEETS]:
@@ -48,11 +79,14 @@ def hints_for(path: Path) -> WorkbookHints:
     )
 
 
-def scan(folders: list[Path]) -> list[WorkbookHints]:
+def scan(folders: list[Path], skipped: list[tuple[Path, str]] | None = None) -> list[WorkbookHints]:
+    """Hints for every workbook found. A file that cannot be read is never dropped silently:
+    when `skipped` is given, its path and the reason are appended to it."""
     out = []
     for path in iter_workbooks(folders):
         try:
             out.append(hints_for(path))
-        except Exception:  # noqa: BLE001 - unreadable or locked file: skip, keep scanning
-            continue
+        except Exception as exc:  # noqa: BLE001 - one bad file must not stop the scan
+            if skipped is not None:
+                skipped.append((path, f"{type(exc).__name__}: {exc}"))
     return out
