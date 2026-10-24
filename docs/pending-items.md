@@ -8,7 +8,6 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [ ] Two-browser check for model locks: lock and 423, read-only view, toast and chime, stale apply refusal, blocked-filing pop-up, idle and sign-in reminders
 - [ ] Confirm Update drafts from the newest non-blocked filing (the rule we built)
 - [ ] Review section 8 of `docs/superpowers/specs/2026-10-22-auth-roles-locks-design.md` (model locks)
-- [ ] Commit the model-locks stage 2 work (uncommitted in the working tree; sign and commit by hand)
 - [ ] Golden set: run `uv run analekh golden-sheet`, mark the filings against the results PDFs, then `golden-import` and `golden-test`
 
 ## Data and mapping

@@ -77,8 +77,9 @@ def _run(model_id: int, job_id: str, filing_id: int = 1) -> Any:
 # --- success and failure ------------------------------------------------------------------------
 
 
-def test_sync_task_releases_lock_on_success(committed):
+def test_sync_task_releases_lock_on_success(committed, store, monkeypatch):
     factory, ids = committed
+    monkeypatch.setattr(tasks, "default_store", lambda: store)  # CI has no object storage
     _queued(factory, ids.model, ids.ana, "job-ok")
     result = _run(ids.model, "job-ok", filing_id=987654321)  # the real task: no such filing
     assert result == {"error": "model or filing not found"}
