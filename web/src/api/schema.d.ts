@@ -418,6 +418,10 @@ export interface paths {
     /**
      * Start
      * @description Start coverage: build a model from a template with sourced history (section 15).
+     *
+     *     The company's existing models are locked while the build runs, so it does not start under a
+     *     colleague's update or report. The new model needs no lock: nobody else can see it before
+     *     this request commits, and its inline build ends with the request.
      */
     post: operations["start_coverage_post"];
     delete?: never;
@@ -452,7 +456,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Decide Assumptions */
+    /**
+     * Decide Assumptions
+     * @description Accept, edit or reject proposed assumptions: part of the build, so it holds the lock.
+     */
     post: operations["decide_assumptions_models__model_id__assumptions_decisions_post"];
     delete?: never;
     options?: never;
@@ -577,7 +584,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Sync */
+    /**
+     * Sync
+     * @description Queue a quarterly update. The lock is taken for the job and committed before it is
+     *     queued, under the job's own id, so the job can give it back however quickly it ends.
+     */
     post: operations["sync_models__model_id__sync_post"];
     delete?: never;
     options?: never;
@@ -670,6 +681,9 @@ export interface paths {
      * Create Report
      * @description Flash, note, slides, digest or initiation. Ungrounded output is returned blocked.
      *     PHASE 4: move to a Celery job; runs inline for now.
+     *
+     *     The model the report reads (the one named, else the company's models) is locked while the
+     *     report runs; a company without a model takes no lock.
      */
     post: operations["create_report_reports_post"];
     delete?: never;
@@ -1034,6 +1048,107 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/models/{model_id}/lock": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lock Status
+     * @description The lock on a model, or null when it is free. Any signed-in user may ask.
+     */
+    get: operations["lock_status_models__model_id__lock_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/models/{model_id}/lock/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Release Lock
+     * @description The holder gives the lock back, even one a running job holds (the job's own release is
+     *     then a no-op). Anyone else is refused, admins included: they use the admin route.
+     */
+    post: operations["release_lock_models__model_id__lock_release_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/me/locks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My Locks
+     * @description The locks the caller holds, oldest first.
+     */
+    get: operations["my_locks_me_locks_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/admin/locks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Admin Locks
+     * @description Every current lock, oldest first, with the holder, the model and its company named.
+     */
+    get: operations["admin_locks_admin_locks_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/admin/locks/{model_id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Admin Release Lock
+     * @description An admin frees a model whoever holds it; the audit log names the holder.
+     */
+    post: operations["admin_release_lock_admin_locks__model_id__release_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/login": {
     parameters: {
       query?: never;
@@ -1271,6 +1386,36 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * AdminLockOut
+     * @description A lock in the admin's list: the model and its company named, so the admin knows which
+     *     workbook a release frees.
+     */
+    AdminLockOut: {
+      /** Model Id */
+      model_id: number;
+      /** Holder Id */
+      holder_id: string;
+      /** Holder Name */
+      holder_name: string;
+      /** Activity */
+      activity: string;
+      /**
+       * Taken At
+       * Format: date-time
+       */
+      taken_at: string;
+      /** Mine */
+      mine: boolean;
+      /** Job Running */
+      job_running: boolean;
+      /** Model Name */
+      model_name: string;
+      /** Company Symbol */
+      company_symbol: string;
+      /** Company Name */
+      company_name: string;
+    };
     /** AlertChannelsOut */
     AlertChannelsOut: {
       /** Telegram */
@@ -1949,6 +2094,30 @@ export interface components {
         [key: string]: unknown;
       } | null;
     };
+    /**
+     * LockOut
+     * @description Who is working on a model, doing what, since when; `mine` is true for the caller, and
+     *     `job_running` while a background job (a quarterly update) holds the lock.
+     */
+    LockOut: {
+      /** Model Id */
+      model_id: number;
+      /** Holder Id */
+      holder_id: string;
+      /** Holder Name */
+      holder_name: string;
+      /** Activity */
+      activity: string;
+      /**
+       * Taken At
+       * Format: date-time
+       */
+      taken_at: string;
+      /** Mine */
+      mine: boolean;
+      /** Job Running */
+      job_running: boolean;
+    };
     /** LoginIn */
     LoginIn: {
       /** Email */
@@ -2368,6 +2537,10 @@ export interface components {
       updated_by: string | null;
       /** Updated At */
       updated_at: string | null;
+      /** Lock Poll Seconds */
+      lock_poll_seconds: number;
+      /** Idle Reminder Minutes */
+      idle_reminder_minutes: number;
     };
     /** UserIn */
     UserIn: {
@@ -4464,6 +4637,135 @@ export interface operations {
       };
     };
   };
+  lock_status_models__model_id__lock_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        model_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LockOut"] | null;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  release_lock_models__model_id__lock_release_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        model_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  my_locks_me_locks_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LockOut"][];
+        };
+      };
+    };
+  };
+  admin_locks_admin_locks_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminLockOut"][];
+        };
+      };
+    };
+  };
+  admin_release_lock_admin_locks__model_id__release_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        model_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   login_auth_login_post: {
     parameters: {
       query?: never;
@@ -4715,6 +5017,7 @@ export interface operations {
       query?: {
         start?: string | null;
         end?: string | null;
+        kind?: ("results" | "meeting" | "concall") | null;
       };
       header?: never;
       path?: never;

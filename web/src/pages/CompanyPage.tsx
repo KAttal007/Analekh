@@ -19,6 +19,8 @@ import { companyQuery } from "../lib/preload";
 import { crore, money, price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
 import { usePrefs } from "../lib/prefs";
 import { useTheme } from "../lib/theme";
+import { ReadOnlyBanner } from "../lock/ReadOnlyBanner";
+import { lockedDetail } from "../lock/useModelLock";
 
 // "revenue" is resolved per results format on the server; these name what each format calls it.
 const TOP_LINE: Record<string, { short: string; full: string }> = {
@@ -141,6 +143,8 @@ export function CompanyPage() {
     mutationFn: () => api.startCoverage(symbol),
     onSuccess: (b) => navigate(`/models/${b.model.id}/assumptions`),
   });
+  // A colleague is updating, building or reporting on one of the company's models (423).
+  const startLocked = lockedDetail(start.error);
 
   if (company.isError) return <ErrorNote error={company.error} />;
   if (!company.data) return <Loading />;
@@ -264,7 +268,11 @@ export function CompanyPage() {
           </div>
         )}
         {analyse.isError && <ErrorNote error={analyse.error} />}
-        {start.isError && <ErrorNote error={start.error} />}
+        {startLocked ? (
+          <ReadOnlyBanner holderName={startLocked.holder_name} takenAt={startLocked.taken_at} />
+        ) : (
+          start.isError && <ErrorNote error={start.error} />
+        )}
 
         {allFilings.length > 0 && (
           <div className="basis-bar">

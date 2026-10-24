@@ -34,13 +34,47 @@ const app = (
 
 const where = () => screen.getByTestId("where").textContent;
 
-test("the admin shell shows exactly Users, Templates, Settings and a way back", async () => {
+test("the admin shell shows exactly Users, Model locks, Templates, Settings and a way back", async () => {
   mockApi({ "GET /api/auth/me": () => ({ status: 200, body: ADMIN }) });
   renderAt(app, "/admin/users");
   await screen.findByText("users page");
   const nav = screen.getByRole("navigation", { name: "Admin" });
   const labels = Array.from(nav.querySelectorAll("a")).map((a) => a.textContent?.trim());
-  expect(labels).toEqual(["Users", "Templates", "Settings", "← Back to Analekh"]);
+  expect(labels).toEqual(["Users", "Model locks", "Templates", "Settings", "← Back to Analekh"]);
+});
+
+test("an admin who still holds a model is reminded in the admin shell too", async () => {
+  sessionStorage.clear();
+  mockApi({
+    "GET /api/auth/me": () => ({ status: 200, body: ADMIN }),
+    "GET /api/me/locks": () => ({
+      status: 200,
+      body: [
+        {
+          model_id: 1,
+          holder_id: ADMIN.id,
+          holder_name: ADMIN.name,
+          activity: "update",
+          taken_at: "2026-10-24T10:42:00Z",
+          mine: true,
+          job_running: false,
+        },
+      ],
+    }),
+    "GET /api/models": () => ({
+      status: 200,
+      body: [{ id: 1, company_id: 10, template_id: null, name: "TCS model", origin: "built" }],
+    }),
+    "GET /api/companies/index": () => ({
+      status: 200,
+      body: [{ id: 10, nse_symbol: "TCS", name: "Tata Consultancy Services", isin: null }],
+    }),
+  });
+  renderAt(app, "/admin/users");
+  const box = await screen.findByRole("region", { name: "Models still open" });
+  expect(box.textContent).toContain("You still have 1 model open");
+  expect(box.textContent).toContain("Tata Consultancy Services");
+  sessionStorage.clear();
 });
 
 test("an analyst opening an admin page is sent to the home page", async () => {

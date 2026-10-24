@@ -1,9 +1,13 @@
 import os
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import create_engine, make_url, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from analekh.db.models import Model, User
 
 # A database of its own: tests run in rolled-back transactions, but against the working database
 # (10M facts after the full sweep) every unscoped query scans real data: 6 minutes instead of 50 s.
@@ -97,6 +101,50 @@ def db(engine) -> Iterator[Session]:
         session.close()
         trans.rollback()
         conn.close()
+
+
+@pytest.fixture
+def db_session_factory(engine) -> sessionmaker[Session]:
+    """Sessions on their own connections, for tests that need two at once. Data they commit is
+    real: the test removes it itself."""
+    return sessionmaker(bind=engine)
+
+
+def _user(db: Session, uid: str, name: str, role: str = "analyst") -> "User":
+    from analekh.db.models import User
+
+    user = User(id=uid, email=f"{uid}@example.com", name=name, role=role)
+    db.add(user)
+    db.flush()
+    return user
+
+
+@pytest.fixture
+def analyst(db: Session) -> "User":
+    return _user(db, "u-analyst-1", "Asha Analyst")
+
+
+@pytest.fixture
+def analyst2(db: Session) -> "User":
+    return _user(db, "u-analyst-2", "Ravi Analyst")
+
+
+@pytest.fixture
+def admin(db: Session) -> "User":
+    return _user(db, "u-admin-1", "Meera Admin", role="admin")
+
+
+@pytest.fixture
+def model(db: Session) -> "Model":
+    from analekh.db.models import Company, Model
+
+    company = Company(nse_symbol="FIXTCO", name="Fixture Co Limited", isin="INE000F01011")
+    db.add(company)
+    db.flush()
+    workbook = Model(company_id=company.id, name="Fixture Co model", origin="built")
+    db.add(workbook)
+    db.flush()
+    return workbook
 
 
 @pytest.fixture

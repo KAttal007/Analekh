@@ -33,7 +33,9 @@ export function mockApi(routes: Record<string, Handler>) {
       status: 404,
       body: { detail: `no route ${method} ${url}` },
     };
-    return new Response(reply.status === 204 ? null : JSON.stringify(reply.body ?? {}), {
+    // An explicit null body is the JSON `null` (e.g. a free model's lock); no body is `{}`.
+    const json = JSON.stringify(reply.body === undefined ? {} : reply.body);
+    return new Response(reply.status === 204 ? null : json, {
       status: reply.status,
       headers: { "Content-Type": "application/json", ...reply.headers },
     });

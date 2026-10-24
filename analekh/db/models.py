@@ -309,6 +309,27 @@ class Model(Base):
     company: Mapped[Company] = relationship()
 
 
+class ModelLock(Base):
+    """Who is working on a model right now (model-locks stage 2). The model id is the key, so
+    the database allows one lock per model."""
+
+    __tablename__ = "model_locks"
+    __table_args__ = (
+        CheckConstraint("activity IN ('update','build','report')", name="ck_model_locks_activity"),
+    )
+
+    model_id: Mapped[int] = mapped_column(
+        ForeignKey("models.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    activity: Mapped[str] = mapped_column(Text)
+    job_id: Mapped[str | None] = mapped_column(Text)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class ModelBuild(Base):
     __tablename__ = "model_builds"
 

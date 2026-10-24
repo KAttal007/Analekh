@@ -21,6 +21,7 @@ from analekh.api.routers import (
     change_sets,
     companies,
     comps,
+    locks,
     models,
     outputs,
     public,
@@ -32,6 +33,7 @@ from analekh.api.routers import (
 )
 from analekh.config import get_settings
 from analekh.ingest.storage import StorageUnavailable
+from analekh.locks import LockHeld
 
 log = structlog.get_logger()
 
@@ -91,6 +93,7 @@ for router in (
     tokens.router,
     users.router,
     settings_api.router,
+    locks.router,
 ):
     app.include_router(router, dependencies=[Depends(get_user)])  # every route needs a session
 
@@ -126,6 +129,26 @@ def _database_busy(request: Request, exc: Exception) -> JSONResponse:
 
 
 app.add_exception_handler(PoolTimeout, _database_busy)
+
+
+def _model_locked(request: Request, exc: Exception) -> JSONResponse:
+    """A colleague is working on the model: say who, doing what and since when (their name only,
+    never their email)."""
+    assert isinstance(exc, LockHeld)
+    return JSONResponse(
+        status_code=423,
+        content={
+            "detail": {
+                "code": "model_locked",
+                "holder_name": exc.holder_name,
+                "taken_at": exc.taken_at.isoformat(),
+                "activity": exc.activity,
+            }
+        },
+    )
+
+
+app.add_exception_handler(LockHeld, _model_locked)
 
 
 @app.get("/health", tags=["ops"])

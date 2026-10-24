@@ -111,6 +111,10 @@ class Settings(BaseSettings):
     # Any request body larger than the ceiling plus this (multipart framing) is refused with 413
     # as it arrives, before the framework spools it to disk.
     request_body_overhead_bytes: int = 1024 * 1024
+    # How often an open model screen asks who holds the model's lock (model-locks stage 2).
+    lock_poll_seconds: int = 20
+    # A tab left this long without input, while its user holds a model, reminds them to close it.
+    idle_reminder_minutes: int = 30
     # Sign-in sessions past their idle or hard limit are deleted by this job (cron, IST).
     session_purge_cron: str = "30 3 * * *"
 

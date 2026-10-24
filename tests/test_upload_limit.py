@@ -136,6 +136,13 @@ def test_analyst_can_read_but_not_change(analyst):
     )
 
 
+def test_lock_poll_seconds_defaults_to_20_and_is_exposed(analyst):
+    """The web asks who holds a model this often; it reads the figure here, never hard-codes it."""
+    assert get_settings().lock_poll_seconds == 20
+    res = analyst.get("/settings/upload-limit")
+    assert res.json()["lock_poll_seconds"] == get_settings().lock_poll_seconds
+
+
 def test_signed_out_cannot_read(raw):
     assert raw.get("/settings/upload-limit").status_code == 401
 

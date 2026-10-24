@@ -1,10 +1,14 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { CompanySearch } from "./components/CompanySearch";
 import { Icon, type IconName } from "./components/Icon";
 import { ErrorNote, SegmentThumb } from "./components/ui";
 import { useMe, useSignInOff, useSignOut } from "./lib/auth";
 import { setTheme, type ThemeChoice, useTheme } from "./lib/theme";
+import { unlockChimeOnGesture } from "./lock/chime";
+import { IdleReminder } from "./lock/IdleReminder";
+import { LockToasts } from "./lock/LockToast";
+import { SignInLocks } from "./lock/SignInLocks";
 
 type NavItem = { to: string; label: string; icon: IconName; soon?: boolean };
 
@@ -184,6 +188,9 @@ export function Layout() {
   const isAdmin = useMe().data?.role === "admin";
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const { aside, highlight } = useNavHighlight(pathname, collapsed);
+  // Browsers keep sound off until the user clicks or types; the idle reminder chimes when nobody
+  // has for a while, so the sound is woken on the way.
+  useEffect(() => unlockChimeOnGesture(), []);
   const toggle = () => {
     setCollapsed((c) => {
       try {
@@ -249,6 +256,14 @@ export function Layout() {
         <main className="content">
           <Outlet />
         </main>
+        {/* Model locks: a colleague's model is free again, a reminder of the models this user
+            still holds (after sign-in, and when the tab sits idle). Attention the viewer did not
+            ask for, so each appears at once and stays until answered. */}
+        <div className="lock-corner">
+          <SignInLocks />
+          <IdleReminder />
+          <LockToasts />
+        </div>
       </div>
     </div>
   );

@@ -26,6 +26,9 @@ const Templates = lazy(() =>
   import("./pages/admin/Templates").then((m) => ({ default: m.Templates })),
 );
 const Users = lazy(() => import("./pages/admin/Users").then((m) => ({ default: m.Users })));
+const ModelLocks = lazy(() =>
+  import("./pages/admin/ModelLocks").then((m) => ({ default: m.ModelLocks })),
+);
 const AdminSettings = lazy(() =>
   import("./pages/admin/AdminSettings").then((m) => ({ default: m.AdminSettings })),
 );
@@ -78,6 +81,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <Navigate to="users" replace /> },
           { path: "users", element: page(<Users />) },
+          { path: "locks", element: page(<ModelLocks />) },
           { path: "templates", element: page(<Templates />) },
           { path: "settings", element: page(<AdminSettings />) },
         ],

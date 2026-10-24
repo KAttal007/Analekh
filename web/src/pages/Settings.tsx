@@ -97,6 +97,16 @@ function Display() {
           ]}
           onChange={set("deskSort")}
         />
+        <Choice
+          label="Chime"
+          hint="A soft tone when a model a colleague was working on is free. Never plays when your device asks for reduced motion."
+          value={prefs.chime ? "on" : "off"}
+          options={[
+            { value: "on", label: "On" },
+            { value: "off", label: "Off" },
+          ]}
+          onChange={(v) => setPrefs({ chime: v === "on" })}
+        />
       </ul>
     </section>
   );

@@ -1,5 +1,6 @@
 """Change-set review and apply (design doc 16.4, 20): nothing is written before every item has a
-decision, and apply always saves a new model version."""
+decision, and apply always saves a new model version. Both are the update's own work, so they
+hold the model's lock (model-locks stage 2): a colleague working on the model gets 423."""
 
 from datetime import UTC, datetime
 
@@ -7,9 +8,10 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from analekh.api import schemas
-from analekh.api.deps import DB, Store
+from analekh.api.deps import DB, Store, User
 from analekh.db.models import ChangeSet, Model, ModelVersion
 from analekh.ingest.storage import sha256
+from analekh.locks import holding
 from analekh.modelsync.apply import ApprovedItem, apply_headless
 from analekh.workbook.fingerprint import fingerprint
 from analekh.workbook.reader import load
@@ -32,11 +34,20 @@ def change_set(cs_id: int, db: DB) -> ChangeSet:
 
 
 @router.post("/change-sets/{cs_id}/decisions", response_model=schemas.ChangeSetOut)
-def decide(cs_id: int, body: schemas.Decisions, db: DB) -> ChangeSet:
+def decide(cs_id: int, body: schemas.Decisions, db: DB, user: User) -> ChangeSet:
     cs = _cs(db, cs_id)
+    with holding(db, model_ids=[cs.model_id], user_id=user, activity="update"):
+        db.refresh(cs)  # read before the lock; a colleague may have moved it since
+        return _decide(cs, body, db)
+
+
+def _decide(cs: ChangeSet, body: schemas.Decisions, db: DB) -> ChangeSet:
     if cs.status not in ("proposed", "approved"):
         raise HTTPException(409, f"change set is {cs.status}")
     items = {i.id: i for i in cs.items}
+    # Only items still pending when the request came in can be decided: a page showing an item
+    # as pending after someone else decided it must not overwrite that decision.
+    pending = {i.id for i in cs.items if i.decision == "pending"}
     for kind in body.accept_kinds:
         for i in cs.items:
             if i.kind == kind and i.decision == "pending":
@@ -45,6 +56,8 @@ def decide(cs_id: int, body: schemas.Decisions, db: DB) -> ChangeSet:
         item = items.get(d.item_id)
         if item is None:
             raise HTTPException(422, f"item {d.item_id} not in change set")
+        if d.item_id not in pending:
+            raise HTTPException(409, f"item {d.item_id} is already decided: reload the change set")
         if d.decision == "edited" and d.final_value is None:
             raise HTTPException(422, "edited decisions need final_value")
         item.decision = d.decision
@@ -55,16 +68,45 @@ def decide(cs_id: int, body: schemas.Decisions, db: DB) -> ChangeSet:
         )
     if all(i.decision != "pending" for i in cs.items):
         cs.status, cs.decided_at = "approved", datetime.now(UTC)
+    db.flush()
     return cs
 
 
 @router.post("/change-sets/{cs_id}/apply")
-def apply(cs_id: int, db: DB, store: Store) -> dict:
+def apply(cs_id: int, db: DB, store: Store, user: User) -> dict:
     """Headless apply into a new model version (LibreOffice recalculation when installed).
     The Excel bridge offers the same on the analyst's machine with native recalculation."""
     cs = _cs(db, cs_id)
+    with holding(db, model_ids=[cs.model_id], user_id=user, activity="update"):
+        db.refresh(cs)  # read before the lock; a colleague may have moved it since
+        return _apply(cs, db, store)
+
+
+def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
     if cs.status != "approved":
         raise HTTPException(409, "decide every item first")
+    latest = (
+        db.scalar(
+            select(ModelVersion.version)
+            .where(ModelVersion.model_id == cs.model_id)
+            .order_by(ModelVersion.version.desc())
+        )
+        or 0
+    )
+    if cs.base_version != latest:
+        # A build or another change set saved a newer version since this one was drafted: a new
+        # version derived from the old base would drop that work. Block, never rebase: rebasing
+        # would change what the analyst approved (owner's ruling).
+        raise HTTPException(
+            409,
+            {
+                "code": "change_set_stale",
+                "message": "The model has changed since this change set was drafted. "
+                "Draft a new update.",
+                "base_version": cs.base_version,
+                "latest_version": latest,
+            },
+        )
     base = db.scalar(
         select(ModelVersion).where(
             ModelVersion.model_id == cs.model_id, ModelVersion.version == cs.base_version
@@ -85,14 +127,6 @@ def apply(cs_id: int, db: DB, store: Store) -> dict:
     ]
     written = apply_headless(store.get(base.storage_key), approved)
     out = recalc_file(written)
-    latest = (
-        db.scalar(
-            select(ModelVersion.version)
-            .where(ModelVersion.model_id == cs.model_id)
-            .order_by(ModelVersion.version.desc())
-        )
-        or 0
-    )
     key = f"models/{cs.model_id}/v{latest + 1}-{sha256(out)[:12]}.xlsx"
     store.put(key, out, XLSX)
     db.add(
@@ -109,4 +143,5 @@ def apply(cs_id: int, db: DB, store: Store) -> dict:
         model.fingerprint = fingerprint(load(written))
         model.last_seen = datetime.now(UTC)
     cs.status = "applied"
+    db.flush()
     return {"model_id": cs.model_id, "version": latest + 1, "written": len(approved)}

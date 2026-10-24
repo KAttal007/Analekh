@@ -1,12 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
-import { api, type ChangeItem } from "../api/client";
+import { Link, useParams } from "react-router-dom";
+import { api, ApiError, type ChangeItem } from "../api/client";
 import { Icon } from "../components/Icon";
 import { ErrorNote, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { LockNotice, useIsAdmin } from "../lock/LockNotice";
+import { lockedDetail, useLockPollMs, useModelLock } from "../lock/useModelLock";
 
 const KINDS = ["actual_write", "roll_forward", "label_shift", "assumption_suggestion"] as const;
 const label = (k: string) => k.replaceAll("_", " ");
+
+/** The server's message for a 409 "change_set_stale" reply, or null for any other error. */
+function staleMessage(e: unknown): string | null {
+  if (!(e instanceof ApiError && e.status === 409)) return null;
+  try {
+    const detail = JSON.parse(e.message) as { code?: string; message?: string };
+    return detail?.code === "change_set_stale" ? (detail.message ?? null) : null;
+  } catch {
+    return null; // a plain-text 409, such as "decide every item first"
+  }
+}
 
 // Approval gate (design doc 16.4): nothing is written before every item has a decision.
 export function ChangeSetReview() {
@@ -14,15 +27,47 @@ export function ChangeSetReview() {
   const qc = useQueryClient();
   const [edits, setEdits] = useState<Record<number, string>>({});
   const cs = useQuery({ queryKey: ["change-set", id], queryFn: () => api.changeSet(id) });
+  // Deciding and applying are the update's own work: a colleague's lock on the model holds them
+  // off (model-locks stage 2), and their end reloads the change set before the buttons return.
+  const modelId = cs.data?.model_id ?? Number.NaN;
+  const gate = useModelLock(modelId, useLockPollMs(), {
+    freedTo: `/change-sets/${id}`,
+    refreshOnFree: [["change-set", id]],
+  });
+  const isAdmin = useIsAdmin();
+  const onLocked = (e: unknown) => {
+    const detail = lockedDetail(e);
+    if (detail) gate.heldBy(detail);
+  };
   const refresh = (data: unknown) => qc.setQueryData(["change-set", id], data);
   const decide = useMutation({
     mutationFn: (body: Parameters<typeof api.decide>[1]) => api.decide(id, body),
     onSuccess: refresh,
+    onError: (e) => {
+      onLocked(e);
+      // Already decided by someone else: reload, so the stale rows give way to theirs.
+      if (e instanceof ApiError && e.status === 409)
+        void qc.invalidateQueries({ queryKey: ["change-set", id] });
+    },
   });
-  const apply = useMutation({ mutationFn: () => api.apply(id) });
+  // The model moved on since this set was drafted (a build or another set saved a newer version):
+  // the server refuses rather than drop that work, and Apply stays off for the rest of the view.
+  const [stale, setStale] = useState<string | null>(null);
+  const apply = useMutation({
+    mutationFn: () => api.apply(id),
+    onError: (e) => {
+      onLocked(e);
+      const message = staleMessage(e);
+      if (message) setStale(message);
+    },
+  });
 
   if (cs.isError) return <ErrorNote error={cs.error} />;
   if (!cs.data) return <Loading />;
+  const off = gate.held; // read-only: a colleague holds the model
+  const hidden = off && isAdmin; // an admin frees the model rather than working on it
+  const failed = (m: typeof apply | typeof decide) =>
+    m.isError && !lockedDetail(m.error) && !staleMessage(m.error);
   const s = cs.data.summary ?? {};
   const items = cs.data.items;
   const pending = items.filter((i) => i.decision === "pending").length;
@@ -46,17 +91,23 @@ export function ChangeSetReview() {
         title={`Change set ${id}`}
         badges={<StatusBadge status={cs.data.status} />}
         subtitle="Review each proposed change to the model. Nothing is written until every item has a decision and you apply them."
-        actions={KINDS.map((k) => (
-          <button
-            key={k}
-            className="btn-sm"
-            onClick={() => decide.mutate({ decisions: [], accept_kinds: [k] })}
-          >
-            <Icon name="check" />
-            Accept all {label(k)}
-          </button>
-        ))}
+        actions={
+          !hidden &&
+          KINDS.map((k) => (
+            <button
+              key={k}
+              className="btn-sm"
+              disabled={off}
+              onClick={() => decide.mutate({ decisions: [], accept_kinds: [k] })}
+            >
+              <Icon name="check" />
+              Accept all {label(k)}
+            </button>
+          ))
+        }
       />
+      <LockNotice modelId={cs.data.model_id} gate={gate} />
+      {failed(decide) && <ErrorNote error={decide.error} />}
 
       <div className="stat-grid">
         {stats.map(([name, value]) => (
@@ -103,24 +154,35 @@ export function ChangeSetReview() {
                   {i.rationale ?? (i.source_fact_id ? `fact ${i.source_fact_id}` : "")}
                 </td>
                 <td>
-                  {i.decision === "pending" ? (
+                  {i.decision === "pending" && hidden ? (
+                    <StatusBadge status={i.decision} />
+                  ) : i.decision === "pending" ? (
                     <div className="cell-actions">
-                      <button className="btn-sm btn-primary" onClick={() => one(i, "accepted")}>
+                      <button
+                        className="btn-sm btn-primary"
+                        disabled={off}
+                        onClick={() => one(i, "accepted")}
+                      >
                         Accept
                       </button>
                       <input
                         className="input-sm"
                         placeholder="Edit value"
+                        disabled={off}
                         onChange={(e) => setEdits({ ...edits, [i.id]: e.target.value })}
                       />
                       <button
                         className="btn-sm"
                         onClick={() => one(i, "edited")}
-                        disabled={!edits[i.id]}
+                        disabled={!edits[i.id] || off}
                       >
                         Save
                       </button>
-                      <button className="btn-sm btn-ghost" onClick={() => one(i, "skipped")}>
+                      <button
+                        className="btn-sm btn-ghost"
+                        disabled={off}
+                        onClick={() => one(i, "skipped")}
+                      >
                         Skip
                       </button>
                     </div>
@@ -143,15 +205,26 @@ export function ChangeSetReview() {
             ? `${pending} item${pending === 1 ? "" : "s"} still need a decision`
             : "All items decided"}
         </span>
-        <button
-          className="btn-primary"
-          onClick={() => apply.mutate()}
-          disabled={cs.data.status !== "approved" || apply.isPending}
-        >
-          Apply approved changes
-        </button>
+        {!hidden && (
+          <button
+            className="btn-primary"
+            onClick={() => apply.mutate()}
+            disabled={cs.data.status !== "approved" || apply.isPending || off || stale !== null}
+          >
+            Apply approved changes
+          </button>
+        )}
       </div>
-      {apply.isError && <ErrorNote error={apply.error} />}
+      {stale !== null && (
+        <div className="alert alert-warn" role="alert">
+          <Icon name="alert" />
+          <span>{stale}</span>
+          <Link className="btn btn-sm" to="/models">
+            Back to models
+          </Link>
+        </div>
+      )}
+      {failed(apply) && <ErrorNote error={apply.error} />}
       {apply.data && <pre>{JSON.stringify(apply.data, null, 2)}</pre>}
     </div>
   );

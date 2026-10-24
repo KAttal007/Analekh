@@ -376,3 +376,28 @@ test("after sign-in the desk's data is asked for before the page changes", async
   expect(deskAskedWhileOnLogin).toBe(true);
   expect(document.documentElement.dataset.vt).toBe("enter");
 });
+
+test("signing in again after a session ran out re-arms the sign-in reminder", async () => {
+  // The session expired without a sign-out: the reminder's mark from the last sign-in is still here.
+  sessionStorage.setItem("analekh.signin-locks", ME.id);
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "a-long-secret-password");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await waitFor(() => expect(sessionStorage.getItem("analekh.signin-locks")).toBeNull());
+});
+
+test("a failed sign-in leaves the reminder's mark alone", async () => {
+  sessionStorage.setItem("analekh.signin-locks", ME.id);
+  routes["POST /api/auth/login"] = () => ({
+    status: 401,
+    body: { detail: "Email or password is incorrect." },
+  });
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "nope");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findByRole("alert");
+  expect(sessionStorage.getItem("analekh.signin-locks")).toBe(ME.id);
+});

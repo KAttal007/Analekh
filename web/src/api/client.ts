@@ -54,6 +54,8 @@ export type Template = Schemas["TemplateOut"];
 export type Assumption = Schemas["AssumptionOut"];
 export type ModelOut = Schemas["ModelOut"];
 export type BuildOut = Schemas["BuildOut"];
+export type LockOut = Schemas["LockOut"];
+export type AdminLockOut = Schemas["AdminLockOut"];
 export type PeerList = Schemas["PeerListOut"];
 export type Peer = Schemas["PeerOut"];
 export type CompsTable = Schemas["CompsTableOut"];
@@ -230,6 +232,17 @@ export const api = {
     post<Assumption[]>(`/models/${modelId}/assumptions/decisions`, body),
   finalize: (modelId: number) => post<Record<string, unknown>>(`/models/${modelId}/finalize`),
   models: () => call<ModelOut[]>("/models"),
+  // Quarterly update: a background job that drafts a change set from the filing.
+  syncModel: (modelId: number, filingId: number) =>
+    post<Schemas["JobOut"]>(`/models/${modelId}/sync`, { filing_id: filingId }),
+  // Who is working on a model (null when free); an admin can free it for everyone.
+  modelLock: (modelId: number) => call<LockOut | null>(`/models/${modelId}/lock`),
+  adminReleaseLock: (modelId: number) => post<void>(`/admin/locks/${modelId}/release`),
+  // Every current lock, named (admins only).
+  adminLocks: () => call<AdminLockOut[]>("/admin/locks"),
+  // The caller's own locks (the sign-in and idle reminders), and giving one back.
+  meLocks: () => call<LockOut[]>("/me/locks"),
+  releaseLock: (modelId: number) => post<void>(`/models/${modelId}/lock/release`),
   changeSet: (id: number) => call<ChangeSet>(`/change-sets/${id}`),
   decide: (id: number, body: Schemas["Decisions"]) =>
     post<ChangeSet>(`/change-sets/${id}/decisions`, body),

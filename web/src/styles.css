@@ -1093,6 +1093,100 @@ tbody tr:hover td {
   color: var(--warn);
   border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 }
+/* A colleague holds the model (lock/ReadOnlyBanner.tsx): static, so lock checks never animate it. */
+.lock-banner {
+  align-items: center;
+  animation: none;
+}
+.lock-banner-action {
+  margin-left: auto;
+}
+.model-lock-row td {
+  padding-top: 0;
+}
+/* A model a colleague held is free (lock/LockToast.tsx): appears at once, no entrance motion,
+   and stays until dismissed or opened. */
+/* Model locks: reminders and free-model toasts share one corner, stacked. */
+.lock-corner {
+  position: fixed;
+  right: var(--s4);
+  bottom: var(--s4);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-width: min(380px, calc(100vw - 2 * var(--s4)));
+}
+.lock-corner:empty {
+  display: none;
+}
+.lock-toasts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.lock-reminder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+  animation: none; /* appears at once */
+}
+.lock-reminder p {
+  margin: 0;
+}
+.lock-reminder-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lock-reminder-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+.lock-reminder-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+.lock-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+  border-radius: var(--r2);
+  border: 1px solid color-mix(in srgb, var(--positive) 30%, transparent);
+  background: var(--surface);
+  color: var(--positive);
+  box-shadow: var(--shadow-pop);
+  animation: none;
+}
+.lock-toast-open {
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lock-toast-open:hover {
+  text-decoration: underline;
+}
+.lock-toast-close {
+  flex: none;
+}
 .alert-error {
   background: var(--negative-soft);
   color: var(--negative);
@@ -3945,6 +4039,42 @@ table.glance tbody tr:last-child > * {
 .admin-panel p {
   margin: 0;
   font-size: 12px;
+}
+/* A modal pop-up (Update stopped by blocked results), in the admin panel's look. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4);
+  background: rgb(16 24 40 / 35%);
+  animation: none; /* appears at once */
+}
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  width: min(420px, 100%);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r3);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+}
+.modal h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.modal p {
+  margin: 0;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
 }
 .admin-panel-actions {
   display: flex;

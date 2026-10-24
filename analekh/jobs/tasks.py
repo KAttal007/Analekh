@@ -5,9 +5,12 @@ PDFs are stored for everyone but the document pipeline runs only for watchlist c
 company someone asked to analyse.
 """
 
+import logging
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
+from celery.signals import task_revoked
 from sqlalchemy import exists, select
 
 from analekh.config import get_settings
@@ -22,6 +25,7 @@ from analekh.ingest.storage import default_store
 from analekh.jobs.app import app
 from analekh.universe.search import get as get_company
 
+log = logging.getLogger(__name__)
 _watcher: FeedWatcher | None = None
 NIFTY500 = Path(__file__).resolve().parent.parent / "universe" / "data" / "nifty500.csv"
 
@@ -156,9 +160,54 @@ def refresh_universe() -> dict:
         return {k: len(v) for k, v in summary.__dict__.items()}
 
 
-@app.task
-def sync_model(model_id: int, filing_id: int) -> dict:
-    """Build a change set for a linked model from new results (section 16)."""
+@app.task(bind=True)
+def sync_model(self, model_id: int, filing_id: int) -> dict:
+    """Build a change set for a linked model from new results (section 16).
+
+    POST /models/{id}/sync locks the model for this job under the job's id; the job gives that
+    lock back when it ends, whether it succeeds or fails. A call with no job id (`analekh sync`)
+    has no lock to give back.
+    """
+    try:
+        return _sync_model(model_id, filing_id)
+    finally:
+        if self.request.id:
+            _release_job_lock(model_id, self.request.id)
+
+
+def _release_job_lock(model_id: int, job_id: str) -> None:
+    """Give back the lock this job holds, in a session of its own (the job's own session has
+    closed by now, committed or rolled back). Only a lock still carrying this job's id goes: a
+    newer job's lock, a colleague's after an admin freed the model, or none at all, stay as they
+    are. A failed release is logged, not raised, so the job's own outcome stands; the lock then
+    waits for its holder or an admin."""
+    from analekh.locks import release_for_job
+
+    try:
+        with session_scope() as s:
+            release_for_job(s, model_id=model_id, job_id=job_id)
+    except Exception:  # noqa: BLE001 - never mask the job's result or error
+        log.exception("could not release the lock on model %s for job %s", model_id, job_id)
+
+
+@task_revoked.connect
+def release_revoked_sync(sender: Any = None, request: Any = None, **_: Any) -> None:
+    """A sync job cancelled before it started, or killed while running, never reaches its own
+    `finally`: the worker's revoke signal gives its lock back instead. The worker sends the task
+    object as `sender` and the message as a `Context`, whose task name is `task`. A plain revoke
+    of a job already running sends nothing: the job then ends normally and releases itself."""
+    name = getattr(sender, "name", None) or getattr(request, "task", None)
+    if request is None or name != sync_model.name:
+        return
+    # POST /models/{id}/sync queues positionally (model_id, filing_id); kwargs for safety.
+    args = getattr(request, "args", None) or ()
+    kwargs = getattr(request, "kwargs", None) or {}
+    model_id = args[0] if args else kwargs.get("model_id")
+    if model_id is not None and request.id:
+        _release_job_lock(int(model_id), request.id)
+
+
+def _sync_model(model_id: int, filing_id: int) -> dict:
     from analekh.db.models import Model, ModelVersion
     from analekh.facts import DbValueSource
     from analekh.modelsync.changeset import build_change_set, save_proposal

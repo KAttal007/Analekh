@@ -11,6 +11,9 @@ test("defaults until something is chosen, and each value is checked on its own",
   expect(readPrefs()).toEqual(DEFAULT_PREFS);
   localStorage.setItem("analekh.prefs", JSON.stringify({ units: "furlongs", basis: "standalone" }));
   expect(readPrefs()).toEqual({ ...DEFAULT_PREFS, basis: "standalone" });
+  expect(DEFAULT_PREFS.chime).toBe(true); // the free-model chime is on until turned off
+  localStorage.setItem("analekh.prefs", JSON.stringify({ chime: "loud" }));
+  expect(readPrefs().chime).toBe(true);
   localStorage.setItem("analekh.prefs", "not json");
   expect(readPrefs()).toEqual(DEFAULT_PREFS);
 });
@@ -20,8 +23,15 @@ test("a choice is kept and announced", () => {
   window.addEventListener("analekh-prefs", heard);
   setPrefs({ units: "million" });
   setPrefs({ deskSort: "market_cap" });
-  expect(readPrefs()).toEqual({ units: "million", basis: "consolidated", deskSort: "market_cap" });
-  expect(heard).toHaveBeenCalledTimes(2);
+  expect(readPrefs()).toEqual({
+    units: "million",
+    basis: "consolidated",
+    deskSort: "market_cap",
+    chime: true,
+  });
+  setPrefs({ chime: false });
+  expect(readPrefs().chime).toBe(false);
+  expect(heard).toHaveBeenCalledTimes(3);
   window.removeEventListener("analekh-prefs", heard);
 });
 

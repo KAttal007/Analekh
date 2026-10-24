@@ -7,9 +7,20 @@ import { useEffect, useState } from "react";
 export type Units = "auto" | "crore" | "million";
 export type BasisPref = "consolidated" | "standalone";
 export type DeskSortPref = "filed" | "market_cap";
-export type Prefs = { units: Units; basis: BasisPref; deskSort: DeskSortPref };
+export type Prefs = {
+  units: Units;
+  basis: BasisPref;
+  deskSort: DeskSortPref;
+  /** A soft tone when a model a colleague held is free again (model locks). */
+  chime: boolean;
+};
 
-export const DEFAULT_PREFS: Prefs = { units: "auto", basis: "consolidated", deskSort: "filed" };
+export const DEFAULT_PREFS: Prefs = {
+  units: "auto",
+  basis: "consolidated",
+  deskSort: "filed",
+  chime: true,
+};
 const KEY = "analekh.prefs";
 const EVENT = "analekh-prefs";
 
@@ -29,6 +40,7 @@ export function readPrefs(): Prefs {
       deskSort: SORTS.includes(raw.deskSort as DeskSortPref)
         ? (raw.deskSort as DeskSortPref)
         : DEFAULT_PREFS.deskSort,
+      chime: typeof raw.chime === "boolean" ? raw.chime : DEFAULT_PREFS.chime,
     };
   } catch {
     return DEFAULT_PREFS;

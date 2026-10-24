@@ -2,21 +2,23 @@
 15, 16, 20)."""
 
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import select
 
 from analekh.api import schemas
-from analekh.api.deps import DB, Store, company_or_404, job
+from analekh.api.deps import DB, Store, User, company_or_404, job
 from analekh.builder.coverage import (
     BuildNotReadyError,
     NoHistoryError,
     finalize_build,
     start_coverage,
 )
-from analekh.db.models import Assumption, Model, ModelBuild, ModelVersion, Template
+from analekh.db.models import Assumption, Company, Model, ModelBuild, ModelVersion, Template
 from analekh.discovery import WorkbookHints, discover, link
+from analekh.locks import acquire, attach_job, holding, release_for_job
 from analekh.templates.onboarding import default_for, ensure_builtin_templates
 
 router = APIRouter(tags=["models"])
@@ -31,9 +33,21 @@ def _model(db: DB, model_id: int) -> Model:
 
 
 @router.post("/coverage", response_model=schemas.BuildOut)
-def start(body: schemas.CoverageRequest, db: DB, store: Store) -> schemas.BuildOut:
-    """Start coverage: build a model from a template with sourced history (section 15)."""
+def start(body: schemas.CoverageRequest, db: DB, store: Store, user: User) -> schemas.BuildOut:
+    """Start coverage: build a model from a template with sourced history (section 15).
+
+    The company's existing models are locked while the build runs, so it does not start under a
+    colleague's update or report. The new model needs no lock: nobody else can see it before
+    this request commits, and its inline build ends with the request."""
     company = company_or_404(db, body.symbol)
+    existing = db.scalars(select(Model.id).where(Model.company_id == company.id))
+    with holding(db, model_ids=list(existing), user_id=user, activity="build"):
+        return _start(body, db, store, company)
+
+
+def _start(
+    body: schemas.CoverageRequest, db: DB, store: Store, company: Company
+) -> schemas.BuildOut:
     ensure_builtin_templates(db, store)
     template = (
         db.get(Template, body.template_id)
@@ -74,9 +88,19 @@ def assumptions(model_id: int, db: DB) -> list[Assumption]:
 
 @router.post("/models/{model_id}/assumptions/decisions", response_model=list[schemas.AssumptionOut])
 def decide_assumptions(
-    model_id: int, body: schemas.AssumptionDecisions, db: DB
+    model_id: int, body: schemas.AssumptionDecisions, db: DB, user: User
 ) -> list[Assumption]:
+    """Accept, edit or reject proposed assumptions: part of the build, so it holds the lock."""
+    _model(db, model_id)
+    with holding(db, model_ids=[model_id], user_id=user, activity="build"):
+        return _decide(model_id, body, db)
+
+
+def _decide(model_id: int, body: schemas.AssumptionDecisions, db: DB) -> list[Assumption]:
     rows = {a.id: a for a in assumptions(model_id, db)}
+    # Only rows still pending when the request came in can be decided: a page showing a row as
+    # pending after a colleague decided it must not overwrite that decision.
+    pending = {a.id for a in rows.values() if a.decision == "pending"}
     if body.accept_all:
         for a in rows.values():
             if a.decision == "pending":
@@ -85,6 +109,8 @@ def decide_assumptions(
         item = rows.get(d.id)
         if item is None:
             raise HTTPException(422, f"assumption {d.id} not on model {model_id}")
+        if d.id not in pending:
+            raise HTTPException(409, f"assumption {d.id} is already decided: reload the page")
         if d.decision == "edited" and d.final_value is None:
             raise HTTPException(422, "edited decisions need final_value")
         item.decision = d.decision
@@ -98,17 +124,19 @@ def decide_assumptions(
 
 
 @router.post("/models/{model_id}/finalize")
-def finalize(model_id: int, db: DB, store: Store) -> dict:
+def finalize(model_id: int, db: DB, store: Store, user: User) -> dict:
     """Write accepted assumptions, run Checks, tag and save version 1 of a built model."""
-    try:
-        res = finalize_build(db, store, _model(db, model_id), created_by="api")
-    except BuildNotReadyError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    return {
-        "status": res.build.status,
-        "checks": res.checks.as_dict(),
-        "version": res.version.version if res.version else None,
-    }
+    model = _model(db, model_id)
+    with holding(db, model_ids=[model_id], user_id=user, activity="build"):
+        try:
+            res = finalize_build(db, store, model, created_by="api")
+        except BuildNotReadyError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return {
+            "status": res.build.status,
+            "checks": res.checks.as_dict(),
+            "version": res.version.version if res.version else None,
+        }
 
 
 @router.post("/models/discover")
@@ -157,10 +185,24 @@ def builds(model_id: int, db: DB) -> list[dict]:
 
 
 @router.post("/models/{model_id}/sync", response_model=schemas.JobOut)
-def sync(model_id: int, body: schemas.SyncRequest) -> schemas.JobOut:
+def sync(model_id: int, body: schemas.SyncRequest, db: DB, user: User) -> schemas.JobOut:
+    """Queue a quarterly update. The lock is taken for the job and committed before it is
+    queued, under the job's own id, so the job can give it back however quickly it ends."""
     from analekh.jobs.tasks import sync_model
 
-    return job(sync_model, model_id, body.filing_id)
+    _model(db, model_id)
+    job_id = str(uuid4())
+    acquire(db, model_id=model_id, user_id=user, activity="update", job_id=job_id)
+    # A fresh lock already carries the job; a lock the user held already (their report or
+    # build in another tab, or an earlier sync) is moved to this job.
+    attach_job(db, model_id=model_id, user_id=user, job_id=job_id, activity="update")
+    db.commit()
+    try:
+        return job(sync_model, model_id, body.filing_id, task_id=job_id)
+    except BaseException:
+        release_for_job(db, model_id=model_id, job_id=job_id)
+        db.commit()
+        raise
 
 
 @router.get("/models/{model_id}/versions/{version}")

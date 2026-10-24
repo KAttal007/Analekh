@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Me } from "../api/client";
+import { clearFreed } from "../lock/freed";
+import { forgetSignInLocks } from "../lock/signInMark";
 import { resetWelcomed } from "./welcome";
 
 export type { Me };
@@ -91,6 +93,9 @@ export function useSignOut() {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
     resetWelcomed();
+    // Nothing from the lock reminders carries over to whoever signs in next in this tab.
+    clearFreed();
+    forgetSignInLocks();
     // Signed out first, on the live entry, so the open page sees it at once. client.clear()
     // would drop that entry too, leaving the page watching a copy nobody updates.
     client.setQueryData(ME_KEY, null);

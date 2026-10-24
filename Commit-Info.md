@@ -3,6 +3,15 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-24** Model locks (stage 2): one holder per model for update, build and report
+  (migration 0012); a colleague's start gets 423 and a read-only view naming the holder. When the
+  model is free again, those who watched it get a toast and a soft chime (off in Settings). An
+  idle reminder after 30 minutes without input and a sign-in reminder of models still open, in
+  the main and admin shells. Admins get Admin > Model locks (`GET /admin/locks`) to see every
+  lock and release it, audited with the holder. Change-set decisions and apply hold the lock too;
+  a stale decision gets 409, and so does applying a set drafted on an older version than the
+  model's latest (draft a new update). Update never falls back to an older quarter: a blocked newest filing
+  opens a pop-up and nothing is drafted. Unblocks several analysts sharing models.
 - **2026-10-23** Sign-in and landing, after the live test. Opening Analekh always lands on the
   welcome page when signed out (a live session opens the Results desk directly; Enter and a mouse drag now open it too), which hands off to
   sign-in. After sign-in the desk's data loads first and a short (~0.35 s) unlock plays, so the

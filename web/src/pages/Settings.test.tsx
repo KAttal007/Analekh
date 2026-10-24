@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { Settings } from "./Settings";
 import { ANALYST, mockApi, renderAt } from "../test-utils";
@@ -104,4 +104,21 @@ test("with sign-in on, the sign-out buttons are enabled", async () => {
   expect(
     (screen.getByRole("button", { name: "Sign out everywhere" }) as HTMLButtonElement).disabled,
   ).toBe(false);
+});
+
+test("the free-model chime is on by default, and turning it off is kept after a reload", async () => {
+  localStorage.clear();
+  mockApi(base());
+  const first = renderAt(<Settings />);
+  const chime = () => within(screen.getByRole("tablist", { name: "Chime" }));
+  const selected = (name: string) =>
+    chime().getByRole("tab", { name }).getAttribute("aria-selected");
+  expect(selected("On")).toBe("true");
+  fireEvent.click(chime().getByRole("tab", { name: "Off" }));
+  expect(selected("Off")).toBe("true");
+  first.unmount();
+  renderAt(<Settings />); // a reload reads the choice back
+  expect(selected("Off")).toBe("true");
+  expect(selected("On")).toBe("false");
+  localStorage.clear();
 });

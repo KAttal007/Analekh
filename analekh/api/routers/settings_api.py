@@ -19,6 +19,11 @@ class UploadLimitOut(BaseModel):
     min_bytes: int
     updated_by: str | None
     updated_at: datetime | None
+    # Not part of the upload limit: the one settings reply every signed-in user reads, so the
+    # web's lock polling interval and idle-reminder wait ride along (settings.lock_poll_seconds,
+    # settings.idle_reminder_minutes).
+    lock_poll_seconds: int
+    idle_reminder_minutes: int
 
 
 class UploadLimitIn(BaseModel):
@@ -34,6 +39,8 @@ def _out(db: DB) -> UploadLimitOut:
         min_bytes=cfg.min_upload_bytes,
         updated_by=row.updated_by if row else None,
         updated_at=row.updated_at if row else None,
+        lock_poll_seconds=cfg.lock_poll_seconds,
+        idle_reminder_minutes=cfg.idle_reminder_minutes,
     )
 
 

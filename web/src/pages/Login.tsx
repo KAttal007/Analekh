@@ -7,6 +7,7 @@ import { dayNumber, daysFrom, iso, startOfWeek, weekdayShort } from "../lib/cale
 import { ME_KEY, peekReturnPath, takeReturnPath, useMe } from "../lib/auth";
 import { prefetchHome, publicWeekQuery } from "../lib/preload";
 import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
+import { forgetSignInLocks } from "../lock/signInMark";
 
 type Mode = "signin" | "request" | "confirm" | "first";
 
@@ -176,7 +177,11 @@ export function Login() {
 
   const signIn = useMutation({
     mutationFn: () => api.login(email.trim(), password),
-    onSuccess: (user) => client.setQueryData(ME_KEY, user),
+    onSuccess: (user) => {
+      // A new sign-in, even one after a session ran out without a sign-out: remind again.
+      forgetSignInLocks();
+      client.setQueryData(ME_KEY, user);
+    },
     onError: (e) => {
       setPassword("");
       if (e instanceof ApiError && e.blocked) {

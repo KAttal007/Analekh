@@ -2,23 +2,24 @@
 routers (comps.py, system.py)."""
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 
 from analekh.api import schemas
-from analekh.api.deps import DB, Store, company_or_404
-from analekh.db.models import Model, Report
+from analekh.api.deps import DB, Store, User, company_or_404
+from analekh.db.models import Company, Model, Report
+from analekh.locks import holding
 
 router = APIRouter(tags=["outputs"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @router.post("/reports")
-def create_report(body: schemas.ReportRequest, db: DB, store: Store) -> dict:
+def create_report(body: schemas.ReportRequest, db: DB, store: Store, user: User) -> dict:
     """Flash, note, slides, digest or initiation. Ungrounded output is returned blocked.
-    PHASE 4: move to a Celery job; runs inline for now."""
-    from analekh.genai.client import Claude
-    from analekh.genai.reports import run_report
-    from analekh.genai.tools import ModelReader, ToolExecutor
+    PHASE 4: move to a Celery job; runs inline for now.
 
+    The model the report reads (the one named, else the company's models) is locked while the
+    report runs; a company without a model takes no lock."""
     c = company_or_404(db, body.symbol)
     if body.kind == "initiation" and body.model_id is None:
         raise HTTPException(422, "an initiation draft needs the built model (model_id)")
@@ -26,6 +27,18 @@ def create_report(body: schemas.ReportRequest, db: DB, store: Store) -> dict:
         model = db.get(Model, body.model_id)
         if model is None or model.company_id != c.id:
             raise HTTPException(404, "model not found for this company")
+        model_ids = [body.model_id]
+    else:
+        model_ids = list(db.scalars(select(Model.id).where(Model.company_id == c.id)))
+    with holding(db, model_ids=model_ids, user_id=user, activity="report"):
+        return _run_report(body, db, store, c)
+
+
+def _run_report(body: schemas.ReportRequest, db: DB, store: Store, c: Company) -> dict:
+    from analekh.genai.client import Claude
+    from analekh.genai.reports import run_report
+    from analekh.genai.tools import ModelReader, ToolExecutor
+
     claude = Claude(db)
     run = run_report(
         claude,

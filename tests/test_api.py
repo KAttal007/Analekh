@@ -33,6 +33,9 @@ def client(db, store):
     app.dependency_overrides[get_store] = lambda: store
     # Sign-in is tested in test_auth_api.py; here every request is a fixed admin's.
     admin = UserRow(id="local", email="admin@test.local", name="Admin", role="admin")
+    if db.get(UserRow, "local") is None:  # a saved user: model locks refer to it
+        db.add(admin)
+        db.flush()
     app.dependency_overrides[get_current] = lambda: admin
     app.dependency_overrides[get_user] = lambda: "local"
     yield TestClient(app)
