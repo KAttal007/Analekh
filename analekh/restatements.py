@@ -99,7 +99,8 @@ def revisions(session: Session, company: Company, filings: list[Filing]) -> dict
         if len(group) < 2:
             continue
         end = group[0].period_end
-        assert end is not None  # _groups keeps filings with a period end only
+        if end is None:  # _groups keeps filings with a period end only
+            raise ValueError(f"filing {group[0].id} has no period end")
         values = _quarter_values(session, [f.id for f in group], taxonomy, end)
         for i, f in enumerate(group):
             flag = (f.meta or {}).get("revision")

@@ -471,7 +471,8 @@ def write_workbook(path: Path, filings: list[SheetFiling]) -> None:
 
     wb = Workbook()
     how = wb.active
-    assert how is not None
+    if how is None:
+        raise RuntimeError("new workbook has no sheet")
     how.title = "How to check"
     for i, text in enumerate(HOW_TO, start=1):
         how.cell(i, 1, text).font = Font(bold=i == 1, size=13 if i == 1 else 11)

@@ -20,9 +20,9 @@ from analekh.db.models import Assumption, Company, Model, ModelBuild, ModelVersi
 from analekh.discovery import WorkbookHints, discover, link
 from analekh.locks import acquire, attach_job, holding, release_for_job
 from analekh.templates.onboarding import default_for, ensure_builtin_templates
+from analekh.workbook.reader import excel_kind
 
 router = APIRouter(tags=["models"])
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _model(db: DB, model_id: int) -> Model:
@@ -214,4 +214,5 @@ def download_version(model_id: int, version: int, db: DB, store: Store) -> Respo
     )
     if mv is None:
         raise HTTPException(404)
-    return Response(store.get(mv.storage_key), media_type=XLSX)
+    data = store.get(mv.storage_key)
+    return Response(data, media_type=excel_kind(data)[1])

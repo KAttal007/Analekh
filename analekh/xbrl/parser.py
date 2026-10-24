@@ -132,7 +132,10 @@ def dims_hash(dimensions: dict[str, str]) -> str:
 
 
 def parse_instance(data: bytes) -> ParsedFiling:
+    # XXE-safe: entities are never expanded and nothing is fetched (no_network); lxml's wheel
+    # carries its own libxml2, not the image's.
     parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True)
+    # nosemgrep
     root = etree.fromstring(data, parser)
 
     schema_ref = None

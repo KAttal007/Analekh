@@ -5,6 +5,12 @@ x-container-network: &container-network
   DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/analekh
   REDIS_URL: redis://redis:6379/0
   MINIO_ENDPOINT: minio:9000
+  # The recalc service (LibreOffice in its own container). The API and the service must hold the
+  # same token. Left unset in .env, both use the throwaway one below, which is safe here only
+  # because the service is on an internal network and publishes no port; staging and production
+  # require a real RECALC_TOKEN. The timing settings and RECALC_FALLBACK come from .env.
+  RECALC_URL: http://recalc:8080
+  RECALC_TOKEN: ${RECALC_TOKEN:-dev-only-recalc-token}
 
 services:
   postgres:
@@ -37,6 +43,23 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: [minio:/data]
 
+  recalc:
+    # Headless LibreOffice for Apply, in its own image (deploy/recalc/Dockerfile). Publishes no
+    # port and is on an internal network only: no internet, no Postgres, no MinIO. Locked down:
+    # non-root, read-only root file system, no capabilities, no privilege escalation.
+    build: deploy/recalc
+    image: analekh-recalc:dev
+    networks: [recalc]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      RECALC_TOKEN: ${RECALC_TOKEN:-dev-only-recalc-token}
+      RECALC_TIMEOUT_SECONDS: ${RECALC_TIMEOUT_SECONDS:-180}
+      RECALC_CONCURRENCY: ${RECALC_CONCURRENCY:-2}
+      RECALC_MAX_BYTES: ${MAX_UPLOAD_CEILING_BYTES:-104857600}
+
   api:
     # The one build of the application image; worker and beat reuse it (`docker compose build api`).
     build: .
@@ -46,10 +69,13 @@ services:
     environment: *container-network
     ports: ["8000:8000"]
     volumes: ["./import:/app/import"]
+    networks: [default, recalc]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
       minio: { condition: service_started }
+      # started, not healthy: the API must come up even when recalc is down (Apply then says so)
+      recalc: { condition: service_started }
 
   worker:
     image: analekh-app:dev
@@ -57,6 +83,7 @@ services:
     env_file: .env
     environment: *container-network
     volumes: ["./import:/app/import"]
+    networks: [default, recalc]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -73,6 +100,11 @@ services:
     build: { context: ., dockerfile: web/Dockerfile } # pnpm workspace lives at the root
     ports: ["5173:80"]
     depends_on: [api]
+
+networks:
+  default: {}
+  recalc:
+    internal: true # no route out: the recalc service cannot reach the internet or the data stores
 
 volumes:
   pgdata:

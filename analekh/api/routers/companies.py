@@ -33,7 +33,8 @@ def company_index(db: DB, request: Request, response: Response) -> object:
         .where(Company.is_active)
         .order_by(Company.nse_symbol)
     ).all()
-    etag = '"' + hashlib.sha1(json.dumps([tuple(r) for r in rows]).encode()).hexdigest() + '"'
+    digest = hashlib.sha256(json.dumps([tuple(r) for r in rows]).encode()).hexdigest()
+    etag = f'"{digest[:40]}"'
     headers = {"ETag": etag, "Cache-Control": "private, max-age=300"}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)

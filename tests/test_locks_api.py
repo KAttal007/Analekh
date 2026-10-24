@@ -463,7 +463,7 @@ def test_change_set_apply_holds_the_lock_while_it_runs(
         return b"written"
 
     monkeypatch.setattr(cs_router, "apply_headless", fake_apply)
-    monkeypatch.setattr(cs_router, "recalc_file", lambda b: b)
+    monkeypatch.setattr(cs_router, "recalc_file", lambda b, reference=None: b)
     monkeypatch.setattr(cs_router, "load", lambda b: None)
     monkeypatch.setattr(cs_router, "fingerprint", lambda wb: "fp")
     r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
@@ -487,7 +487,7 @@ def _fake_headless(monkeypatch) -> None:
     import analekh.api.routers.change_sets as cs_router
 
     monkeypatch.setattr(cs_router, "apply_headless", lambda data, approved: b"written")
-    monkeypatch.setattr(cs_router, "recalc_file", lambda b: b)
+    monkeypatch.setattr(cs_router, "recalc_file", lambda b, reference=None: b)
     monkeypatch.setattr(cs_router, "load", lambda b: None)
     monkeypatch.setattr(cs_router, "fingerprint", lambda wb: "fp")
 
@@ -525,6 +525,82 @@ def test_change_set_apply_on_the_latest_base_still_applies(
     assert r.status_code == 200 and r.json()["version"] == 3
     db.refresh(change_set)
     assert change_set.status == "applied"
+    assert status(db, model_id=model.id) is None
+
+
+def test_apply_recalc_unavailable_is_503_and_saves_nothing(
+    ravi, model, change_set, store, monkeypatch, db
+):
+    """The recalc service is down: no version is saved (its cached values would be stale), the
+    lock is released and the change set stays approved, so Apply can be clicked again."""
+    import analekh.api.routers.change_sets as cs_router
+    from analekh.workbook.recalc import RecalcUnavailable
+
+    _approve_on_versions(db, store, model, change_set, versions=1, base=1)
+    _fake_headless(monkeypatch)
+
+    def down(workbook: bytes, reference: bytes | None = None) -> bytes:
+        raise RecalcUnavailable("recalc service unavailable: ConnectError")
+
+    monkeypatch.setattr(cs_router, "recalc_file", down)
+    puts: list[str] = []
+    real_put = store.put
+    monkeypatch.setattr(
+        store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1]
+    )
+    r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
+    assert r.status_code == 503
+    assert r.json()["detail"] == {
+        "code": "recalc_unavailable",
+        "message": "Recalculation is unavailable right now. Try Apply again in a few minutes, "
+        "or apply from Excel with the Analekh bridge.",
+    }
+    assert puts == []  # store.put was never called
+    versions = db.scalar(
+        select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id)
+    )
+    assert versions == 1  # no new model_versions row
+    db.refresh(change_set)
+    assert change_set.status == "approved"
+    assert status(db, model_id=model.id) is None  # no model_locks row left behind
+
+
+def test_apply_cannot_compute_is_422_lists_cells_and_saves_nothing(
+    ravi, model, change_set, store, monkeypatch, db
+):
+    """The model uses a function LibreOffice cannot run (a VBA UDF): 422 naming the cells, no
+    version saved, the lock released and the change set still approved."""
+    import analekh.api.routers.change_sets as cs_router
+    from analekh.workbook.recalc import RecalcCannotCompute
+
+    _approve_on_versions(db, store, model, change_set, versions=1, base=1)
+    _fake_headless(monkeypatch)
+    cells = [f"Sheet1!E{n}" for n in range(2, 14)]  # 12 cells: the reply names only the first 10
+
+    def cannot(workbook: bytes, reference: bytes | None = None) -> bytes:
+        raise RecalcCannotCompute(cells)
+
+    monkeypatch.setattr(cs_router, "recalc_file", cannot)
+    puts: list[str] = []
+    real_put = store.put
+    monkeypatch.setattr(
+        store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1]
+    )
+    r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["code"] == "recalc_cannot_compute"
+    assert detail["cells"] == cells[:10]
+    assert detail["total"] == 12
+    assert "Sheet1!E2" in detail["message"] and "and more" in detail["message"]
+    assert "Excel with the Analekh bridge" in detail["message"]
+    assert puts == []
+    versions = db.scalar(
+        select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id)
+    )
+    assert versions == 1
+    db.refresh(change_set)
+    assert change_set.status == "approved"
     assert status(db, model_id=model.id) is None
 
 
@@ -668,7 +744,7 @@ def real_change_set(real_session, store, monkeypatch):
 
     monkeypatch.setattr(cs_router, "holding", racing_holding)
     monkeypatch.setattr(cs_router, "apply_headless", lambda data, approved: b"written")
-    monkeypatch.setattr(cs_router, "recalc_file", lambda b: b)
+    monkeypatch.setattr(cs_router, "recalc_file", lambda b, reference=None: b)
     monkeypatch.setattr(cs_router, "load", lambda b: None)
     monkeypatch.setattr(cs_router, "fingerprint", lambda wb: "fp")
     try:

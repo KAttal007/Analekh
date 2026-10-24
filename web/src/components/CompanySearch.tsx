@@ -201,6 +201,8 @@ function highlight(name: string, term: string): ReactNode {
     .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!words.length) return name;
   const anchor = term.length === 1 ? "^" : "";
+  // Words escaped above: typed text is matched literally.
+  // nosemgrep
   const parts = name.split(new RegExp(`${anchor}(${words.join("|")})`, "gi"));
   return parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p));
 }

@@ -26,6 +26,7 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 
 - [ ] Wire V10 (XBRL wins over AI-extracted values) into `docs/pipeline.py`
 - [ ] Decide the embeddings provider (open question 28.7)
+- [ ] Unprocessed feed items: about 290 items from issuers outside the universe (mostly debt-only or unlisted) are never picked up, since the queue needs a matched company. They inflate the "unprocessed" column in `admin/app.py`. Proposed: count only matched items there and leave the rest in "unlinked" (not decided). Review the list in `out/unmatched_feed_items.csv` for companies worth adding to the universe
 
 ## Valuation
 

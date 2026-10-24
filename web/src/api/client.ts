@@ -102,6 +102,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(isRead(init.method) ? {} : CSRF),
   };
+  // Browser code calling its own API (fixed BASE, app-defined paths): not server-side SSRF.
+  // nosemgrep
   const res = await fetch(BASE + path, { headers, credentials: "same-origin", ...init });
   if (!res.ok) {
     let detail = res.statusText;
@@ -142,6 +144,8 @@ const put = <T>(path: string, body: unknown) =>
 
 /** POST that answers with a file: saved by the browser under `filename`. */
 async function download(path: string, body: unknown, filename: string): Promise<void> {
+  // Same as call() above: the browser calling its own API.
+  // nosemgrep
   const res = await fetch(BASE + path, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...CSRF },

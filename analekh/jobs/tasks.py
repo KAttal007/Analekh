@@ -321,7 +321,8 @@ def bulk_fetch_results(
             try:
                 with session_scope() as s:
                     company = get_company(s, symbol)
-                    assert company is not None
+                    if company is None:
+                        raise LookupError(f"unknown company {symbol}")
                     if history:
                         outcome = fetch_history(s, store, client, company, one_basis=one_basis)
                     else:

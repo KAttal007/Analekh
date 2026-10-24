@@ -29,6 +29,7 @@ uv run pytest -q                          # all tests; DB tests skip if PostgreS
 uv run ruff check . && uv run ruff format . && uv run mypy analekh
 docker compose up -d postgres             # PostgreSQL 16 + pgvector + pg_trgm for DB tests
 docker compose up -d minio                # object storage (built from source on first run)
+docker compose up -d recalc               # headless LibreOffice for Apply (own image, internal network)
 uv run alembic upgrade head               # migrations (analekh/db/migrations)
 uv sync --group audio                     # Whisper for call recordings (analekh transcribe-audio)
 uv run alembic revision --autogenerate -m "..."   # after changing analekh/db/models.py

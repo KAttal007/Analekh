@@ -9,7 +9,7 @@ from analekh.workbook.fingerprint import fingerprint
 from analekh.workbook.hygiene import scan_hygiene
 from analekh.workbook.labels import match_label
 from analekh.workbook.periods import detect_axis, fiscal_label, parse_period
-from analekh.workbook.reader import read_structure
+from analekh.workbook.reader import excel_kind, read_structure
 from analekh.workbook.tags import Tag, read_tag, write_tag
 
 
@@ -113,3 +113,15 @@ def test_ai_label_resolver_is_capped_and_memoised():
     assert (m.field, m.method, m.confidence) == ("revenue", "ai", 0.85)
     match_label("Topline xyz qq", ai)
     assert calls == ["small"]
+
+
+def test_excel_kind_keeps_macro_workbooks_as_xlsm():
+    wb = Workbook()
+    out = io.BytesIO()
+    wb.save(out)
+    assert excel_kind(out.getvalue()) == (
+        ".xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    with_vba = out.getvalue() + b"xl/vbaProject.bin"  # the zip lists a VBA project
+    assert excel_kind(with_vba) == (".xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12")

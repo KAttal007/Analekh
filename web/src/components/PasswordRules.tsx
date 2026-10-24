@@ -18,6 +18,8 @@ export function usePasswordRules(): {
     retry: false,
   });
   const rules = useMemo(
+    // Patterns come from Analekh's own server config, never from the user.
+    // nosemgrep
     () => (reply.data?.rules ?? []).map((r) => ({ ...r, pattern: new RegExp(r.pattern) })),
     [reply.data],
   );

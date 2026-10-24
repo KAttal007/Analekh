@@ -329,7 +329,8 @@ def revalidate(
     for symbol in todo:
         with _session() as s:
             company = s.scalar(select(Company).where(Company.nse_symbol == symbol))
-            assert company is not None
+            if company is None:
+                raise LookupError(f"unknown company {symbol}")
             filings = revalidate_company(s, store, company)
             blocked = sum(bool((f.meta or {}).get("blocks_auto_apply")) for f in filings)
             typer.echo(
@@ -440,7 +441,8 @@ def build(
         typer.echo(f"build {done.build.status}; checks passed: {done.checks.passed}")
         if out and done.version:
             mv = s.get(ModelVersion, done.version.id)
-            assert mv is not None
+            if mv is None:
+                raise LookupError(f"model version {done.version.id} not found")
             out.write_bytes(store.get(mv.storage_key))
             typer.echo(f"saved {out}")
 

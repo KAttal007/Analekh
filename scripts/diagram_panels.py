@@ -23,6 +23,8 @@ PORT = 9341
 
 async def main(url: str, out: str) -> None:
     profile = tempfile.mkdtemp(prefix="edge-cdp-")
+    # Fixed argv, no shell, local dev script: nothing user-supplied reaches the command.
+    # nosemgrep
     proc = subprocess.Popen(
         [
             EDGE,

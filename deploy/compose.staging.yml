@@ -18,6 +18,21 @@ services:
     image: valkey/valkey:8
     restart: unless-stopped
 
+  # Headless LibreOffice for Apply, in its own image (deploy/recalc). It publishes no port and sits
+  # on an internal network only: no internet, no Postgres, no object store. Set RECALC_URL
+  # (http://recalc:8080), RECALC_TOKEN (at least 32 random bytes) and RECALC_FALLBACK=fail in
+  # /etc/analekh/staging.env; the API reads the same token and RECALC_MAX_BYTES must match
+  # MAX_UPLOAD_CEILING_BYTES there if that is changed.
+  recalc:
+    image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/recalc:${IMAGE_TAG:?set IMAGE_TAG}
+    env_file: /etc/analekh/staging.env
+    restart: unless-stopped
+    networks: [recalc]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
   migrate:
     <<: *app
     command: alembic upgrade head
@@ -28,17 +43,25 @@ services:
     <<: *app
     command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
     ports: ["127.0.0.1:8000:8000"]
-    depends_on: [postgres, valkey, migrate]
+    networks: [default, recalc]
+    # started, not healthy: the API must come up even when recalc is down (Apply then says so)
+    depends_on: [postgres, valkey, migrate, recalc]
 
   worker:
     <<: *app
     command: celery -A analekh.jobs worker -l info
+    networks: [default, recalc]
     depends_on: [postgres, valkey]
 
   beat:
     <<: *app
     command: celery -A analekh.jobs beat -l info
     depends_on: [valkey]
+
+networks:
+  default: {}
+  recalc:
+    internal: true # no route out
 
 volumes:
   pgdata:

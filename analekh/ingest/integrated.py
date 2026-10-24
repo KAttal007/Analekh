@@ -335,7 +335,8 @@ def _download_and_ingest(
     Adani Enterprises) or serves a broken one (XML cut off partway, seen on Laurus Labs), so the
     company's other filings are kept rather than all lost. A broken file is fetched once more in
     case the download itself was cut short."""
-    assert f.xbrl_url is not None
+    if f.xbrl_url is None:
+        raise ValueError("listed filing has no XBRL link")
     attempts = get_settings().integrated_file_attempts
     for attempt in range(1, attempts + 1):
         try:

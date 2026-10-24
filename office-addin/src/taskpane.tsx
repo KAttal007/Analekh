@@ -28,6 +28,8 @@ const writeToken = (token: string) => {
 class SignedOut extends Error {}
 
 async function get<T>(path: string, token: string): Promise<T> {
+  // Browser-side call to the user's own Analekh API (set on this machine): not server-side SSRF.
+  // nosemgrep
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) throw new SignedOut();
   if (!res.ok) throw new Error(`Analekh answered ${res.status}.`);

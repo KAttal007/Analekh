@@ -39,7 +39,8 @@ def process_document(
     if not pages:  # opens but holds nothing (a cut-off download): as unreadable as one that won't
         raise ValueError("the PDF has no readable pages")
     company = session.get(Company, filing.company_id)
-    assert company is not None
+    if company is None:
+        raise LookupError(f"filing {filing.id} points at a missing company")
 
     doc = Document(filing_id=filing.id, page_count=len(pages))
     session.add(doc)

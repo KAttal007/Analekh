@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -53,6 +54,21 @@ class Settings(BaseSettings):
     # next run ask for double, up to the cap; a full one resets it.
     latest_page_size: int = 1000
     latest_max_page_size: int = 4000
+
+    # Recalculation on Apply (design doc 16.5, 22.1). With RECALC_URL set, workbooks are sent to the
+    # `recalc` service (LibreOffice in its own container, on an internal network); the token travels
+    # in the X-Recalc-Token header only. With it empty, LibreOffice runs locally when installed.
+    recalc_url: str = ""
+    recalc_token: str = ""
+    # The service kills LibreOffice after this long and answers 504; the client waits 15 s longer
+    # so that answer arrives, and a local run uses it as its own limit.
+    recalc_timeout_seconds: float = 180.0
+    # Retries after a connection failure, a read timeout or a "busy" 503 (not after 401 or 504).
+    recalc_retries: int = 1
+    recalc_retry_delay_seconds: float = 2.0
+    # When the service stays unavailable: "fail" refuses the apply (503, nothing saved; production)
+    # or "local" converts with a LibreOffice on this machine (dev and CI).
+    recalc_fallback: Literal["fail", "local"] = "fail"
 
     import_dir: Path = Path("./import")
     # The id that pre-sign-in data (watchlist, templates) is keyed by; `analekh create-admin

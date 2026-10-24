@@ -53,5 +53,6 @@ def relabel(wb: Workbook, axis: PeriodAxis, last_actual: date) -> PeriodAxis:
     new = detect_axis(
         ws, label_column=axis.label_column, header_row=axis.header_row, flag_row=axis.flag_row
     )
-    assert new is not None
+    if new is None:
+        raise ValueError("period axis not found after relabelling")
     return new

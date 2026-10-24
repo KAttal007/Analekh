@@ -85,7 +85,9 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
             status_code=403,
             headers=NO_STORE,
         )
-    assert result.user is not None and result.token is not None
+    if result.reason != "ok" or result.user is None or result.token is None:
+        # Fail closed: a reason this route does not know yet never reaches the cookie below.
+        return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
     for name, value in NO_STORE.items():
         response.headers[name] = value
     response.set_cookie(

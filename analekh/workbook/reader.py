@@ -174,8 +174,18 @@ def _combine(kinds: list[str]) -> str:
     return kinds[0] if len(set(kinds)) == 1 else "mixed"
 
 
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+XLSM_TYPE = "application/vnd.ms-excel.sheet.macroEnabled.12"
+
+
 def has_macros(data: bytes) -> bool:
     return b"vbaProject.bin" in data
+
+
+def excel_kind(data: bytes) -> tuple[str, str]:
+    """(file suffix, content type) for a workbook: ".xlsm" when it carries a VBA project, so a
+    saved copy keeps a name and type Excel will open (Excel refuses an .xlsm named .xlsx)."""
+    return (".xlsm", XLSM_TYPE) if has_macros(data) else (".xlsx", XLSX_TYPE)
 
 
 def load(data: bytes) -> Workbook:

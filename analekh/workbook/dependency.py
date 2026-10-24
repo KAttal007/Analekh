@@ -27,7 +27,8 @@ def expand(ref: str) -> list[str]:
     if ":" not in ref:
         return [ref]
     min_col, min_row, max_col, max_row = range_boundaries(ref)
-    assert min_col and min_row and max_col and max_row
+    if not (min_col and min_row and max_col and max_row):
+        raise ValueError(f"not a bounded range: {ref}")
     if (max_col - min_col + 1) * (max_row - min_row + 1) > MAX_RANGE_CELLS:
         return []
     return [
@@ -91,5 +92,6 @@ class DependencyGraph:
 
 def column_letter_shift(cell: str, by: int) -> str:
     m = re.match(r"([A-Z]+)(\d+)", cell)
-    assert m
+    if not m:
+        raise ValueError(f"not a cell reference: {cell}")
     return f"{get_column_letter(column_index_from_string(m.group(1)) + by)}{m.group(2)}"

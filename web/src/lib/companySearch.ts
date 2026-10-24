@@ -27,6 +27,8 @@ export function searchIndex(index: CompanyIndex, raw: string): CompanyIndexEntry
   const sym = words.join("").toUpperCase(); // "hdfc amc" -> HDFCAMC
   const long = q.length > 1;
   // Postgres \m: a word starts after anything that is not a letter, digit or underscore.
+  // Each word is escaped, so typed text is matched literally (no user-supplied pattern).
+  // nosemgrep
   const starts = words.map((w) => new RegExp(`(?<![\\p{L}\\p{N}_])${escape(w)}`, "u"));
 
   const scored: { entry: CompanyIndexEntry; score: number }[] = [];

@@ -10,16 +10,36 @@ import { lockedDetail, useLockPollMs, useModelLock } from "../lock/useModelLock"
 const KINDS = ["actual_write", "roll_forward", "label_shift", "assumption_suggestion"] as const;
 const label = (k: string) => k.replaceAll("_", " ");
 
-/** The server's message for a 409 "change_set_stale" reply, or null for any other error. */
-function staleMessage(e: unknown): string | null {
-  if (!(e instanceof ApiError && e.status === 409)) return null;
+/** Replies whose message is written for the analyst: shown as it is, never as the raw error. */
+const KNOWN_CODES = ["change_set_stale", "recalc_unavailable", "recalc_cannot_compute"];
+
+/** The code and message of a 409, 422 or 503 reply the server wrote for the analyst, or null for any
+ *  other error. */
+function knownReply(e: unknown): { code: string; message: string } | null {
+  if (!(e instanceof ApiError && (e.status === 409 || e.status === 422 || e.status === 503))) return null;
   try {
     const detail = JSON.parse(e.message) as { code?: string; message?: string };
-    return detail?.code === "change_set_stale" ? (detail.message ?? null) : null;
+    if (!detail?.code || !detail.message || !KNOWN_CODES.includes(detail.code)) return null;
+    return { code: detail.code, message: detail.message };
   } catch {
     return null; // a plain-text 409, such as "decide every item first"
   }
 }
+
+/** The message of a 409 "change_set_stale" reply, or null. */
+const staleMessage = (e: unknown) => {
+  const reply = knownReply(e);
+  return reply?.code === "change_set_stale" ? reply.message : null;
+};
+
+/** The message of a 503 "recalc_unavailable" reply (the recalculation service is down) or a 422
+ *  "recalc_cannot_compute" reply (the model uses functions it cannot run), or null. */
+const unavailableMessage = (e: unknown) => {
+  const reply = knownReply(e);
+  return reply?.code === "recalc_unavailable" || reply?.code === "recalc_cannot_compute"
+    ? reply.message
+    : null;
+};
 
 // Approval gate (design doc 16.4): nothing is written before every item has a decision.
 export function ChangeSetReview() {
@@ -67,7 +87,10 @@ export function ChangeSetReview() {
   const off = gate.held; // read-only: a colleague holds the model
   const hidden = off && isAdmin; // an admin frees the model rather than working on it
   const failed = (m: typeof apply | typeof decide) =>
-    m.isError && !lockedDetail(m.error) && !staleMessage(m.error);
+    m.isError && !lockedDetail(m.error) && !knownReply(m.error);
+  // Recalculation is down: nothing was saved and the set is still approved, so Apply stays on and
+  // can be clicked again. The notice goes away when the next attempt starts.
+  const unavailable = apply.isError ? unavailableMessage(apply.error) : null;
   const s = cs.data.summary ?? {};
   const items = cs.data.items;
   const pending = items.filter((i) => i.decision === "pending").length;
@@ -222,6 +245,12 @@ export function ChangeSetReview() {
           <Link className="btn btn-sm" to="/models">
             Back to models
           </Link>
+        </div>
+      )}
+      {unavailable !== null && (
+        <div className="alert alert-warn" role="alert">
+          <Icon name="alert" />
+          <span>{unavailable}</span>
         </div>
       )}
       {failed(apply) && <ErrorNote error={apply.error} />}

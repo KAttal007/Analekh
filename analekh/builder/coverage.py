@@ -26,7 +26,7 @@ from analekh.workbook.checks import CheckRun, run_checks
 from analekh.workbook.fingerprint import fingerprint
 from analekh.workbook.locate import axis_for
 from analekh.workbook.mapping import Mapping
-from analekh.workbook.reader import load, read_structure
+from analekh.workbook.reader import excel_kind, load, read_structure
 from analekh.workbook.tags import Tag, write_tag
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -151,7 +151,8 @@ def finalize_build(
     write_drivers(wb, mapping, axis, accepted)
 
     company = session.get(Company, model.company_id)
-    assert company is not None
+    if company is None:
+        raise LookupError(f"model {model.id} points at a missing company")
     write_tag(wb, Tag(model.doc_tag, company.nse_symbol))
     wb.calculation.fullCalcOnLoad = True  # Excel recalculates on open; checks ran headless
     data = _save(wb)
@@ -161,8 +162,9 @@ def finalize_build(
         model.structure = (model.structure or {}) | {"checks": checks.as_dict()}
         return FinalizeResult(model, build, checks, None)
 
-    key = f"models/{model.id}/v1-{sha256(data)[:12]}.xlsx"
-    store.put(key, data, XLSX)
+    suffix, content_type = excel_kind(data)  # a template with macros builds an .xlsm
+    key = f"models/{model.id}/v1-{sha256(data)[:12]}{suffix}"
+    store.put(key, data, content_type)
     version = ModelVersion(model_id=model.id, version=1, storage_key=key, created_by=created_by)
     session.add(version)
     model.fingerprint = fingerprint(wb)

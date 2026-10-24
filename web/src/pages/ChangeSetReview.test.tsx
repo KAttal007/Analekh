@@ -170,6 +170,63 @@ it("a stale 409 on Apply says so, keeps Apply off and links back to the models",
   expect(back.getAttribute("href")).toBe("/models");
 });
 
+it("a 503 recalc_unavailable on Apply shows the server's message and leaves Apply on", async () => {
+  const DOWN =
+    "Recalculation is unavailable right now. Try Apply again in a few minutes, or apply from Excel with the Analekh bridge.";
+  mockApi(
+    routes(() => ({ status: 200, body: null }), ANALYST, {
+      "GET /api/change-sets/3": () => ({
+        status: 200,
+        body: { ...CS, status: "approved", items: [{ ...ITEM, decision: "accepted" }] },
+      }),
+      "POST /api/change-sets/3/apply": () => ({
+        status: 503,
+        body: { detail: { code: "recalc_unavailable", message: DOWN } },
+      }),
+    }),
+  );
+  show();
+  await screen.findByText("Revenue for the quarter");
+  await waitFor(() => expect(disabled("Apply approved changes")).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Apply approved changes" }));
+  expect(await screen.findByText(DOWN)).toBeTruthy();
+  expect(screen.queryByText(/recalc_unavailable/)).toBeNull(); // the message, not the raw reply
+  expect(screen.getAllByRole("alert")).toHaveLength(1); // no second, raw error note
+  expect(disabled("Apply approved changes")).toBe(false); // nothing was saved: try again
+  expect(screen.queryByRole("link", { name: "Back to models" })).toBeNull();
+});
+
+it("a 422 recalc_cannot_compute on Apply shows the server's message and names the cells", async () => {
+  const CANNOT =
+    "Analekh cannot recalculate 2 cell(s) in this model (Sheet1!E2, Sheet1!E3). They use a function it cannot run, such as a custom VBA function. Apply from Excel with the Analekh bridge instead.";
+  mockApi(
+    routes(() => ({ status: 200, body: null }), ANALYST, {
+      "GET /api/change-sets/3": () => ({
+        status: 200,
+        body: { ...CS, status: "approved", items: [{ ...ITEM, decision: "accepted" }] },
+      }),
+      "POST /api/change-sets/3/apply": () => ({
+        status: 422,
+        body: {
+          detail: {
+            code: "recalc_cannot_compute",
+            message: CANNOT,
+            cells: ["Sheet1!E2", "Sheet1!E3"],
+            total: 2,
+          },
+        },
+      }),
+    }),
+  );
+  show();
+  await screen.findByText("Revenue for the quarter");
+  await waitFor(() => expect(disabled("Apply approved changes")).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Apply approved changes" }));
+  expect(await screen.findByText(CANNOT)).toBeTruthy();
+  expect(screen.queryByText(/recalc_cannot_compute/)).toBeNull(); // the message, not the raw reply
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+});
+
 it("a 409 on a decision reloads the change set and still shows the error", async () => {
   let gets = 0;
   let item: Record<string, unknown> = ITEM;

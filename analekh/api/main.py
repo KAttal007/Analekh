@@ -134,7 +134,8 @@ app.add_exception_handler(PoolTimeout, _database_busy)
 def _model_locked(request: Request, exc: Exception) -> JSONResponse:
     """A colleague is working on the model: say who, doing what and since when (their name only,
     never their email)."""
-    assert isinstance(exc, LockHeld)
+    if not isinstance(exc, LockHeld):  # registered for LockHeld only
+        raise exc
     return JSONResponse(
         status_code=423,
         content={

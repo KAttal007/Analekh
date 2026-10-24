@@ -3,6 +3,26 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-24** LibreOffice in its own container. Headless recalculation on Apply moves out of the
+  API, worker and beat image into a `recalc` service (`deploy/recalc`) on an internal Docker
+  network with no published port; the app image no longer carries LibreOffice and its Debian
+  packages, and CI builds and scans the second image. `recalc_file` retries once, then falls back
+  to a local LibreOffice (`RECALC_FALLBACK=local`, dev and CI) or refuses: Apply answers 503
+  `recalc_unavailable`, saves nothing, frees the lock and leaves the change set approved, and the
+  web page shows the message (the Excel bridge is the way round). With `RECALC_URL` empty behaviour
+  is unchanged. Unblocks a smaller attack surface in the app image and a container-scanning report
+  that separates the two. Rollout: set `RECALC_URL` and `RECALC_TOKEN` in the environment files.
+  `.xlsm` models keep their VBA project and name (macros never run). A model that calls a
+  function LibreOffice cannot run (such as a VBA UDF) would come back with `#NAME?` where the
+  analyst's values were: Apply answers 422 `recalc_cannot_compute`, names the cells, saves
+  nothing and points to the Excel bridge. `#NAME?` already in the base version does not count.
+
+- **2026-10-24** Security scan sweep (GitLab SAST and container scanning). Sign-in fails closed
+  on any reason it does not know; runtime `assert`s became explicit raises, so `python -O` cannot
+  skip them; the company-index ETag uses SHA-256. False positives (browser `fetch`, escaped
+  regexes, the XXE-safe XBRL parser, a fixed-argv dev script) carry a `nosemgrep` with the reason.
+  The image takes Debian security updates at build and has no setuid programs. Unblocks a clean
+  SAST report.
 - **2026-10-24** Model locks (stage 2): one holder per model for update, build and report
   (migration 0012); a colleague's start gets 423 and a read-only view naming the holder. When the
   model is free again, those who watched it get a toast and a soft chime (off in Settings). An
