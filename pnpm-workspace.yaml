@@ -21,3 +21,10 @@ minimumReleaseAgeExclude:
 # adm-zip is not ours: office-addin tooling pulls several 0.5.x and 0.6.x copies. Pin one.
 overrides:
   adm-zip: 0.6.1
+  # Security fixes (OSV audit, 2026-10-24). All come in through the add-in's dev tooling or jsdom,
+  # none are ours. node-forge 1.4.0 has no fixed release yet; revisit when one ships.
+  body-parser@<1.20.9: 1.20.9
+  body-parser@>=2.0.0 <2.4.0: 2.4.0
+  fast-uri@<3.1.9: 3.1.9
+  undici@<8.12.2: 8.12.2
+  '@azure/msal-node@<7.1.0': 7.1.0

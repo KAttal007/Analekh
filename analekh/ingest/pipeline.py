@@ -265,6 +265,9 @@ def classify_announcement(title: str | None, description: str | None = None) -> 
     return "other"
 
 
+SKIPPED_ZIP = "Skipped: zip not supported"
+
+
 def process_feed_item(
     session: Session, store: ObjectStore, client: PoliteClient, item: FeedItem
 ) -> Filing | None:
@@ -286,6 +289,14 @@ def process_feed_item(
         # Intimation XMLs on the other feeds are never PDFs, so storing them always fails, and
         # nothing reads them (the calendar and alerts use the feed text). Close without a request.
         item.processed_at = datetime.now().astimezone()
+        return None
+    if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".zip"):
+        # NSE document bundles (KMP and public-announcement files, up to tens of MB). Only PDFs are
+        # stored, so downloading one always ends in NotAPdf. Close without a request, and keep the
+        # reason in `error` (prefixed "Skipped:", so it is not mistaken for a failure) to show what
+        # we are not ingesting, and to find these again if unzip support is added.
+        item.processed_at = datetime.now().astimezone()
+        item.error = SKIPPED_ZIP
         return None
     # The same file can sit in several feeds or repeat within one: no second request to NSE for a
     # link already stored, or already given up on.

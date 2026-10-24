@@ -19,7 +19,7 @@ coverage==7.16.2
     # via pytest-cov
 distlib==0.4.3
     # via virtualenv
-filelock==4.1.1
+filelock==4.2.4
     # via
     #   python-discovery
     #   virtualenv

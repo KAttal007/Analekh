@@ -225,6 +225,46 @@ def test_xml_links_on_other_feeds_are_closed_without_a_request(db, store, compan
     assert client.calls == []
 
 
+def test_zip_links_on_other_feeds_are_closed_without_a_request_and_say_why(db, store, company):
+    from analekh.ingest.pipeline import SKIPPED_ZIP, process_feed_item
+
+    client = _CountingClient(b"PK zip body")
+    item = _feed_item(
+        db,
+        company,
+        "announcements",
+        "https://nsearchives.nseindia.com/corporate/KMP_Doc.ZIP",
+        "z-1",
+    )
+    assert process_feed_item(db, store, client, item) is None
+    assert item.processed_at is not None and item.error == SKIPPED_ZIP
+    assert client.calls == []
+
+
+def test_items_without_a_link_are_stored_closed_even_when_no_company_matches(db, company):
+    from analekh.ingest.feeds import RssItem
+
+    notice = RssItem(
+        title="Some Mutual Fund - Gold ETF",  # matches no universe company
+        link=None,
+        description="has informed the Exchange that the Net Asset Value (per unit) is 10.00",
+        pub_date_raw="24-Oct-2026 10:00:00",
+        pub_date=None,
+    )
+    with_link = RssItem(
+        title="Other Limited",
+        link="https://nsearchives.nseindia.com/corporate/x.pdf",
+        description=None,
+        pub_date_raw="24-Oct-2026 10:01:00",
+        pub_date=None,
+    )
+    assert store_items(db, "announcements", [notice, with_link]) == 2
+    closed = db.scalar(select(FeedItem).where(FeedItem.item_key == notice.item_key))
+    waiting = db.scalar(select(FeedItem).where(FeedItem.item_key == with_link.item_key))
+    assert closed.company_id is None and closed.processed_at is not None
+    assert waiting.processed_at is None
+
+
 def test_xml_on_the_results_feed_is_still_fetched(db, store, company):
     from analekh.ingest.pipeline import process_feed_item
 
@@ -253,7 +293,7 @@ def test_a_link_already_stored_is_not_fetched_again(db, store, company):
 def test_a_link_that_already_failed_is_not_fetched_again(db, store, company):
     from analekh.ingest.pipeline import NotAPdf, process_feed_item
 
-    url = "https://nsearchives.nseindia.com/c/odd.zip"
+    url = "https://nsearchives.nseindia.com/c/odd.pdf"  # named .pdf, but the body is a zip
     client = _CountingClient(b"PK not a pdf")
     first = _feed_item(db, company, "announcements", url, "bad-1")
     with pytest.raises(NotAPdf):

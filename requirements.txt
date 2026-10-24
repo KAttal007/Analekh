@@ -95,7 +95,7 @@ feedparser==6.0.14
     # via analekh
 feedparser-sgmllib==2.1.0
     # via feedparser
-filelock==4.1.1
+filelock==4.2.4
     # via arelle-release
 flatbuffers==25.12.19
     # via onnxruntime

@@ -92,6 +92,7 @@ def store_items(
     if not items:
         return 0
     index = index or CompanyIndex.build(session.scalars(select(Company).where(Company.is_active)))
+    now = datetime.now(UTC)
     rows = []
     for it in items:
         company = index.match(it.title or "", it.description or "")
@@ -104,6 +105,8 @@ def store_items(
                 "description": it.description,
                 "pub_date": it.pub_date,
                 "company_id": company.id if company else None,
+                # No link, no file to fetch: stored closed, whether or not a company matched.
+                "processed_at": None if it.link else now,
             }
         )
     stmt = (
