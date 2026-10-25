@@ -104,17 +104,16 @@ The full picture is in design doc 26.1. In short:
 | 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; debt and cash for EV-based valuation |
 | 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
 | 4 | Report drafting (Word and PowerPoint writers, style check, rating from the analyst's model); a valid API key to test it end to end |
-| 5 | Hosting in an Indian region with a login (Oracle and Azure for Students fell through; design doc 22.7) |
+| 5 | Hosting: the VM runs in Oracle Cloud's Mumbai region (free tier) and the stack deploys from GitLab; the database restore, a domain, Cloudflare and backups are left (design doc 22.7) |
 
 ### Next up
 
 1. **Report drafting** (design doc 6.8, 17): the quarterly update and initiating coverage
    writers for Word and PowerPoint, with the grounding and style checks and the rating read from
    the analyst's model; then the **Q&A screen**.
-2. **Hosting** (design doc 22.7): GitHub Education's Azure for Students route, or an always-on
-   home machine with Cloudflare Tunnel; one honest NSE request from it first; then the stack, the
-   data (dump, not re-download), HTTPS and a login, auto-deploy from GitLab, and the scheduler
-   moved off the laptop.
+2. **Hosting** (design doc 22.7): the Oracle Mumbai VM is up and NSE answers from it. Finish the
+   first deploy, restore the data (dump and restore, not re-download), then a domain with
+   Cloudflare in front, nightly backups, and the scheduler moved off the laptop.
 3. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
    completes Phase 0 (v0.1.0).
 4. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
@@ -122,7 +121,7 @@ The full picture is in design doc 26.1. In short:
 6. **Sector editing screen** (owner's values outrank NSE's).
 
 Decisions waiting on the owner: the Ind-AS profit tag (about 2,400 filings); the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
-bank presentation and calculations (owner's walkthrough); hosting (provider, domain, login); the logo;
+bank presentation and calculations (owner's walkthrough); hosting (the domain name); the logo;
 investor presentations through NSE's announcements list; the 250 BSE-only filers (manual import
 or a tooltip); the Anthropic API key.
 
@@ -221,8 +220,9 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Item | Status | Notes / still needed |
 |---|:---:|---|
 | GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
-| Staging and production deploys, DAST | ⛔ | Runner tagged `india`, `STAGING_URL`, `PRODUCTION_URL` |
-| Hosting in India | ⛔ | Oracle Cloud charged the card without creating an account; Azure for Students couldn't verify the student ID. Next: GitHub Education route or a home server with Cloudflare Tunnel; first test: does NSE serve the server's address? |
+| Production deploy from GitLab | 🟡 | Runner tagged `india` on the Oracle Mumbai VM builds the Arm64 images and deploys by hand-approved job from `main` or a release tag (`PRODUCTION_URL`); first deploy in progress. Staging and DAST still need `STAGING_URL` |
+| Hosting in India | 🟡 | Oracle Cloud Mumbai, free tier (Arm64, 4 OCPU, 24 GB). NSE's API, RSS feeds and bhavcopy answer from the VM (tested 2026-10-26). To do: restore the database and files, domain and Cloudflare, backups, SSH limited to the owner's address, client-address check for the sign-in limit behind the proxies |
+| CI jobs on the VM (no GitLab minutes) | ✅ | Second runner (Docker executor) takes the untagged jobs; shared runners are off for the project. Container scanning gives no report on Arm64 images yet |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0007`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
 | Design documents | ✅ | v0.0.5 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
@@ -334,8 +334,9 @@ infrastructure run only once it is configured (CI/CD variables, all masked and p
 
 | Job | Needs |
 |---|---|
+| `build_image` | a runner tagged `india` (the Arm64 VM; images are built where they run) |
 | `deploy_staging`, `dast` | `STAGING_URL`, a runner tagged `india` |
-| `deploy_production` | `PRODUCTION_URL`, a release tag, manual approval |
+| `deploy_production` | `PRODUCTION_URL`, `main` or a release tag, manual approval; `/etc/analekh/production.env` on the server (made by `deploy/make-production-env.sh`) |
 | `mirror_to_github` | `GITHUB_MIRROR_TOKEN`, `GITHUB_MIRROR_USER`, `GITHUB_MIRROR_REPO` |
 
 ## Data rules

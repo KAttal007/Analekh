@@ -3,6 +3,26 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-26** Hosting on Oracle Cloud, Mumbai (free tier), and deploys from GitLab to it. One
+  Arm64 VM (4 OCPU, 24 GB, Ubuntu 24.04) with a reserved public address. NSE reachability was
+  tested from the VM before anything else: the integrated-filing API, the RSS feeds and the
+  bhavcopy answer; the `www.nseindia.com` home page does not (the app never requests it), so no
+  change to rule 1 or the NSE request pattern. Pipeline: `build_image` now builds on the VM's own
+  runner (tag `india`, shell executor) so the images are Arm64, and builds the web and MinIO images
+  too; `deploy_production` logs in to the registry and runs manually from `main` or a release tag.
+  A second runner on the same VM (Docker executor, untagged jobs) takes the rest of the pipeline,
+  with GitLab's shared runners turned off for the project, so no GitLab compute minutes are used.
+  `deploy/compose.production.yml` gains MinIO, the web app and Caddy (the only published ports
+  are 80 and 443; automatic HTTPS, on a free `sslip.io` host name until a domain is bought).
+  `deploy/make-production-env.sh` writes `/etc/analekh/production.env` on the server with random
+  passwords and prompts for the values only the owner has (secrets never touch git);
+  `deploy/production.env.example` lists the keys. Celery beat keeps its schedule file in `/tmp`
+  (the image runs as a non-root user). Unblocks running the stack, the scheduler and the web app
+  off the laptop. Still to do: restore the database and the object storage from the laptop, buy
+  the domain and put Cloudflare in front, nightly backups, SSH limited to the owner's address, and
+  a check that the per-address sign-in limit sees the real client address behind Caddy and nginx.
+  Container scanning does not produce a report on the Arm64 images yet (allowed to fail).
+
 - **2026-10-24** Excel bridge: linking no longer rewrites the model, and open files are no longer
   dropped. `link` used to load and save the whole workbook with openpyxl, which lost parts of the
   analyst's file (a real model went from 99 package parts to 73: printer settings, calc chain,
