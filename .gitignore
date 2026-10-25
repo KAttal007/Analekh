@@ -56,3 +56,4 @@ graphify-out/
 .idea/
 .vscode/
 .superpowers/
+deploy/make-production-env.sh

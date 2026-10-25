@@ -7,7 +7,7 @@
 set -euo pipefail
 
 TARGET=/etc/analekh/production.env
-SITE=${SITE_ADDRESS:-137-23-38-71.sslip.io}
+SITE=${SITE_ADDRESS:137-23-38-71.sslip.io}
 
 if sudo test -e "$TARGET"; then
   read -r -p "$TARGET exists. Replace it with new passwords? [y/N] " answer
