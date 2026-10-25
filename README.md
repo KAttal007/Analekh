@@ -224,7 +224,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Hosting in India | 🟡 | Oracle Cloud Mumbai, free tier (Arm64, 4 OCPU, 24 GB). NSE's API, RSS feeds and bhavcopy answer from the VM (tested 2026-10-26). To do: restore the database and files, domain and Cloudflare, backups, SSH limited to the owner's address, client-address check for the sign-in limit behind the proxies |
 | CI jobs on the VM (no GitLab minutes) | ✅ | Second runner (Docker executor) takes the untagged jobs; shared runners are off for the project. Container scanning gives no report on Arm64 images yet |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
-| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0007`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
+| Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0012`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
 | Design documents | ✅ | v0.0.5 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |

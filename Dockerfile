@@ -43,6 +43,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY --from=builder /opt/venv /opt/venv
 WORKDIR /app
 COPY alembic.ini ./
+# alembic.ini points at analekh/db/migrations relative to /app, so the migration scripts
+# must sit there too (the installed package alone is not enough for the migrate service).
+COPY analekh/db/migrations ./analekh/db/migrations
 # lxml's wheels bundle libxml2 and libxslt, so the Debian packages are not installed. LibreOffice
 # used to pull in shared libraries as dependencies; this import check fails the build if any
 # compiled package still needs one. If it does, add that package to the apt line above (for lxml:
