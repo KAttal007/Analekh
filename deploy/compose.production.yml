@@ -81,7 +81,8 @@ services:
 
   beat:
     <<: *app
-    command: celery -A analekh.jobs beat -l info
+    # The schedule file goes to /tmp: the image runs as a non-root user and /app is root-owned.
+    command: celery -A analekh.jobs beat -l info -s /tmp/celerybeat-schedule
     depends_on: [valkey]
 
 networks:
