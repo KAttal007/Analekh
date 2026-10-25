@@ -18,6 +18,32 @@ services:
     image: valkey/valkey:8
     restart: unless-stopped
 
+  # Object storage on the VM (MinIO, built from source in CI: deploy/minio). Swap for a managed
+  # S3 service later by changing MINIO_ENDPOINT and the keys in production.env.
+  minio:
+    image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/minio:${IMAGE_TAG:?set IMAGE_TAG}
+    command: server /data --console-address 127.0.0.1:9001
+    env_file: /etc/analekh/production.env
+    volumes: [minio:/data]
+    restart: unless-stopped
+
+  # The built React app behind nginx; /api is proxied to the API (web/nginx.conf).
+  web:
+    image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/web:${IMAGE_TAG:?set IMAGE_TAG}
+    restart: unless-stopped
+    depends_on: [api]
+
+  # TLS and the only published ports (80, 443); everything else stays on the internal network.
+  caddy:
+    image: caddy:2
+    env_file: /etc/analekh/production.env
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+    depends_on: [web]
+
   # Headless LibreOffice for Apply, in its own image (deploy/recalc). It publishes no port and sits
   # on an internal network only: no internet, no Postgres, no object store. Set RECALC_URL
   # (http://recalc:8080), RECALC_TOKEN (at least 32 random bytes) and RECALC_FALLBACK=fail in
@@ -65,3 +91,5 @@ networks:
 
 volumes:
   pgdata:
+  minio:
+  caddy_data:

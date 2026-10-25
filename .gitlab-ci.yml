@@ -123,12 +123,11 @@ golden_set:
   artifacts:
     paths: [golden.json]
 
+# Built on the self-hosted `india` runner (shell executor, Arm64 VM in Mumbai) so the images run
+# where they are deployed. The shared x86 runners would produce images the VM cannot start.
 build_image:
   stage: build
-  image: docker:27
-  services: [docker:27-dind]
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
+  tags: [india]
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
@@ -136,12 +135,17 @@ build_image:
     # The recalculation service (LibreOffice in its own image), tagged the same way.
     - docker build -t "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA" deploy/recalc
     - docker push "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA"
+    # The web app (nginx + built React app) and MinIO (built from source), for the production stack.
+    - docker build -f web/Dockerfile -t "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA"
+    - docker build -t "$CI_REGISTRY_IMAGE/minio:$CI_COMMIT_SHA" deploy/minio
+    - docker push "$CI_REGISTRY_IMAGE/minio:$CI_COMMIT_SHA"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-        docker tag "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_TAG"
-        docker push "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_TAG"
+        for name in "" /recalc /web /minio; do
+          docker tag "$CI_REGISTRY_IMAGE$name:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE$name:$CI_COMMIT_TAG"
+          docker push "$CI_REGISTRY_IMAGE$name:$CI_COMMIT_TAG"
+        done
       fi
 
 container_scanning:
@@ -177,12 +181,17 @@ deploy_production:
   stage: release
   tags: [india]
   environment: { name: production, url: $PRODUCTION_URL }
+  # Manual approval, from release tags and from main (the first deployments run from main).
   rules:
     - if: $CI_COMMIT_TAG && $PRODUCTION_URL
       when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $PRODUCTION_URL
+      when: manual
   script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml pull
-    - IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml up -d
+    - IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml up -d --remove-orphans
+    - docker image prune -f
 
 mirror_to_github:
   stage: mirror

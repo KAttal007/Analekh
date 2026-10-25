@@ -1,0 +1,12 @@
+# TLS front door (design doc 22.5). SITE_ADDRESS comes from /etc/analekh/production.env: a host
+# name gets a Let's Encrypt certificate automatically (ports 80 and 443 must be reachable).
+# Everything goes to the web container, whose nginx serves the app and proxies /api to the API.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+	reverse_proxy web:80
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+	}
+}
