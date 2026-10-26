@@ -132,7 +132,9 @@ def desk(
     end = quarter_end or (quarters[0][0] if quarters else None)
     totals = sector_totals(session)
     filings_total, latest_filed_at = session.execute(
-        select(func.count(), func.max(Filing.filed_at)).select_from(Filing)
+        select(func.count(), func.max(Filing.filed_at))
+        .select_from(Filing)
+        .where(Filing.kind == "results_xbrl")  # not transcripts, decks or other documents
     ).one()
     out = Desk(
         quarter_end=end,
