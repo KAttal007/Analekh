@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Login } from "./Login";
+import { iso } from "../lib/calendar";
 import { RequireSignIn } from "../components/RequireSignIn";
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string> };
@@ -220,26 +221,14 @@ test("signed in, the protected page opens and the sign-in page leaves", async ()
 });
 
 test("the public calendar is listed beside the form when there is something this week", async () => {
-  routes["GET /api/public/calendar"] = () => ({
-    status: 200,
-    body: {
-      start: "",
-      end: "",
-      events: [
-        {
-          date: "2026-10-23",
-          kind: "results",
-          symbol: "TCS",
-          name: "Tata Consultancy Services",
-          sector: "IT",
-          purpose: null,
-          source_url: null,
-          status: "scheduled",
-          revised: false,
-        },
-      ],
-    },
-  });
+  // Dated today, so the current-week card always includes it.
+  const event = {
+    date: iso(new Date()),
+    kind: "results",
+    symbol: "TCS",
+    name: "Tata Consultancy Services",
+  };
+  routes["GET /api/public/calendar"] = () => ({ status: 200, body: { events: [event] } });
   renderLogin();
   expect(await screen.findByText("Tata Consultancy Services")).toBeTruthy();
 });
