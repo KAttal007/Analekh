@@ -32,14 +32,21 @@ const topLine = (taxonomy?: string | null) =>
   TOP_LINE[taxonomy ?? ""] ?? { short: "Revenue", full: "revenue from operations" };
 
 // What the chart can show: the top line, profit, then the first margin the company's format has
-// (a bank's net interest income instead, since EBITDA means nothing for a lender).
-const CHART_KEYS = ["revenue", "pat", "ebitda_margin", "nii", "net_margin"];
+// (a lender's net interest margin instead, since EBITDA means nothing for a lender), and for
+// lenders their interest ratios: yield, cost of borrowing and the spread between them.
+const CHART_KEYS = ["revenue", "pat", "ebitda_margin", "cpppm", "nim", "net_margin", "oplev"];
 const CHART_LABEL: Record<string, string> = {
   pat: "Net profit",
   ebitda_margin: "EBITDA margin",
-  nii: "Net interest income",
+  cpppm: "Core pre-provision profit margin",
+  oplev: "Operating leverage",
+  nim: "Net interest margin",
   net_margin: "Net margin",
 };
+const INTEREST = "interest"; // the stacked yield / cost of borrowing / spread view
+const INTEREST_LABEL = "Interest ratios";
+// Ratios worked out to 0.01% (interest.py); other margins to 0.1%.
+const pctDigits = (key: string) => (key === "nim" ? 2 : 1);
 const HISTORY_QUARTERS = 12;
 
 type Basis = "consolidated" | "standalone";
@@ -162,12 +169,25 @@ export function CompanyPage() {
   const chartLines = CHART_KEYS.map((k) => byKey.get(k)).filter(
     (l): l is HistoryLine => l !== undefined,
   );
+  // Operating leverage (fee finance) is a tab of its own beside the company's margin.
+  const margins = chartLines.filter(
+    (l) => l.key !== "revenue" && l.key !== "pat" && l.key !== "oplev",
+  );
   const choices = [
     ...chartLines.filter((l) => l.key === "revenue" || l.key === "pat"),
-    ...chartLines.filter((l) => l.key !== "revenue" && l.key !== "pat").slice(0, 1),
+    ...margins.slice(0, 1),
+    ...chartLines.filter((l) => l.key === "oplev"),
   ];
-  const shown = choices.find((l) => l.key === metric) ?? choices[0];
-  const isPct = shown?.kind === "pct";
+  const ratios = {
+    yield: byKey.get("yield"),
+    cob: byKey.get("cob"),
+    spread: byKey.get("spread"),
+  };
+  const hasRatios = !!(ratios.yield && ratios.cob && ratios.spread);
+  const interestShown = hasRatios && metric === INTEREST;
+  const shown = interestShown ? undefined : (choices.find((l) => l.key === metric) ?? choices[0]);
+  const isPct = interestShown || shown?.kind === "pct";
+  const digits = shown ? pctDigits(shown.key) : 2;
   const points = (shown?.values ?? []).map((v) =>
     v == null
       ? null
@@ -177,6 +197,15 @@ export function CompanyPage() {
   );
   const shownLabel = (l: HistoryLine) =>
     l.key === "revenue" ? topLine(c.results_taxonomy).short : (CHART_LABEL[l.key] ?? l.label);
+  const chartTitle = interestShown
+    ? INTEREST_LABEL
+    : shown
+      ? shownLabel(shown)
+      : topLine(c.results_taxonomy).short;
+  const chartOptions = [
+    ...choices.map((l) => ({ value: l.key, label: shownLabel(l) })),
+    ...(hasRatios ? [{ value: INTEREST, label: INTEREST_LABEL }] : []),
+  ];
   const rows = allFilings.filter((f) => (basis === "consolidated") === (f.consolidated !== false));
   const coverage = COVERAGE[c.coverage_level as keyof typeof COVERAGE] ?? COVERAGE.universe;
   const qoq =
@@ -368,13 +397,13 @@ export function CompanyPage() {
 
         <div className="card area-chart">
           <div className="card-header">
-            <h2>{shown ? shownLabel(shown) : topLine(c.results_taxonomy).short} by quarter</h2>
+            <h2>{chartTitle} by quarter</h2>
             <div className="actions">
-              {choices.length > 1 && (
+              {chartOptions.length > 1 && (
                 <Segmented
                   label="Chart shows"
-                  options={choices.map((l) => ({ value: l.key, label: shownLabel(l) }))}
-                  value={shown?.key}
+                  options={chartOptions}
+                  value={interestShown ? INTEREST : shown?.key}
                   onChange={setMetric}
                 />
               )}
@@ -384,7 +413,20 @@ export function CompanyPage() {
             </div>
           </div>
           <div className="card-body">
-            {labels.length > 1 && shown ? (
+            {labels.length > 1 && interestShown ? (
+              <div
+                role="img"
+                aria-label={`${INTEREST_LABEL} by quarter, ${labels[0]} to ${labels.at(-1)}: cost of borrowing with the spread stacked on it up to the yield; the same figures are in the results history table below`}
+              >
+                <InterestChart
+                  key={theme}
+                  labels={labels}
+                  yieldLine={ratios.yield!}
+                  cobLine={ratios.cob!}
+                  spreadLine={ratios.spread!}
+                />
+              </div>
+            ) : labels.length > 1 && shown ? (
               <div
                 role="img"
                 aria-label={`${shownLabel(shown)} by quarter, ${labels[0]} to ${labels.at(-1)}; the same figures are in the results history table below`}
@@ -404,7 +446,7 @@ export function CompanyPage() {
                       formatter: (p: { name: string; value: number }) =>
                         `${p.name}<br/><b>${
                           isPct
-                            ? `${p.value.toFixed(1)}%`
+                            ? `${p.value.toFixed(digits)}%`
                             : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`
                         }</b>`,
                     },
@@ -443,7 +485,7 @@ export function CompanyPage() {
                             p.value == null
                               ? ""
                               : isPct
-                                ? `${p.value.toFixed(1)}%`
+                                ? `${p.value.toFixed(digits)}%`
                                 : p.value.toLocaleString("en-IN", {
                                     maximumFractionDigits: scale.digits,
                                   }),
@@ -498,5 +540,133 @@ export function CompanyPage() {
         ready={filings.isSuccess}
       />
     </div>
+  );
+}
+
+// Interest ratios as one bar per quarter: cost of borrowing at the bottom, the spread stacked on
+// it, so the bar's top is the yield (the backend rounds the spread as yield - cost, so they meet
+// exactly). A negative spread can't stack: the bar is the cost alone, the yield's marker sits
+// below its top, and the tooltip shows the spread in red. A quarter whose balance sheets aren't
+// both filed yet (June, December) has no bar.
+function InterestChart({
+  labels,
+  yieldLine,
+  cobLine,
+  spreadLine,
+}: {
+  labels: string[];
+  yieldLine: HistoryLine;
+  cobLine: HistoryLine;
+  spreadLine: HistoryLine;
+}) {
+  const num = (v: string | null | undefined) => (v == null ? null : Number(v));
+  const yields = yieldLine.values.map(num);
+  const costs = cobLine.values.map(num);
+  const spreads = spreadLine.values.map(num);
+  const pct = (v: number | null) => (v == null ? "–" : `${v.toFixed(2)}%`);
+  const tooltipRow = (label: string, v: number | null, color?: string) =>
+    `${label}: <b${color ? ` style="color:${color}"` : ""}>${pct(v)}</b>`;
+  return (
+    <ReactECharts
+      style={{ height: 320 }}
+      option={{
+        grid: { left: 48, right: 16, top: 40, bottom: 56 },
+        legend: {
+          bottom: 0,
+          textStyle: { color: cssVar("--text-2") },
+          data: ["Cost of borrowing", "Spread", "Yield"],
+        },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "shadow" },
+          confine: true,
+          backgroundColor: cssVar("--surface"),
+          borderColor: cssVar("--border"),
+          textStyle: { color: cssVar("--text") },
+          formatter: (ps: { dataIndex: number; name: string }[]) => {
+            const i = ps[0]?.dataIndex ?? 0;
+            const s = spreads[i];
+            if (yields[i] == null && costs[i] == null)
+              return `${ps[0]?.name}<br/>Not yet: needs the next half-year's balance sheet`;
+            return [
+              ps[0]?.name,
+              tooltipRow("Yield", yields[i]),
+              tooltipRow("Cost of borrowing", costs[i]),
+              tooltipRow("Spread", s, s != null && s < 0 ? cssVar("--negative") : undefined),
+            ].join("<br/>");
+          },
+        },
+        animationDuration: 600,
+        animationEasing: "cubicOut",
+        textStyle: { fontFamily: "inherit", color: cssVar("--text-2") },
+        xAxis: {
+          type: "category",
+          data: labels,
+          axisLine: { lineStyle: { color: cssVar("--border-strong") } },
+          axisLabel: { color: cssVar("--text-2") },
+        },
+        yAxis: {
+          type: "value",
+          axisLabel: { color: cssVar("--text-2"), formatter: "{value}%" },
+          splitLine: { lineStyle: { color: cssVar("--border") } },
+        },
+        series: [
+          {
+            name: "Cost of borrowing",
+            type: "bar",
+            stack: "yield",
+            barMaxWidth: 36,
+            cursor: "default",
+            itemStyle: { color: cssVar("--border-strong") },
+            label: {
+              show: true,
+              position: "inside",
+              fontSize: 10,
+              color: cssVar("--text"),
+              formatter: (p: { value: number | null }) =>
+                p.value == null ? "" : p.value.toFixed(2),
+            },
+            data: costs,
+          },
+          {
+            name: "Spread",
+            type: "bar",
+            stack: "yield",
+            barMaxWidth: 36,
+            cursor: "default",
+            itemStyle: { color: cssVar("--accent"), borderRadius: [4, 4, 0, 0] },
+            label: {
+              show: true,
+              position: "inside",
+              fontSize: 10,
+              color: cssVar("--on-accent"),
+              formatter: (p: { value: number | null }) =>
+                p.value == null ? "" : p.value.toFixed(2),
+            },
+            data: spreads.map((s) => (s != null && s >= 0 ? s : null)),
+          },
+          {
+            // The yield: a tick at the top of each bar, with its value above.
+            name: "Yield",
+            type: "scatter",
+            symbol: "rect",
+            symbolSize: [30, 2],
+            cursor: "default",
+            itemStyle: { color: cssVar("--text") },
+            label: {
+              show: true,
+              position: "top",
+              fontSize: 10,
+              color: cssVar("--text-2"),
+              formatter: (p: { value: number | null }) =>
+                p.value == null ? "" : `${p.value.toFixed(2)}%`,
+            },
+            labelLayout: { hideOverlap: true },
+            data: yields,
+            z: 3,
+          },
+        ],
+      }}
+    />
   );
 }

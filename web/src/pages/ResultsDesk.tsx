@@ -52,6 +52,51 @@ function Coverage({ d }: { d: Desk }) {
   );
 }
 
+const KIND_LABEL = { ebitda: "EBITDA", nim: "NIM", cpppm: "Core pre-provision profit margin" };
+const MARGIN_TITLE = {
+  ebitda: "EBITDA margin: PBT + finance costs + D&A - other income, on revenue",
+  cpppm:
+    "Core pre-provision profit margin: (revenue from operations - operating expenses) / revenue from operations. Operating expenses are total expenses less finance costs and credit-loss provisions. Used for asset managers and brokers",
+  nim: "Net interest margin: (interest earned - interest expense) x 4 / average interest-earning assets. Computed from the filings, not the lender's reported NIM",
+};
+
+// EBITDA margin for most companies, NIM for lenders; a dash for insurers, asset managers and
+// lenders whose NIM can't be worked out yet (a June or December quarter waits for the next
+// half-year's balance sheet).
+function MarginCell({ row: r }: { row: DeskRow }) {
+  const kind = r.margin_kind;
+  if (r.margin == null || !kind) {
+    const why =
+      kind === "nim"
+        ? "NIM needs interest to be most of the income, and the balance sheets on both sides of the quarter; banks and NBFCs file those in March and September only"
+        : undefined;
+    return (
+      <td className="num d-ebitda">
+        {why ? <MissingTip text={why} /> : <span className="muted">–</span>}
+      </td>
+    );
+  }
+  const nim = kind === "nim";
+  const basis =
+    r.margin_consolidated == null || r.margin_consolidated === r.consolidated
+      ? ""
+      : r.margin_consolidated
+        ? " (consolidated)"
+        : " (standalone: the consolidated figures don't allow it)";
+  return (
+    <td className="num d-ebitda" title={MARGIN_TITLE[kind] + basis}>
+      <span className="desk-kind">{KIND_LABEL[kind]}</span>
+      {Number(r.margin).toFixed(nim ? 2 : 1)}%{" "}
+      <span
+        className={`desk-sub ${signedBps(r.margin_yoy) === "n.m." ? "muted" : tone(r.margin_yoy)}`}
+        title={changeTitle(r.margin_yoy, "bps")}
+      >
+        {r.margin_yoy == null ? <MissingTip text={r.yoy_note} /> : signedBps(r.margin_yoy)}
+      </span>
+    </td>
+  );
+}
+
 function ResultsTable({ rows }: { rows: DeskRow[] }) {
   const navigate = useNavigate();
   return (
@@ -64,9 +109,9 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
             <ResultColumns />
             <th
               className="num d-ebitda"
-              title="EBITDA margin; change in basis points on a year ago"
+              title="EBITDA margin; net interest margin (NIM) for lenders; core pre-provision profit margin for asset managers and brokers. Change in basis points on a year ago. Not comparable across the three."
             >
-              EBITDA margin
+              Margin
             </th>
             <BasisHeader />
           </tr>
@@ -116,29 +161,7 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               />
               <ProfitCell value={r.pat} scale={scaleFor([r.revenue])} />
               <YoyCell value={r.pat_yoy} of="profit" missing={<MissingTip text={r.yoy_note} />} />
-              <td className="num d-ebitda">
-                {r.ebitda_margin == null ? (
-                  <span className="muted">–</span>
-                ) : (
-                  <>
-                    {Number(r.ebitda_margin).toFixed(1)}%{" "}
-                    <span
-                      className={`desk-sub ${
-                        signedBps(r.ebitda_margin_yoy) === "n.m."
-                          ? "muted"
-                          : tone(r.ebitda_margin_yoy)
-                      }`}
-                      title={changeTitle(r.ebitda_margin_yoy, "bps")}
-                    >
-                      {r.ebitda_margin_yoy == null ? (
-                        <MissingTip text={r.yoy_note} />
-                      ) : (
-                        signedBps(r.ebitda_margin_yoy)
-                      )}
-                    </span>
-                  </>
-                )}
-              </td>
+              <MarginCell row={r} />
               <BasisCell consolidated={r.consolidated} />
             </tr>
           ))}

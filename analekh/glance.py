@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from analekh.db.models import Company, Fact, Filing
 from analekh.facts import files_consolidated
+from analekh.interest import lender_kind
 from analekh.xbrl.elements import candidates
 from analekh.xbrl.parser import period_type
 
@@ -32,6 +33,9 @@ LINES: dict[str, list[tuple[str, str, Kind]]] = {
         ("revenue", "Revenue", "inr"),  # from operations; other income is its own line
         ("=ebitda", "EBITDA", "inr"),
         ("=ebitda_margin", "EBITDA margin", "pct"),
+        ("=cpppm", "Core pre-provision profit margin", "pct"),  # fee finance only
+        ("=oplev", "Operating leverage", "pct"),  # fee finance only
+        ("=opinc", "Operating income", "inr"),  # holding companies only
         ("other_income", "Other income", "inr"),
         ("depreciation", "Depreciation", "inr"),
         ("finance_costs", "Finance costs", "inr"),
@@ -81,6 +85,12 @@ AS_FRACTION = {"solvency_ratio", "persistency_13m", "persistency_61m", "expense_
 NOTES = {
     "=ebitda": "PBT + finance costs + D&A - other income, before exceptionals",
     "=nii": "Interest earned - interest expended",
+    "=opinc": "Revenue from operations - operating expenses (total expenses less finance costs and "
+    "impairment)",
+    "=oplev": "Revenue growth less operating-expense growth on the same quarter a year earlier, in "
+    "percentage points; positive when costs grow slower than revenue",
+    "=cpppm": "(Revenue from operations - operating expenses) / revenue from operations; operating "
+    "expenses are total expenses less finance costs and impairment (credit-loss provisions)",
     # The filing's own EPS: a bonus issue or split between the two quarters moves it (HDFC Bank's
     # 2025 1:1 bonus halved it) without any change in profit.
     "eps_basic": "As filed; not bonus- or split-adjusted",
@@ -99,6 +109,24 @@ FINANCIAL_SECTORS = {
     "Holding Companies",
 }
 NOT_FOR_FINANCIALS = {"=ebitda", "=ebitda_margin"}
+# Asset managers and brokers: EBITDA means little (their costs are people, platforms and
+# marketing), so they show the core pre-provision profit margin instead; nobody else does.
+ONLY_FOR_FEE_FINANCE = {"=cpppm", "=oplev"}
+
+
+def hidden_lines(company: Company) -> set[str]:
+    """Margin lines this company does not show (interest.lender_kind): EBITDA for lenders, insurers,
+    fee finance and holding companies; the core pre-provision margin and operating leverage for all
+    but brokers and asset managers; operating income for all but holding companies."""
+    kind = lender_kind(company)
+    everything = NOT_FOR_FINANCIALS | ONLY_FOR_FEE_FINANCE | {"=opinc"}
+    if kind == "ebitda" or (kind is None and not is_financial(company)):
+        return everything - NOT_FOR_FINANCIALS
+    if kind == "cpppm":
+        return everything - ONLY_FOR_FEE_FINANCE
+    if kind == "holding":
+        return everything - {"=opinc"}
+    return everything
 
 
 def is_financial(company: Company) -> bool:
@@ -240,7 +268,14 @@ def _quarters(
     """{logical: {period_end: (period_start, value)}} for quarter-length, undimensioned facts,
     leaving out filings V11 suspects of the wrong unit."""
     wanted = {name for lines in LINES.values() for name, _, _ in lines if not name.startswith("=")}
-    wanted |= {"pat_continuing"}
+    # interest.py's ratios and the core pre-provision margin need these as well
+    wanted |= {
+        "pat_continuing",
+        "interest_income",
+        "interest_expense",
+        "total_expenses",
+        "impairment",
+    }
     order = {logical: candidates(logical, taxonomy) for logical in wanted}
     elements = sorted({e for names in order.values() for e in names})
     facts = session.scalars(
@@ -272,6 +307,16 @@ def _quarters(
     return out
 
 
+def _opex(q: dict, at: date) -> Decimal | None:
+    """Operating expenses of a fee business: total expenses less finance costs and impairment (the
+    credit-loss provisions, zero when not tagged). None unless expenses and finance costs are."""
+    exp, fin = q.get("total_expenses", {}).get(at), q.get("finance_costs", {}).get(at)
+    if exp is None or fin is None:
+        return None
+    imp = q.get("impairment", {}).get(at)
+    return exp[1] - fin[1] - (imp[1] if imp else Decimal(0))
+
+
 def derive(q: dict, end: date) -> dict[str, Decimal | None]:
     def v(name: str) -> Decimal | None:
         hit = q.get(name, {}).get(end)
@@ -287,6 +332,14 @@ def derive(q: dict, end: date) -> dict[str, Decimal | None]:
     vals["=ebitda_margin"] = ebitda / revenue * HUNDRED if ebitda is not None and revenue else None
     pat = v("pat")
     vals["=net_margin"] = pat / revenue * HUNDRED if pat is not None and revenue else None
+    opex = _opex(q, end)
+    vals["=opinc"] = revenue - opex if revenue is not None and opex is not None else None
+    vals["=cpppm"] = (revenue - opex) / revenue * HUNDRED if revenue and opex is not None else None
+    year_ago = date(end.year - 1, end.month, end.day)
+    rev_then, opex_then = q.get("revenue", {}).get(year_ago), _opex(q, year_ago)
+    vals["=oplev"] = None
+    if revenue and rev_then and rev_then[1] and opex and opex_then:
+        vals["=oplev"] = (revenue / rev_then[1] - opex / opex_then) * HUNDRED
     ie = v("interest_expended")
     vals["=nii"] = revenue - ie if revenue is not None and ie is not None else None
     return vals
@@ -349,9 +402,10 @@ def glance(
     def value(name: str, at: date) -> Decimal | None:
         return quarter_value(q, name, at)
 
+    hidden = hidden_lines(company)
     for name, label, kind in LINES.get(taxonomy, LINES["indas"]):
         cur = value(name, end)
-        if name in NOT_FOR_FINANCIALS and is_financial(company):
+        if name in hidden:
             continue
         if cur is None or (name in ONLY_WHEN_NONZERO and cur == 0):
             continue  # not in this filing: leave the line out rather than show a blank

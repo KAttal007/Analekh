@@ -34,6 +34,14 @@ INDAS: dict[str, tuple[str, ...]] = {
     "total_liabilities": ("Liabilities",),
     "borrowings_noncurrent": ("BorrowingsNoncurrent",),
     "cfo": ("CashFlowsFromUsedInOperatingActivities",),
+    # NBFCs (Division III) tag interest income apart from fees (FeesAndCommissionIncome): Bajaj
+    # Finance, September 2026; 79 of 84 Ind-AS lenders tag it (June 2026). For a lender, finance
+    # costs are its interest expense.
+    "interest_income": ("InterestEarned",),
+    "interest_expense": ("FinanceCosts",),
+    # Expected-credit-loss provisions (Bajaj Finance, September 2026): left out of the core
+    # pre-provision margin that fee finance shows (glance.py).
+    "impairment": ("ImpairmentOnFinancialInstruments",),
 }
 
 # Banks: RBI format. Interest earned + other income = total income; total income - expenditure
@@ -63,6 +71,8 @@ BANKING: dict[str, tuple[str, ...]] = {
     "advances": ("Advances",),
     "gross_npa": ("GrossNonPerformingAssets",),
     "net_npa": ("NonPerformingAssets",),
+    "interest_income": ("InterestEarned",),
+    "interest_expense": ("InterestExpended",),
 }
 NBFC: dict[str, tuple[str, ...]] = {}  # Ind-AS names apply
 
@@ -85,6 +95,8 @@ INSURANCE: dict[str, tuple[str, ...]] = {
     "non_operating_expenses": ("NonOperatingExpense",),
     # Reinsurers move part of the profit to reserves before PBT (GIC Re, every quarter).
     "transfer_to_reserves": ("TransferToReserves",),
+    "interest_income": (),  # not lenders: no interest ratios
+    "interest_expense": (),
     "exceptional_items": (),
     "extraordinary_items": (),
     "pbt": ("ProfitOrLossBeforeTax",),
@@ -120,6 +132,8 @@ LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
     "surplus": ("SurplusShownInTheRevenueAccount",),
     "shareholders_income": ("ShareholdersAccountIncome",),
     "shareholders_expenses": ("ShareholdersAccountExpenses",),
+    "interest_income": (),  # not lenders: no interest ratios
+    "interest_expense": (),
     "exceptional_items": (),
     "extraordinary_items": (),
     "pbt": ("ProfitLossBeforeTax",),
@@ -139,6 +153,22 @@ LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
     "total_equity": (),
     "total_liabilities": (),
 }
+
+# Lenders' interest ratios (interest.py): NIM, yield, cost of borrowing, spread. Interest income
+# and expense are the "interest_income" / "interest_expense" lines in each format's table above.
+# Balance-sheet lines summed into interest-earning assets and interest-bearing funding, whichever a
+# filing tags (banks: RBI Schedule 3 names; NBFCs: Division III names). Cash and balances with the
+# RBI (mostly cash in hand and the CRR, which earns nothing) and cash equivalents are left out; so
+# is DebtSecurities on the asset side, which in Division III is a liability (debt issued). Seen on
+# HDFC Bank and Bajaj Finance, 30 September 2026; banks file the balance sheet half-yearly only.
+EARNING_ASSETS = (
+    "Advances",  # banks
+    "Loans",  # NBFCs
+    "Investments",
+    "BalancesWithBanksAndMoneyAtCallAndShortNotice",  # banks
+    "BankBalanceOtherThanCashAndCashEquivalents",  # NBFCs
+)
+FUNDING = ("Deposits", "Borrowings", "DebtSecurities", "SubordinatedLiabilities")
 
 BY_TAXONOMY = {
     "indas": INDAS,

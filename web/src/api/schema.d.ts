@@ -658,8 +658,10 @@ export interface paths {
     put?: never;
     /**
      * Apply
-     * @description Headless apply into a new model version (LibreOffice recalculation when installed).
-     *     The Excel bridge offers the same on the analyst's machine with native recalculation.
+     * @description Headless apply into a new model version, recalculated by the `recalc` service (or a local
+     *     LibreOffice; see analekh.workbook.recalc). 503 `recalc_unavailable` when it cannot be
+     *     recalculated: nothing is saved. The Excel bridge offers the same on the analyst's machine with
+     *     native recalculation.
      */
     post: operations["apply_change_sets__cs_id__apply_post"];
     delete?: never;
@@ -1858,10 +1860,12 @@ export interface components {
       pat: string | null;
       /** Pat Yoy */
       pat_yoy: string | null;
-      /** Ebitda Margin */
-      ebitda_margin: string | null;
-      /** Ebitda Margin Yoy */
-      ebitda_margin_yoy: string | null;
+      /** Margin */
+      margin: string | null;
+      /** Margin Kind */
+      margin_kind: ("ebitda" | "nim") | null;
+      /** Margin Yoy */
+      margin_yoy: string | null;
       /** Blocked */
       blocked: boolean;
       /** Yoy Note */
@@ -1870,6 +1874,8 @@ export interface components {
       market_cap?: string | null;
       /** Price Date */
       price_date?: string | null;
+      /** Margin Consolidated */
+      margin_consolidated?: boolean | null;
     };
     /** DiscoverRequest */
     DiscoverRequest: {

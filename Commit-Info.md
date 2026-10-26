@@ -3,6 +3,17 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-26** Net interest margin for lenders. The Results desk's EBITDA margin column is now
+  "Margin": EBITDA for companies outside finance, NIM for banks and NBFCs (tagged per row, on
+  consolidated figures when they allow it, else standalone). The company page charts NIM instead
+  of net interest income and adds "Interest ratios" (cost of borrowing and spread stacked up to
+  the yield). New `analekh/interest.py`: averages of opening and closing earning assets and
+  funding from the stored balance sheets, June and December interpolated between the March and
+  September filings, a dash until both are filed; only companies whose interest is at least 40% of
+  revenue. Brokers and asset managers (a named list) show the core pre-provision profit margin and operating leverage instead of
+  EBITDA. API fields `ebitda_margin`/`ebitda_margin_yoy` on desk rows become `margin`,
+  `margin_kind`, `margin_yoy`, `margin_consolidated`. Unblocks comparing lenders on the desk.
+
 - **2026-10-26** Hosting on Oracle Cloud, Mumbai (free tier), and deploys from GitLab to it. One
   Arm64 VM (4 OCPU, 24 GB, Ubuntu 24.04) with a reserved public address. NSE reachability was
   tested from the VM before anything else: the integrated-filing API, the RSS feeds and the

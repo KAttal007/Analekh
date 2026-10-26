@@ -1657,6 +1657,15 @@ table.glance tbody tr:last-child > * {
 .desk-sub {
   font-size: 11px;
 }
+/* Which margin a row shows: EBITDA, NIM (lenders) or core pre-provision profit margin. */
+.desk-kind {
+  display: block; /* its own line: the longest name is the core pre-provision profit margin */
+  margin-bottom: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
 .desk-basis {
   display: inline-grid;
   place-items: center;

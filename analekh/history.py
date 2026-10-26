@@ -18,15 +18,20 @@ from analekh.db.models import Company
 from analekh.facts import files_consolidated
 from analekh.glance import (
     LINES,
-    NOT_FOR_FINANCIALS,
     NOTES,
     ONLY_WHEN_NONZERO,
     Kind,
     _quarters,
-    is_financial,
+    hidden_lines,
     quarter_label,
     quarter_value,
+    raw_value,
+    suspect_filings,
 )
+from analekh.interest import AVERAGE_NOTE, Ratios, balances, is_lender, ratios
+from analekh.interest import KEYS as INTEREST_KEYS
+from analekh.interest import LABELS as INTEREST_LABELS
+from analekh.interest import NOTES as INTEREST_NOTES
 from analekh.units import CRORE
 
 MAX_QUARTERS = 28  # the history stored reaches back to March 2023
@@ -64,9 +69,9 @@ def history(
     out.quarter_ends = ends
     out.quarter_labels = [quarter_label(e) for e in ends]
 
-    financial = is_financial(company)
+    hidden = hidden_lines(company)
     for name, label, kind in LINES.get(taxonomy, LINES["indas"]):
-        if name in NOT_FOR_FINANCIALS and financial:
+        if name in hidden:
             continue
         values = [quarter_value(q, name, e) for e in ends]
         if all(v is None for v in values):
@@ -76,7 +81,36 @@ def history(
         if kind == "pct":
             values = [v.quantize(Decimal("0.1")) if v is not None else None for v in values]
         out.lines.append(HistoryLine(name.lstrip("="), label, kind, values, NOTES.get(name)))
+    if is_lender(company):
+        out.lines += _interest_lines(session, company, basis, q, ends)
     return out
+
+
+def _interest_lines(
+    session: Session, company: Company, basis: bool, q: dict, ends: list[date]
+) -> list[HistoryLine]:
+    """NIM, yield, cost of borrowing and spread per quarter (interest.py); lines with no value in
+    any quarter are left out."""
+    parts = balances(session, [company.id], suspect_filings(session, [company.id])).get(
+        (company.id, basis), {}
+    )
+    per_quarter = []
+    for e in ends:
+        hit = q.get("interest_income", {}).get(e) or q.get("interest_expense", {}).get(e)
+        if hit is None:
+            per_quarter.append(Ratios())
+            continue
+        income, expense = raw_value(q, "interest_income", e), raw_value(q, "interest_expense", e)
+        revenue = raw_value(q, "revenue", e)
+        per_quarter.append(ratios(income, expense, parts, hit[0], e, revenue).rounded())
+    lines = []
+    for key in INTEREST_KEYS:
+        values = [r.get(key) for r in per_quarter]
+        if all(v is None for v in values):
+            continue
+        note = f"{INTEREST_NOTES[key]}. {AVERAGE_NOTE}"
+        lines.append(HistoryLine(key, INTEREST_LABELS[key], "pct", values, note))
+    return lines
 
 
 def to_xlsx(h: History, company: Company) -> bytes:

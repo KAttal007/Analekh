@@ -3,7 +3,9 @@ the same quarter a year earlier, the biggest movers, and progress by sector.
 
 One basis per company: consolidated when it filed consolidated results for the quarter, else
 standalone (the rule used everywhere). "Revenue" is the company's own top line: interest earned
-for banks, premium earned for insurers. EBITDA margin is Ind-AS only, derived as in glance.py.
+for banks, premium earned for insurers. "Margin" is the EBITDA margin for Ind-AS companies outside
+finance (derived as in glance.py) and the net interest margin for lenders (interest.py), worked
+out on consolidated figures when they allow it, else standalone. Insurers have none.
 """
 
 import statistics
@@ -18,12 +20,13 @@ from analekh.db.models import Company, Fact, Filing, Watchlist
 from analekh.glance import (
     change,
     derive,
-    is_financial,
+    hidden_lines,
     missing_quarter_notes,
     quarter_label,
     raw_value,
     suspect_filings,
 )
+from analekh.interest import balances, is_lender, ratios
 from analekh.prices import latest_prices
 from analekh.xbrl.elements import candidates
 
@@ -40,6 +43,10 @@ LOGICALS = (
     "finance_costs",
     "depreciation",
     "other_income",
+    "interest_income",
+    "interest_expense",
+    "total_expenses",
+    "impairment",
 )
 TAXONOMIES = ("indas", "banking", "insurance", "life_insurance")
 
@@ -56,12 +63,14 @@ class DeskRow:
     revenue_yoy: Decimal | None  # %
     pat: Decimal | None
     pat_yoy: Decimal | None  # %
-    ebitda_margin: Decimal | None  # %, Ind-AS only
-    ebitda_margin_yoy: Decimal | None  # basis points
+    margin: Decimal | None  # %: EBITDA margin, NIM for lenders, core pre-provision for fee finance
+    margin_kind: str | None  # "ebitda" | "nim"; None when the company has neither
+    margin_yoy: Decimal | None  # basis points
     blocked: bool
     yoy_note: str | None = None  # why the YoY columns are blank, when the year-ago quarter is
     market_cap: Decimal | None = None  # at the latest stored close (bhavcopy)
     price_date: date | None = None  # that close's trading day
+    margin_consolidated: bool | None = None  # the basis the margin is on (NIM may fall back)
     # Year-ago values, for the movers' base checks; not sent to the page.
     revenue_prev: Decimal | None = field(default=None, repr=False)
     pat_prev: Decimal | None = field(default=None, repr=False)
@@ -223,6 +232,8 @@ def desk(
             ] = f.value
 
     prices = latest_prices(session, list(by_company))
+    lenders = [cid for cid, c in companies.items() if is_lender(c)]
+    sheets = balances(session, lenders, suspect)  # balance sheets for the NIM, both bases
     rows: list[DeskRow] = []
     needs_note: dict[tuple[int, bool], DeskRow] = {}  # no year-ago figures: say why, below
     for company_id, company_filings in by_company.items():
@@ -230,34 +241,64 @@ def desk(
         basis = any(f.consolidated for f in company_filings)
         mine = [f for f in company_filings if bool(f.consolidated) == basis]
         taxonomy = c.results_taxonomy or "indas"
-        by_element = values.get((company_id, basis), {})
-        q = {  # glance.py's shape: {logical: {period_end: (period_start, value)}}
-            name: {
-                at: (start, v)
-                for start, at in periods
-                if (
-                    v := next(
-                        (
-                            by_element[e][at]
-                            for e in candidates(name, taxonomy)
-                            if at in by_element.get(e, {})
-                        ),
-                        None,
-                    )
-                )
-                is not None
-            }
-            for name in LOGICALS
-        }
 
+        def lines_for(consolidated: bool, cid: int = company_id, tax: str = taxonomy) -> dict:
+            """glance.py's shape: {logical: {period_end: (period_start, value)}}."""
+            by_element = values.get((cid, consolidated), {})
+            return {
+                name: {
+                    at: (start, v)
+                    for start, at in periods
+                    if (
+                        v := next(
+                            (
+                                by_element[e][at]
+                                for e in candidates(name, tax)
+                                if at in by_element.get(e, {})
+                            ),
+                            None,
+                        )
+                    )
+                    is not None
+                }
+                for name in LOGICALS
+            }
+
+        q = lines_for(basis)
         rev, rev_prev = raw_value(q, "revenue", end), raw_value(q, "revenue", year_ago)
         pat, pat_prev = raw_value(q, "pat", end), raw_value(q, "pat", year_ago)
         margin = margin_prev = None
-        if taxonomy == "indas" and not is_financial(c):
-            margin, margin_prev = (
-                derive(q, end)["=ebitda_margin"],
-                derive(q, year_ago)["=ebitda_margin"],
-            )
+        margin_kind: str | None = None
+        margin_basis: bool | None = basis
+        # Banks and NBFCs: NIM, a dash where it can't be worked out (interest.py).
+        if company_id in lenders:
+            margin_kind = "nim"
+            # Consolidated when it allows a NIM, else standalone (the lender's own book).
+            for consolidated in (True, False) if basis else (False,):
+                qb, parts = lines_for(consolidated), sheets.get((company_id, consolidated), {})
+
+                def nim(at: date, qb: dict = qb, parts: dict = parts) -> Decimal | None:
+                    return ratios(
+                        raw_value(qb, "interest_income", at),
+                        raw_value(qb, "interest_expense", at),
+                        parts,
+                        _quarter_start(at),
+                        at,
+                        raw_value(qb, "revenue", at),
+                    ).nim
+
+                if (margin := nim(end)) is not None:
+                    margin_basis, margin_prev = consolidated, nim(year_ago)
+                    break
+        elif taxonomy == "indas":
+            # Outside finance EBITDA margin; asset managers and brokers the core pre-provision
+            # profit margin (glance.hidden_lines); other financials neither.
+            shown = {"=ebitda_margin": "ebitda", "=cpppm": "cpppm"}
+            hidden = hidden_lines(c)
+            for line, kind in shown.items():
+                if line not in hidden:
+                    margin_kind = kind
+                    margin, margin_prev = derive(q, end)[line], derive(q, year_ago)[line]
         filed = [f.filed_at for f in mine if f.filed_at]
         rows.append(
             DeskRow(
@@ -271,8 +312,12 @@ def desk(
                 revenue_yoy=change(rev, rev_prev, "inr"),
                 pat=pat,
                 pat_yoy=change(pat, pat_prev, "inr"),
-                ebitda_margin=margin.quantize(Decimal("0.1")) if margin is not None else None,
-                ebitda_margin_yoy=change(margin, margin_prev, "pct"),
+                margin=margin.quantize(Decimal("0.01" if margin_kind == "nim" else "0.1"))
+                if margin is not None
+                else None,
+                margin_kind=margin_kind,
+                margin_yoy=change(margin, margin_prev, "pct"),
+                margin_consolidated=margin_basis if margin is not None else None,
                 blocked=any((f.meta or {}).get("blocks_auto_apply") for f in mine),
                 revenue_prev=rev_prev,
                 pat_prev=pat_prev,

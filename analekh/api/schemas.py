@@ -130,12 +130,16 @@ class DeskRowOut(BaseModel):
     revenue_yoy: Decimal | None  # % on the same quarter a year earlier
     pat: Decimal | None
     pat_yoy: Decimal | None
-    ebitda_margin: Decimal | None  # %, Ind-AS only
-    ebitda_margin_yoy: Decimal | None  # basis points
+    margin: Decimal | None  # %: EBITDA margin (Ind-AS outside finance) or NIM (lenders)
+    margin_kind: (
+        Literal["ebitda", "nim", "cpppm"] | None
+    )  # None for insurers and others with neither
+    margin_yoy: Decimal | None  # basis points
     blocked: bool  # a validation check blocks this filing
     yoy_note: str | None = None  # why the YoY columns are blank, for the dash's tooltip
     market_cap: Decimal | None = None  # rupees, at the latest stored close
     price_date: date | None = None
+    margin_consolidated: bool | None = None  # the margin's basis (a NIM may be standalone)
 
 
 class SectorProgressOut(BaseModel):
