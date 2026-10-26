@@ -2741,6 +2741,16 @@ table.glance tbody tr:last-child > * {
   margin-left: 4px;
   vertical-align: middle;
 }
+/* A line name's note opens upward, over the sticky header. The sticky name cell is its own
+   stacking layer (z-index 1), below the header's "Line" cell (2), which would cut the note's left
+   edge: lift the cell above the header while its note is open. */
+.history-table tbody th.history-line:hover,
+.history-table tbody th.history-line:focus-within {
+  z-index: 3;
+}
+.history-table tbody .info-tip-bubble {
+  max-width: 320px;
+}
 .history-table thead th {
   vertical-align: top;
 }
