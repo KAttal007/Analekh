@@ -570,6 +570,28 @@ function InterestChart({
     <ReactECharts
       style={{ height: 320 }}
       option={{
+        // On a phone the 12 bars are ~20px wide: drop the in-bar figures (the tooltip has them),
+        // shrink the yield tick and its label so neighbours don't run into each other.
+        media: [
+          {
+            query: { maxWidth: 520 },
+            option: {
+              grid: { left: 40, right: 8 },
+              series: [
+                { label: { show: false } },
+                { label: { show: false } },
+                {
+                  symbolSize: [14, 2],
+                  label: {
+                    fontSize: 9,
+                    formatter: (p: { value: number | null }) =>
+                      p.value == null ? "" : p.value.toFixed(1),
+                  },
+                },
+              ],
+            },
+          },
+        ],
         grid: { left: 48, right: 16, top: 40, bottom: 56 },
         legend: {
           bottom: 0,

@@ -2937,6 +2937,17 @@ table.glance tbody tr:last-child > * {
   }
   .area-chart .card-header .actions {
     width: 100%;
+    min-width: 0;
+  }
+  /* Four or more tabs are wider than a phone card: scroll them inside it, never past its edge. */
+  .area-chart .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .area-chart .segmented button {
+    flex: none;
+    white-space: nowrap;
   }
   .history-table .history-line {
     min-width: 150px;
