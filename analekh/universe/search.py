@@ -1,11 +1,10 @@
 """Company search with type-ahead (design doc F2, 20).
 
-The list narrows with each keystroke. One character matches tickers or names that start with it
-("T"); two or more match anywhere in the ticker or name ("TC", "TCS"). Every typed word starting
-a word of the name also matches, in any order ("tata pass" finds Tata Motors Passenger
-Vehicles). Results are ranked in tiers and paged with ``offset`` so the UI can load more as the
-analyst scrolls. Trigram similarity (pg_trgm) is only a fallback for typos, used when nothing
-else matches.
+List narrows each keystroke. One character matches tickers or names starting with it ("T"); two or
+more match anywhere in ticker or name ("TC", "TCS"). Every typed word starting a word of the name
+also matches, any order ("tata pass" finds Tata Motors Passenger Vehicles). Ranked in tiers, paged
+with ``offset`` so UI loads more on scroll. Trigram similarity (pg_trgm) only as typo fallback,
+when nothing else matches.
 """
 
 import re

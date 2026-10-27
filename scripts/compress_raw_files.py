@@ -1,8 +1,7 @@
-"""Gzip the results XBRL already in object storage (one-time, after storage.py began compressing).
+"""Gzip results XBRL already in object storage (one-time, after storage.py began compressing).
 
-Each file is checked against the SHA-256 in its key before it is rewritten and read back after;
-a file whose bytes don't match its key is left alone and listed. Safe to run again: files already
-compressed are skipped.
+Each file checked against SHA-256 in its key before rewrite and read back after; file whose bytes
+don't match key left alone and listed. Safe to rerun: compressed files skipped.
 
     uv run python scripts/compress_raw_files.py [--limit N]
 """

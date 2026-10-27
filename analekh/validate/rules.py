@@ -1,7 +1,7 @@
 """Validation rules V1-V11 (design doc 8.2).
 
-Each rule returns a RuleResult. Rules that cannot run because an element is not tagged return
-``skip``; nothing is inferred. A ``block`` failure stops auto-apply of the filing's change set.
+Each rule returns RuleResult. Rule that cannot run because an element is not tagged returns
+``skip``; nothing inferred. ``block`` failure stops auto-apply of filing's change set.
 """
 
 import math
@@ -18,9 +18,9 @@ from analekh.xbrl.parser import ParsedFact, ParsedFiling, period_type
 Status = Literal["pass", "fail", "skip"]
 Action = Literal["block", "flag", "warn", "highlight", "label", "info"]
 
-# SEBI LODR regulation 33(3): results within 45 days of the end of each quarter (half-year for
-# SME filers), audited annual results within 60 days of the end of the financial year. XBRL is
-# due within 24 hours of the PDF results, so the feed date gets one day's grace.
+# SEBI LODR 33(3): results within 45 days of each quarter end (half-year for SME filers), audited
+# annual results within 60 days of financial year end. XBRL due within 24 hours of PDF results, so
+# feed date gets one day's grace.
 RESULTS_DEADLINE_DAYS = 45
 ANNUAL_RESULTS_DEADLINE_DAYS = 60
 XBRL_GRACE_DAYS = 1
@@ -185,9 +185,9 @@ def v1_total_income(ctx: ValidationContext) -> RuleResult:
 
 
 def v2_pbt(ctx: ValidationContext) -> RuleResult:
-    # Exceptional items are tagged with their sign: a charge is negative, a gain positive
-    # (confirmed on Tata Elxsi, Q3 FY26: -956,888,000 for the labour-code charge), so they are
-    # added. Banks also deduct provisions; insurers go through the shareholders' account.
+    # Exceptional items tagged with sign: charge negative, gain positive (confirmed Tata Elxsi, Q3
+    # FY26: -956,888,000 labour-code charge), so added. Banks also deduct provisions; insurers go
+    # through shareholders' account.
     if ctx.taxonomy == "life_insurance":
         # The policyholders' total income less expenses is the surplus, not PBT: PBT is struck
         # in the shareholders' account (Canara HSBC Life, every quarter to the rupee).
@@ -409,18 +409,17 @@ def v10_kpi_conflict(ctx: ValidationContext) -> RuleResult:
     return RuleResult("V10", "pass", "flag", "AI values agree with XBRL")
 
 
-# V11: amounts tagged in the wrong unit. A filer that enters lakh as rupees, or crore as lakh,
-# files every rupee amount 100, 1,000, 1 lakh or 1 crore times off; the statement still adds up,
-# so V1-V3 pass (Metro Brands, consolidated, September 2025: revenue Rs 6.51 cr for Rs 651.14 cr).
-# Two independent signals: the other basis (consolidated cannot be far below standalone, nor
-# standalone far above consolidated) and the company's own neighbouring quarters (median of at
-# least three, so one bad quarter cannot move it). Both agreeing on the same power of ten: the
-# amounts are corrected (rule 5 still holds: the factor is exact and recorded, and the stored file
-# keeps the values as filed). One signal alone, or a disagreement: flagged as a suspect and
-# blocked, never changed. Matching its own history: passes, whatever the other basis says (then
-# the other filing is the odd one). Off its history but level with the other basis: corrected if
-# the other basis is off its own history by the same power (both slipped), passed if the other
-# basis is in line with its own (a real change). Per-share values and ratios are not amounts.
+# V11: amounts tagged in wrong unit. Filer entering lakh as rupees, or crore as lakh, files every
+# rupee amount 100, 1,000, 1 lakh or 1 crore times off; statement still adds up, V1-V3 pass (Metro
+# Brands, consolidated, September 2025: revenue Rs 6.51 cr for Rs 651.14 cr).
+# Two independent signals: other basis (consolidated can't be far below standalone, nor standalone
+# far above consolidated) and company's own neighbouring quarters (median of at least three, so one
+# bad quarter can't move it). Both agree on same power of ten: amounts corrected (rule 5 holds:
+# factor exact and recorded, stored file keeps values as filed). One signal alone, or disagreement:
+# flagged suspect and blocked, never changed. Matches own history: passes, whatever other basis
+# says (other filing is the odd one). Off own history but level with other basis: corrected if
+# other basis is off its own history by same power (both slipped), passed if other basis in line
+# with its own (real change). Per-share values and ratios are not amounts.
 SCALE_POWERS = range(2, 8)  # 100 to 1 crore
 SCALE_SLACK = 0.3  # log10 distance from an exact power: within a factor of 2 either way
 SCALE_MIN_BASE = Decimal(10_000_000)  # Rs 1 crore: below it, ratios of tiny figures are noise
@@ -519,14 +518,13 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
                 "V11", "pass", "block", "Amounts in line with past quarters", details
             ), None
 
-    # Out of line with its own history, but level with the other basis: either both filings
-    # slipped the same way (the other basis is off ITS history by the same power: two histories
-    # agree, so both are corrected) or the quarter really was different (the other basis is in
-    # line with its own history: a lumpy quarter, a demerger). Seen in the full sweep of
-    # 21 October 2026 (Eveready, MTNL both 100x small; Mahindra Lifespace a real jump).
-    # Or, where the two bases normally run level (their histories within a factor of five; never
-    # a holding company, whose standalone runs far below), this filing alone is off by the same
-    # power against both its own past and an in-line other basis: corrected, in either direction.
+    # Out of line with own history but level with other basis: either both filings slipped same way
+    # (other basis off ITS history by same power: two histories agree, both corrected) or quarter
+    # really differed (other basis in line with own history: lumpy quarter, demerger). Seen in full
+    # sweep 21 October 2026 (Eveready, MTNL both 100x small; Mahindra Lifespace a real jump).
+    # Or, where two bases normally run level (histories within factor of five; never a holding
+    # company, whose standalone runs far below), this filing alone is off by same power against both
+    # its past and an in-line other basis: corrected, either direction.
     if k_hist is not None and other is not None and other >= SCALE_MIN_BASE and k_basis is None:
         lg = abs(math.log10(float(q.value / other)))
         other_typical = _typical(_quarters(ctx.other_basis, names), q.period_end)

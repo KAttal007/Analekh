@@ -1,7 +1,6 @@
-"""The one upload-size rule (auth design, section 7). Every route that accepts a file reads it
-through `read_limited`, so a limit set in the app covers every upload, now and later.
-
-It applies to new uploads only; stored files are never touched when the limit changes.
+"""The one upload-size rule (auth design, section 7). Every file route reads through `read_limited`,
+so a limit set in app covers all uploads, now and later. New uploads only; stored files untouched
+when limit changes.
 """
 
 from fastapi import HTTPException, UploadFile

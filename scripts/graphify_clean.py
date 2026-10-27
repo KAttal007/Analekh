@@ -1,17 +1,17 @@
-"""Strip noise from graphify-out/graph.json, then recluster and rewrite the report.
+"""Strip noise from graphify-out/graph.json, recluster, rewrite report.
 
-graphify's AST pass adds nodes that say nothing about Analekh's own architecture:
+graphify's AST pass adds nodes saying nothing about Analekh's architecture:
   * unresolved or external references (stdlib, SQLAlchemy, Path, Session, decorators),
-  * the keys of config files (package.json, tsconfig.json, schema.d.ts, ...),
+  * keys of config files (package.json, tsconfig.json, schema.d.ts, ...),
   * empty __init__.py stubs.
-Every `graphify update` (or the post-commit hook) puts them back, so this runs after each
-rebuild. It is idempotent: when nothing is left to remove it exits without touching files.
+Every `graphify update` (or post-commit hook) puts them back, so this runs after each rebuild.
+Idempotent: nothing left to remove = exits without touching files.
 
-Run with the interpreter that has graphify installed (graphify-out/.graphify_python):
+Run with interpreter that has graphify installed (graphify-out/.graphify_python):
     <python> scripts/graphify_clean.py [--html] [--quiet]
 
-It also works as a Claude Code PostToolUse hook: when a JSON payload arrives on stdin, it only
-runs if the Bash command was a `graphify update`/`graphify hook` rebuild.
+Also works as Claude Code PostToolUse hook: with a JSON payload on stdin, runs only if the Bash
+command was a `graphify update`/`graphify hook` rebuild.
 """
 
 from __future__ import annotations
@@ -58,9 +58,9 @@ REBUILD_CALLS = (
 
 
 def _graphify_python() -> str | None:
-    """Interpreter that has graphify: the uv tool env, the one the skill saved, or this one.
+    """Interpreter that has graphify: uv tool env, the one the skill saved, or this one.
 
-    Checks files only (no import probe): the hook runs after every Bash call, so it must stay fast.
+    Checks files only (no import probe): hook runs after every Bash call, must stay fast.
     """
     candidates: list[Path] = []
     tools = (

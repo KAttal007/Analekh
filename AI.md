@@ -3,7 +3,8 @@
 Goal: zero API cost where quality allows. This file maps every AI use to the places it can run.
 It is a plan, not a record of what is built: today every language-model call goes through
 `analekh/genai/client.py` (`Claude.create`), and there is no local provider switch yet. Adding one
-is a departure from the design doc and needs an entry in `docs/design/deviations.md`.
+is a departure from the design doc; it is logged as proposed in `docs/design/deviations.md`
+("Since v0.0.5"). Where this fits in the overall plan: [docs/roadmap.md](docs/roadmap.md).
 
 ## Hardware
 
@@ -12,6 +13,9 @@ is a departure from the design doc and needs an entry in `docs/design/deviations
 | VM | 4 vCPU, 24 GB RAM, no GPU | yes | web app, Postgres, MinIO, Celery, NSE ingest, CPU jobs |
 | Laptop | RTX 4060 8 GB | no | Whisper, 7B to 8B models fully on the GPU, 14B with partial offload |
 | Claude API | hosted | yes | anything where local quality is not good enough yet |
+| Phone (OnePlus 13, 12 GB) | Snapdragon 8 Elite | no | personal offline use only (PocketPal, Qwen2.5 3B); not part of the deployment |
+
+Models already on hand (Ollama): Qwen2.5 and DeepSeek-R1, 7B and 8B.
 
 Speeds below are estimates, not measurements. Benchmark on the real machines before relying on them.
 

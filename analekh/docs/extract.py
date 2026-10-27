@@ -1,8 +1,8 @@
 """KPI, guidance and red-flag extraction from selected PDF pages (design doc 9.1 step 4, 9.2).
 
-Only the selected pages are sent (as a sub-PDF). Every value comes back with a page number,
-a verbatim quote and a confidence; quotes are checked against the locally extracted page text
-and values whose quote cannot be found are marked low confidence for review.
+Only selected pages sent (sub-PDF). Each value returns with page number, verbatim quote and
+confidence; quotes checked against locally extracted page text, values with unfound quote marked
+low confidence for review.
 """
 
 import contextlib

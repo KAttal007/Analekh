@@ -1,9 +1,8 @@
-"""Refuse oversized request bodies as they arrive (auth design, section 7).
+"""Refuse oversized request bodies on arrival (auth design, section 7).
 
-The admin's upload limit is checked by `uploads.read_limited` after the framework has parsed the
-multipart form, which spools the whole file to disk first. This middleware stops a body that is
-larger than the upload ceiling plus multipart framing before that happens: at once when the
-declared Content-Length says so, else as soon as the streamed bytes pass it.
+`uploads.read_limited` checks admin's limit only after framework parsed multipart and spooled the
+file to disk. This middleware stops bodies above upload ceiling + multipart framing earlier: at
+once if Content-Length says so, else once streamed bytes pass it.
 """
 
 import json

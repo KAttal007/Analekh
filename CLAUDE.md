@@ -10,6 +10,8 @@ model (analyst-approved) and grounded research drafts out. Section numbers in co
 (`docs/design/technical-design.md`; the `.docx` and the architecture PDF are generated from it and
 `architecture.html` with `scripts/design_docx.py` and `scripts/diagram_panels.py`; earlier versions
 are kept as the record). Record every departure from it in `docs/design/deviations.md`.
+The plan and new ideas live in `docs/roadmap.md`, open tasks in `docs/pending-items.md`, and the
+plan for running AI jobs on local models (no API costs) in `AI.md`.
 
 Versions follow the build phases (design doc 26): v0.0.x during Phase 0, v0.1.x once Phase 0 is
 complete, v0.2.x once Phase 1 is complete, and so on; v1.0.0-pre-release is the first release for
@@ -133,9 +135,8 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 - `xbrl/elements.py`: names marked `# verify` were never checked against a real file. Bank and
   general- and life-insurer tables come from real integrated filings; the insurers' balance
   sheet is not mapped yet. After changing tables or rules, run `analekh revalidate`.
-- `universe/loader.py`: SME list path unconfirmed. `universe/sectors.py`: index list file names
-  and columns checked against niftyindices.com on 2026-10-16 (the importer has not been run);
-  `data/sector_map.csv` holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
+- `universe/sectors.py`: the index list importer ran on 2026-10-16 (NSE's sector for 1,430
+  companies); the LSEG-to-NSE mapping awaits the owner; `data/sector_map.csv` holds overrides only. `universe/data/nifty500.csv` (backfill priority) is still empty.
 - Test fixtures (`tests/xbrl_factory.py`, built-in templates) are SYNTHETIC. The golden set
   of real filings lives in `tests/fixtures/golden/` (gitignored): `uv run analekh golden-sheet`
   (20 filings' XBRL from storage plus a worksheet), the owner marks it against the results PDFs,
@@ -147,6 +148,10 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 - Reports run inline in the API; move to Celery jobs and store files in object storage.
 
 ## Claude API usage
+
+The owner aims for no API costs: a local provider (Ollama) is planned beside Claude, chosen per
+job once it passes the golden set (`AI.md`; not built yet, deviations "Since v0.0.5"). Until it
+exists, the rules below describe the only provider.
 
 All calls go through `analekh/genai/client.py` (`Claude.create`), which sets the model from
 `CLAUDE_MODEL`, enables server-side refusal fallbacks (`fallbacks="default"`, beta

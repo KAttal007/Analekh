@@ -1,11 +1,11 @@
 """Headless recalculation (design doc 15.1 step 5, 16.5).
 
-- ``evaluate``: computes every formula with the ``formulas`` library and returns the values, used
-  to run Checks before a template is activated or a built model is saved.
-- ``recalc_file``: round-trips through headless LibreOffice so the saved file carries fresh cached
-  values. LibreOffice runs in its own ``recalc`` container (RECALC_URL), not in the application
-  image; see ``recalc_file`` for the retry and fallback rules. Desktop Excel (the xlwings bridge)
-  recalculates natively instead.
+- ``evaluate``: computes every formula with ``formulas`` library, returns values; runs Checks
+  before a template is activated or built model saved.
+- ``recalc_file``: round-trips through headless LibreOffice so saved file carries fresh cached
+  values. LibreOffice runs in own ``recalc`` container (RECALC_URL), not application image; see
+  ``recalc_file`` for retry and fallback rules. Desktop Excel (xlwings bridge) recalculates
+  natively instead.
 """
 
 import io
@@ -101,10 +101,10 @@ class _Retry(Exception):
 
 
 class RecalcCannotCompute(Exception):
-    """LibreOffice converted the workbook but could not compute some cells: they call a function
-    it does not have, such as one the analyst wrote in VBA (macros are never run, rule 7). Saving
-    would replace the analyst's values with #NAME? errors, so the caller saves nothing. This will
-    not pass on a retry. ``cells`` are "Sheet!A1" addresses."""
+    """LibreOffice converted workbook but couldn't compute some cells: they call a function it
+    lacks, e.g. analyst's VBA (macros never run, rule 7). Saving would replace analyst's values with
+    #NAME?, so caller saves nothing. Won't pass on retry. ``cells`` are "Sheet!A1" addresses.
+    """
 
     def __init__(self, cells: list[str]) -> None:
         self.cells = cells
@@ -112,11 +112,11 @@ class RecalcCannotCompute(Exception):
 
 
 def recalc_file(workbook: bytes, reference: bytes | None = None) -> bytes:
-    """The workbook with fresh cached values, or RecalcCannotCompute when it holds cells that
-    LibreOffice cannot compute. ``reference`` is the version the changes were made on: a cell that
-    was already #NAME? there is the analyst's own and does not count.
+    """Workbook with fresh cached values, or RecalcCannotCompute when cells can't be computed by
+    LibreOffice. ``reference`` = version the changes were made on: a cell already #NAME? there is
+    analyst's own, doesn't count.
 
-    See ``_convert`` for how the conversion is done, retried and falls back.
+    See ``_convert`` for conversion, retry and fallback.
     """
     converted = _convert(workbook)
     if converted is not workbook:  # unchanged means no LibreOffice ran: nothing to check
@@ -150,12 +150,13 @@ def _name_errors(data: bytes) -> set[str]:
 
 
 def _convert(workbook: bytes) -> bytes:
-    """The workbook through LibreOffice.
+    """Workbook through LibreOffice.
 
-    - RECALC_URL set: the `recalc` service converts it (one retry on a connection failure, a read
-      timeout or a busy 503). When it stays unavailable, RECALC_FALLBACK=local converts with a
-      LibreOffice on this machine, and the default ("fail") raises RecalcUnavailable.
-    - RECALC_URL empty: a local LibreOffice when installed, otherwise the input unchanged.
+    - RECALC_URL set: `recalc` service converts (one retry on connection failure, read timeout or
+    busy
+      503). Still unavailable: RECALC_FALLBACK=local converts with local LibreOffice; default
+      ("fail") raises RecalcUnavailable.
+    - RECALC_URL empty: local LibreOffice if installed, else input unchanged.
     """
     s = get_settings()
     if not s.recalc_url:

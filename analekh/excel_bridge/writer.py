@@ -1,9 +1,8 @@
-"""Write approved changes into the analyst's workbook (design doc 13.3, 16.4-16.5).
+"""Write approved changes into analyst's workbook (design doc 13.3, 16.4-16.5).
 
-xlwings drives desktop Excel when it is available (native recalculation, formatting kept, the
-open workbook is used directly); otherwise openpyxl writes the file. Save modes: a new
-versioned copy next to the original (default), or in place after an automatic backup. The
-original is never silently overwritten.
+xlwings drives desktop Excel when available (native recalculation, formatting kept, open workbook
+used directly); else openpyxl writes the file. Save modes: new versioned copy beside original
+(default), or in place after automatic backup. Original never silently overwritten.
 """
 
 import contextlib
@@ -105,10 +104,10 @@ def _tag_open_book(path: Path, tag: Tag) -> bool:  # pragma: no cover - needs de
 
 
 def link_tag(path: Path, tag: Tag) -> str:
-    """Write the hidden tag after the user confirms a link (custom document properties).
+    """Write hidden tag after user confirms a link (custom document properties).
 
-    Only the tag parts of the file change; the rest is copied as it is. If Excel has the file
-    open the tag goes into the open workbook instead ("open": the analyst saves to keep it).
+    Only tag parts of file change; rest copied as is. If Excel has file open, tag goes into open
+    workbook instead ("open": analyst saves to keep it).
     """
     try:
         write_tag_file(path, tag)

@@ -1,16 +1,16 @@
-"""Lenders' interest ratios: net interest margin, yield, cost of borrowing and spread, per quarter.
+"""Lenders' interest ratios: net interest margin, yield, cost of borrowing, spread, per quarter.
 
     NIM    = (interest income - interest expense) x 4 / average interest-earning assets
     Yield  = interest income x 4 / average interest-earning assets
     CoB    = interest expense x 4 / average interest-bearing funding
     Spread = Yield - CoB
 
-Averages are of the quarter's opening and closing balances. Banks and NBFCs file the balance sheet
-half-yearly (31 March, 30 September), so the other quarter ends (30 June, 31 December) are
-interpolated between the two filed balance sheets around them. A June or December quarter can only
-be worked out once the next half-year's balance sheet is filed: until then it is None (a dash),
-never a figure on a stale balance sheet. Earning assets and funding are the sums of the lines in
-``EARNING_ASSETS`` and ``FUNDING`` a filing tags (elements.py). All in Decimal.
+Averages of quarter's opening and closing balances. Banks and NBFCs file balance sheets
+half-yearly (31 March, 30 September); other quarter ends (30 June, 31 December) interpolated
+between the two filed sheets around them. June or December quarter works out only once next
+half-year's balance sheet is filed: until then None (dash), never a figure on a stale sheet.
+Earning assets and funding = sums of lines in ``EARNING_ASSETS`` and ``FUNDING`` a filing tags
+(elements.py). All Decimal.
 """
 
 from dataclasses import dataclass
@@ -31,20 +31,18 @@ ANNUALISE = Decimal(4)  # quarters in a year
 MAX_GAP = timedelta(days=200)
 # A ratio beyond this is a tagging or unit problem in the filing, not a margin: left out.
 PLAUSIBLE = Decimal(100)
-# A lender's NIM needs interest to be most of its income. Seen September 2026: banks and NBFCs
-# 74-100% of revenue from operations, SBI Card 49% (card fees), IRFC (a lessor) 9%. Below the line
-# a ratio is not worked out (a dash), never a negative margin from a company that does not earn
-# interest.
+# Lender's NIM needs interest to be most of income. Seen September 2026: banks and NBFCs 74-100% of
+# revenue from operations, SBI Card 49% (card fees), IRFC (lessor) 9%. Below the line: dash, never a
+# negative margin for a company that doesn't earn interest.
 MIN_INTEREST_SHARE = Decimal("0.4")
 BANK_SECTORS = {"Banking Services"}  # banks and NBFCs (LSEG's group also holds NBFCs)
 FINANCE_SECTORS = {"Investment Banking & Investment Services"}  # brokers, AMCs, holdings, more
 
-# Which margin a company in the financial sectors shows (owner, 2026-10-26): every bank and NBFC
-# its net interest margin ("nim"); every broker, wealth manager and asset manager the core
-# pre-provision profit margin ("cpppm"). NSE's and LSEG's sector lists put those two groups
-# together with investment holding companies and exchanges, and no field tells them apart, so the
-# second group is named here. Companies in the finance sector but not named (holding companies,
-# exchanges, shells) show neither: a dash.
+# Margin shown by finance-sector companies (owner, 2026-10-26): banks and NBFCs net interest margin
+# ("nim"); brokers, wealth managers, asset managers core pre-provision profit margin ("cpppm").
+# NSE and LSEG sector lists group those two with investment holding companies and exchanges, no
+# field separates them, so the second group is named here. Finance companies not named (holding
+# companies, exchanges, shells): neither, a dash.
 FEE_FINANCE = frozenset(
     {
         # Asset managers and alternative-asset managers

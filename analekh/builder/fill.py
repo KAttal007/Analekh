@@ -1,8 +1,7 @@
-"""Fill a template's actual columns with sourced history (design doc 15.1 step 3, 14.3).
+"""Fill template's actual columns with sourced history (design doc 15.1 step 3, 14.3).
 
-Inputs are filled, formulas are never touched, every written cell gets a comment naming its
-source, and the Sources sheet lists every input with document and page. Shared by the
-Coverage Builder and template test builds.
+Inputs filled, formulas never touched, every written cell commented with its source, Sources sheet
+lists every input with document and page. Shared by Coverage Builder and template test builds.
 """
 
 from dataclasses import dataclass, field

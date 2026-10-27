@@ -1,26 +1,23 @@
 """Sector classification (design doc 4.2).
 
-EQUITY_L.csv has no sector column. Sectors come from these sources, highest precedence first
-(``companies.sector_source``):
+EQUITY_L.csv has no sector column. Sources, highest precedence first (``companies.sector_source``):
 
-1. ``user``: the analyst's own value (``data/sector_map.csv`` today, the company page later).
-   A sector with no recorded source is treated as the user's.
-2. ``nse_indices``: NSE's own taxonomy (the 22 current NSE Indices sectors), from the Industry
-   column of NSE Indices' published constituent lists. Eleven lists (Total Market, SME Emerge,
-   IPO, ...) cover every company in any index: about 1,430 (2026-10-16). The owner chose NSE's
-   taxonomy over LSEG's on 2026-10-16.
-3. ``excel_stocks``: an analyst's workbook converted with Excel's Stocks data type (LSEG
-   industry groups), imported by ISIN; shown only where NSE has no sector, and always kept in
-   ``companies.sector_lseg``. Licensed to the analyst for their own research.
+1. ``user``: analyst's own value (``data/sector_map.csv`` today, company page later). Sector with
+   no recorded source counts as user's.
+2. ``nse_indices``: NSE's own taxonomy (22 current NSE Indices sectors), from Industry column of
+   NSE Indices' constituent lists. Eleven lists (Total Market, SME Emerge, IPO, ...) cover every
+   indexed company: ~1,430 (2026-10-16). Owner chose NSE's taxonomy over LSEG's 2026-10-16.
+3. ``excel_stocks``: analyst's workbook converted with Excel's Stocks data type (LSEG industry
+   groups), imported by ISIN; shown only where NSE has no sector, always kept in
+   ``companies.sector_lseg``. Licensed to analyst for own research.
 
-A source never replaces a higher one; the same source refreshes its own values. The results
-taxonomy is only set from strong signals (bank index membership, or an NSE sector naming banks,
-NBFCs or insurance); otherwise it stays empty so the first parsed filing's schema reference
-decides (ingest/pipeline.py). Excel Stocks sectors never set it: LSEG's "Banking Services" also
-holds NBFCs.
+A source never replaces a higher one; same source refreshes its own values. Results taxonomy set
+only from strong signals (bank index membership, or NSE sector naming banks, NBFCs or insurance);
+else empty, so first parsed filing's schema reference decides (ingest/pipeline.py). Excel Stocks
+sectors never set it: LSEG's "Banking Services" also holds NBFCs.
 
-Companies in no index have no published NSE sector; NSE's per-company classification (its
-quote data) refused an honest request on 2026-10-16.
+Companies in no index have no published NSE sector; NSE's per-company classification (quote data)
+refused an honest request 2026-10-16.
 """
 
 import csv
@@ -40,9 +37,9 @@ log = structlog.get_logger()
 SECTOR_MAP = Path(__file__).parent / "data" / "sector_map.csv"
 
 INDEX_BASE = "https://niftyindices.com/IndexConstituent/"
-# The smallest set of NSE Indices lists covering every indexed company (worked out from all 116
-# lists on 2026-10-16): Total Market (Nifty 500 + Microcap 250), SME Emerge, IPO, WAVES and seven
-# small lists that each add a few companies. File names checked on niftyindices.com.
+# Smallest set of NSE Indices lists covering every indexed company (worked out from all 116 lists,
+# 2026-10-16): Total Market (Nifty 500 + Microcap 250), SME Emerge, IPO, WAVES, seven small lists
+# each adding a few. File names checked on niftyindices.com.
 SECTOR_LISTS = (
     "ind_niftytotalmarket_list.csv",
     "ind_niftysmelist.csv",
@@ -151,8 +148,8 @@ def import_sector_worksheet(
 def parse_constituents(data: bytes) -> Mapping:
     """Symbol -> (sector, None) from a constituent list.
 
-    Columns are Company Name, Industry, Symbol, Series, ISIN Code (seen 2026-10-16); matched by
-    name, ignoring case and spacing, so column order does not matter.
+    Columns: Company Name, Industry, Symbol, Series, ISIN Code (seen 2026-10-16); matched by name,
+    ignoring case and spacing, so column order doesn't matter.
     """
     out: Mapping = {}
     for raw in csv.DictReader(io.StringIO(data.decode("utf-8-sig", errors="replace"))):
@@ -164,10 +161,10 @@ def parse_constituents(data: bytes) -> Mapping:
 
 
 def fetch_index_sectors(client: PoliteClient | None = None) -> tuple[Mapping, set[str], int]:
-    """Download the published lists: (symbol -> sector, bank symbols, lists fetched).
+    """Download published lists: (symbol -> sector, bank symbols, lists fetched).
 
-    A list that fails to download is logged and skipped, so one renamed file does not stop the
-    others."""
+    List that fails to download is logged and skipped: one renamed file doesn't stop the others.
+    """
     client = client or PoliteClient()
     mapping: Mapping = {}
     banks: set[str] = set()
@@ -214,10 +211,11 @@ def apply_sectors(
     source: str = "user",
     set_taxonomy: bool = True,
 ) -> int:
-    """Write sector/industry where the map knows the symbol, unless a higher source set it.
+    """Write sector/industry where map knows the symbol, unless a higher source set it.
 
-    Returns the number of companies whose sector changed. Sets results_taxonomy only on a
-    strong signal (see module docstring)."""
+    Returns number of companies whose sector changed. Sets results_taxonomy only on a strong signal
+    (see module docstring).
+    """
     mapping = load_sector_map() if mapping is None else mapping
     symbols = set(mapping) | set(banks)
     if not symbols:
@@ -254,10 +252,11 @@ def refresh_sectors(session: Session, client: PoliteClient | None = None) -> dic
 
 
 def import_stocks_workbook(session: Session, path: Path) -> dict[str, int]:
-    """Sectors from a workbook converted with Excel's Stocks data type, matched by ISIN.
+    """Sectors from workbook converted with Excel's Stocks data type, matched by ISIN.
 
-    Needs a "Sector" column holding the cached field value and an "ISIN No" (or "ISIN")
-    column; other columns are ignored. Formula errors and blanks are skipped."""
+    Needs "Sector" column (cached field value) and "ISIN No" (or "ISIN") column; others ignored.
+    Formula errors and blanks skipped.
+    """
     ws = load_workbook(path, data_only=True, read_only=True).worksheets[0]
     rows = ws.iter_rows(values_only=True)
     header = [" ".join(str(h or "").split()).lower() for h in next(rows)]

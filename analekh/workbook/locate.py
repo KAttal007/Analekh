@@ -35,10 +35,10 @@ def axis_for(wb: Workbook, mapping: Mapping) -> PeriodAxis:
 
 
 def relabel(wb: Workbook, axis: PeriodAxis, last_actual: date) -> PeriodAxis:
-    """Rewrite the period header and A/E flags so the last actual column is ``last_actual``.
+    """Rewrite period header and A/E flags so last actual column is ``last_actual``.
 
-    Used when a template built for one period is filled for a company's latest quarter. Only the
-    header and flag cells change; formulas are untouched.
+    For a template built for one period, filled for a company's latest quarter. Only header and flag
+    cells change; formulas untouched.
     """
     from analekh.templates_builtin.base import quarter_ends
 

@@ -34,10 +34,10 @@ def _ensure_database(url: str) -> None:
             )
             if not exists:
                 conn.execute(text(f'CREATE DATABASE "{target.database}"'))
-            # Many tests provoke constraint errors on purpose (duplicate email, bad role, a
-            # race on the file hash) and the code handles them. The server log is shared with
-            # the working database and should show only errors that really happen, so the test
-            # database logs none; a test that fails says so through pytest.
+            # Many tests provoke constraint errors on purpose (duplicate email, bad role, race on
+            # file hash) and code handles them. Server log is shared with working database and
+            # should show only real errors, so test database logs none; a failing test says so
+            # through pytest.
             conn.execute(
                 text(f"ALTER DATABASE \"{target.database}\" SET log_min_messages = 'fatal'")
             )
@@ -47,10 +47,10 @@ def _ensure_database(url: str) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_real_claude(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Tests never call the real Claude API, whatever key the developer's .env holds.
+    """Tests never call real Claude API, whatever key developer's .env holds.
 
-    An environment variable outranks .env in pydantic-settings, so an empty key switches off
-    every code path that is gated on one (e.g. AI label matching on template upload).
+    Environment variable outranks .env in pydantic-settings, so an empty key switches off every code
+    path gated on one (e.g. AI label matching on template upload).
     """
     from analekh.config import get_settings
 

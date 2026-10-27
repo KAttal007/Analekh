@@ -1,11 +1,11 @@
 """Spec-driven generator for built-in templates (design doc 15.2).
 
 Sheets: Cover, Data, Drivers, Model, Sector KPIs, Valuation, Sensitivities, Checks, Sources.
-Actual columns hold blue input cells; estimate columns hold formulas driven by the Drivers
-sheet. Columns line up across sheets, so a formula in column F always means the same period.
+Actual columns = blue input cells; estimate columns = formulas driven by Drivers sheet. Columns
+line up across sheets, so formula in column F always means same period.
 
-Formula templates use ``{c}`` for the current column, ``{p}`` for the previous column,
-``[[Label]]`` for a Data row and ``{{Label}}`` for a Drivers row.
+Formula templates: ``{c}`` current column, ``{p}`` previous column, ``[[Label]]`` a Data row,
+``{{Label}}`` a Drivers row.
 """
 
 import io

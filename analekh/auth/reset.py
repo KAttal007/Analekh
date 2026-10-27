@@ -1,8 +1,8 @@
 """Emailed one-time reset code (auth design, section 5).
 
-A 6-digit code, stored only as SHA-256, valid for `reset_code_minutes`, single use, replaced by a
-newer request, burned after `reset_max_attempts` wrong tries. Nothing here commits: the route
-does, including after a failed attempt so the count persists.
+6 digits, stored as SHA-256 only, valid `reset_code_minutes`, single use, replaced by newer
+request, burned after `reset_max_attempts` wrong tries. Nothing here commits: route does, also
+after a failed attempt so the count persists.
 """
 
 import hashlib

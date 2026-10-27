@@ -19,9 +19,9 @@ class UploadLimitOut(BaseModel):
     min_bytes: int
     updated_by: str | None
     updated_at: datetime | None
-    # Not part of the upload limit: the one settings reply every signed-in user reads, so the
-    # web's lock polling interval and idle-reminder wait ride along (settings.lock_poll_seconds,
-    # settings.idle_reminder_minutes).
+    # Not part of upload limit: the one settings reply every signed-in user reads, so web's lock
+    # polling interval and idle-reminder wait ride along (settings.lock_poll_seconds,
+    # idle_reminder_minutes).
     lock_poll_seconds: int
     idle_reminder_minutes: int
 

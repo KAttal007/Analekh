@@ -1,9 +1,9 @@
 """Change-set builder (design doc 16).
 
-Uses the workbook understanding engine to locate periods and rows. If the workbook's fingerprint
-differs from the last one seen, the structure is rescanned and the change set says so (6.4).
-Nothing is written here. The engine proposes items; the analyst accepts, edits or skips each one;
-``apply.py`` writes only approved items into a new model version.
+Uses workbook understanding engine to locate periods and rows. If workbook fingerprint differs
+from last seen, structure rescanned and change set says so (6.4). Nothing written here. Engine
+proposes items; analyst accepts, edits or skips each; ``apply.py`` writes only approved items into
+a new model version.
 """
 
 from collections.abc import Callable

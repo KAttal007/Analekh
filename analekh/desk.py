@@ -1,11 +1,11 @@
-"""Results desk (Home): who has reported a quarter, how revenue, profit and EBITDA margin moved on
-the same quarter a year earlier, the biggest movers, and progress by sector.
+"""Results desk (Home): who reported a quarter, revenue, profit and EBITDA margin vs same quarter a
+year earlier, biggest movers, progress by sector.
 
-One basis per company: consolidated when it filed consolidated results for the quarter, else
-standalone (the rule used everywhere). "Revenue" is the company's own top line: interest earned
-for banks, premium earned for insurers. "Margin" is the EBITDA margin for Ind-AS companies outside
-finance (derived as in glance.py) and the net interest margin for lenders (interest.py), worked
-out on consolidated figures when they allow it, else standalone. Insurers have none.
+One basis per company: consolidated if it filed consolidated for the quarter, else standalone
+(rule used everywhere). "Revenue" = company's own top line (interest earned for banks, premium
+earned for insurers). "Margin" = EBITDA margin for Ind-AS companies outside finance (derived as in
+glance.py), net interest margin for lenders (interest.py), on consolidated figures when they allow
+it, else standalone. Insurers: none.
 """
 
 import statistics

@@ -1,9 +1,9 @@
 """Per-model locks (model-locks stage 2): one person or job works on a model at a time.
 
-`acquire` is the only place that decides who holds a lock: it inserts with
-`ON CONFLICT (model_id) DO NOTHING`, so the database's primary key settles a race and exactly one
-caller wins. Nothing here commits, the caller owns the transaction, except `holding`, which
-wraps a request's inline work and commits so the lock is visible while the work runs.
+`acquire` alone decides who holds a lock: inserts with `ON CONFLICT (model_id) DO NOTHING`, so
+primary key settles a race, exactly one caller wins. Nothing here commits (caller owns
+transaction), except `holding`, which wraps a request's inline work and commits so lock is visible
+while work runs.
 """
 
 from collections.abc import Iterable, Iterator
@@ -43,10 +43,10 @@ def _held(session: Session, model_id: int) -> tuple[ModelLock, str] | None:
 def acquire(
     session: Session, *, model_id: int, user_id: str, activity: str, job_id: str | None = None
 ) -> ModelLock:
-    """Take the lock on a model, or raise `LockHeld` if someone else has it.
+    """Take lock on a model, or raise `LockHeld` if someone else has it.
 
-    Re-entrant for the holder: the existing lock comes back as it is (its activity and job are
-    kept) with `last_seen_at` refreshed.
+    Re-entrant for holder: existing lock returns as is (activity and job kept), `last_seen_at`
+    refreshed.
     """
     if activity not in ACTIVITIES:
         raise ValueError(f"unknown lock activity: {activity!r}")
@@ -88,10 +88,10 @@ def release(session: Session, *, model_id: int, user_id: str) -> bool:
 def attach_job(
     session: Session, *, model_id: int, user_id: str, job_id: str, activity: str
 ) -> bool:
-    """Hand the holder's lock to a queued job, so the job gives it back when it ends.
+    """Hand holder's lock to a queued job, so job gives it back when it ends.
 
-    `acquire` keeps an existing lock as it is, so a holder who starts another job needs this to
-    record the new job. Only the holder's lock moves; returns whether it did.
+    `acquire` keeps an existing lock as is, so a holder starting another job needs this to record
+    the new job. Only holder's lock moves; returns whether it did.
     """
     if activity not in ACTIVITIES:
         raise ValueError(f"unknown lock activity: {activity!r}")
@@ -107,14 +107,13 @@ def attach_job(
 def holding(
     session: Session, *, model_ids: Iterable[int], user_id: str, activity: str
 ) -> Iterator[None]:
-    """Hold the locks on these models while inline work runs (a report, a build step).
+    """Hold locks on these models while inline work runs (report, build step).
 
-    The locks are committed before the work starts, so colleagues see them while it runs. When
-    the work ends the locks are given back and committed with it; if it fails, its changes are
-    rolled back first, so only the release is committed. Locks the user already held (another
-    tab, their own queued update) are left as they were, and so is a lock the user handed to a
-    queued job while the work ran (`attach_job`): the job gives that one back. Raises `LockHeld`,
-    taking nothing, if a colleague holds any of them.
+    Locks committed before work starts, so colleagues see them while it runs. When work ends locks
+    are given back and committed with it; on failure its changes roll back first, only the release
+    commits. Locks user already held (another tab, own queued update) left as they were, so is a
+    lock user handed to a queued job during the work (`attach_job`): job gives that one back. Raises
+    `LockHeld`, taking nothing, if a colleague holds any.
     """
     taken: list[int] = []
     try:

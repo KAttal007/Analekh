@@ -1,8 +1,8 @@
 """Sign-in under parallel load (review finding 1).
 
-Each simulated request gets its own database connection and commits, as real requests do. A
-flood of wrong passwords sent at the same moment must not skip the pause or the block, and the
-API must answer every request without a server error.
+Each simulated request gets own database connection and commits, as real requests do. A flood of
+wrong passwords at the same moment must not skip the pause or block, and API must answer every
+request without server error.
 """
 
 from collections import Counter

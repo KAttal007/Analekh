@@ -1,10 +1,9 @@
 """Backfill history from manually downloaded files (design doc 4.1, 9.4): on demand when a company
-is first analysed in depth, and in the background for Nifty 500 constituents.
+is first analysed in depth, and in background for Nifty 500.
 
-Layout: ``IMPORT_DIR/<NSE_SYMBOL>/<anything>.xml|.pdf``. XBRL goes through the same parser and
-validation path as live filings; PDFs are stored for the document pipeline. Files are processed
-oldest first by name so that V5/V7/V9 have history to compare against: prefix names with the
-period end (e.g. ``2025-06-30_results.xml``).
+Layout: ``IMPORT_DIR/<NSE_SYMBOL>/<anything>.xml|.pdf``. XBRL uses same parser and validation path
+as live filings; PDFs stored for document pipeline. Processed oldest first by name so V5/V7/V9
+have history to compare: prefix names with period end (``2025-06-30_results.xml``).
 """
 
 from dataclasses import dataclass, field

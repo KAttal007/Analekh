@@ -1,9 +1,8 @@
 """Universe loader (design doc 4, 9.1): every NSE-listed company, refreshed weekly.
 
 Source: NSE's EQUITY_L.csv (SYMBOL, NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE,
-MARKET LOT, ISIN NUMBER, FACE VALUE) and the separate SME list. Rows are upserted by ISIN, so a
-symbol change keeps the company's history. Companies missing from a full refresh are marked
-inactive, never deleted.
+MARKET LOT, ISIN NUMBER, FACE VALUE) and separate SME list. Upserted by ISIN, so symbol change
+keeps history. Companies missing from a full refresh marked inactive, never deleted.
 """
 
 import csv

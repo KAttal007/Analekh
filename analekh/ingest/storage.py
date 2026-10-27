@@ -1,11 +1,10 @@
 """Immutable raw file store keyed by content hash (design doc 9.3).
 
-Key layout: ``kind/yyyy/mm/sha256.ext``. Talks the S3 API through boto3, so MinIO locally and any
-managed S3 service when hosted are a configuration change only. A local directory store is used
-by tests and single-machine development.
+Key layout: ``kind/yyyy/mm/sha256.ext``. S3 API via boto3: MinIO locally, any managed S3 when
+hosted, config change only. Local directory store for tests and single-machine dev.
 
-XML (results XBRL) is stored gzipped, about 12 times smaller; ``get`` returns the original bytes,
-so the key's hash still matches. PDFs and Excel files are already compressed and stored as-is.
+XML (results XBRL) stored gzipped, ~12x smaller; ``get`` returns original bytes, key's hash still
+matches. PDFs and Excel already compressed, stored as is.
 """
 
 import gzip

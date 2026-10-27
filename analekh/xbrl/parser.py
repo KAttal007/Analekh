@@ -1,8 +1,8 @@
 """Fast lxml parser for plain XBRL instance files (design doc 8.1).
 
-Contexts are resolved from their actual start/end/instant dates, never from their ids
-(OneD, FourD, OneI ...). Values stay in full INR as filed; display scaling lives in model mappings.
-Use Arelle (``pip install .[xbrl]``) when full taxonomy validation is needed.
+Contexts resolved from actual start/end/instant dates, never from ids (OneD, FourD, OneI ...).
+Values stay full INR as filed; display scaling lives in model mappings. Use Arelle
+(``pip install .[xbrl]``) for full taxonomy validation.
 """
 
 import hashlib

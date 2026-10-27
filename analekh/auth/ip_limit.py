@@ -1,9 +1,8 @@
 """Failed sign-ins per client address, in memory (auth design, section 5).
 
-The per-account lockout cannot see one address trying many accounts; this can. It also lets the
-API refuse a flooding address before any password hashing. Each API process keeps its own counts,
-so with N workers the real limit is up to N times the setting. Bounded: when too many addresses
-are tracked, the least recently active ones are dropped.
+Per-account lockout cannot see one address trying many accounts; this can. Also refuses a flooding
+address before any password hashing. Counts are per API process: N workers = real limit up to N x
+setting. Bounded: when too many addresses tracked, least recently active dropped.
 """
 
 import math

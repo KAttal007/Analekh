@@ -248,10 +248,11 @@ def _reply_seconds(path: str, payload: dict) -> tuple[int, float]:
 
 
 def test_reset_request_timing_known_vs_unknown(db, sent, monkeypatch):
-    """A known account must not answer measurably slower than an unknown one: the mail goes out
-    after the reply, and the extra work before it is one small write. Measured 2026-10-22 on the
-    dev machine: medians within a few milliseconds. With a 200 ms SMTP stand-in, a regression to
-    sending before the reply would show the full 200 ms; the bound leaves room for a busy runner."""
+    """Known account must not answer measurably slower than unknown: mail goes out after reply,
+    extra work before it is one small write. Measured 2026-10-22 on dev machine: medians within a
+    few ms. With a 200 ms SMTP stand-in, regression to sending before reply would show full 200 ms;
+    bound leaves room for a busy runner.
+    """
     monkeypatch.setenv("SMTP_URL", "smtp://u:p@mail.example:587")
     get_settings.cache_clear()
     slow_smtp = 0.2

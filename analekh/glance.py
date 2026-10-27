@@ -1,9 +1,8 @@
-"""Latest quarter at a glance: the quarter's P&L lines with change on the previous quarter and on
-the same quarter a year earlier, in the company's own results format (Ind-AS, bank, general or
-life insurer).
+"""Latest quarter at a glance: quarter's P&L lines with change vs previous quarter and vs same
+quarter a year earlier, in company's own results format (Ind-AS, bank, general or life insurer).
 
-Everything comes from stored XBRL facts on one basis; derived lines (EBITDA, net interest income,
-margins) are computed here in Decimal and say how. Nothing is shown that the filing doesn't give.
+All from stored XBRL facts, one basis; derived lines (EBITDA, net interest income, margins)
+computed here in Decimal and say how. Nothing shown that filing doesn't give.
 """
 
 from dataclasses import dataclass, field
@@ -99,9 +98,9 @@ NOTES = {
     "persistency_61m": "Policies still paying premiums 61 months after issue",
     "expense_ratio": "Commission + operating expenses, as a share of gross premium",
 }
-# EBITDA adds back finance costs, which for a lender are the cost of doing business (an NBFC's
-# "EBITDA margin" comes out near 90%), so it is left out for these sectors. LSEG's "Banking
-# Services" also holds the NBFCs; fintech and exchanges keep EBITDA.
+# EBITDA adds back finance costs, which for a lender are cost of doing business (NBFC "EBITDA
+# margin" ~90%), so left out for these sectors. LSEG's "Banking Services" also holds NBFCs; fintech
+# and exchanges keep EBITDA.
 FINANCIAL_SECTORS = {
     "Banking Services",
     "Insurance",
@@ -245,15 +244,15 @@ def _latest_revision(
 
 
 def suspect_filings(session: Session, company_ids: list[int]) -> set[int]:
-    """Filings whose amounts V11 suspects are in the wrong unit and could not correct: their
-    figures stay off growth, margins and comps until someone checks the PDF. Returns every such
-    filing, not only the given companies' (callers look filings up by id); an empty list of
-    companies means nothing to look up, so nothing is read."""
+    """Filings whose amounts V11 suspects are in the wrong unit and could not correct: figures stay
+    off growth, margins and comps until someone checks the PDF. Returns every such filing, not only
+    given companies' (callers look up by id); empty company list = nothing to look up, nothing read.
+    """
     if not company_ids:
         return set()
-    # Written as the partial index ix_filings_scale_suspect spells it, or Postgres can't use the
-    # index (the ORM's meta['scale'] subscript renders differently). All of them is a few dozen
-    # rows, so the list of companies is not needed to narrow it.
+    # Written as partial index ix_filings_scale_suspect spells it, or Postgres can't use the index
+    # (ORM's meta['scale'] subscript renders differently). Whole set is a few dozen rows, so no need
+    # to narrow by company.
     q = select(Filing.id).where(text("(filings.meta -> 'scale') ->> 'status' = 'suspect'"))
     return set(session.scalars(q))
 

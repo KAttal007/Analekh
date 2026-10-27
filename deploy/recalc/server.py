@@ -34,10 +34,9 @@ XLSM = "application/vnd.ms-excel.sheet.macroEnabled.12"
 ZIP_MAGIC = b"PK\x03\x04"  # an .xlsx or .xlsm is a zip file
 DISCARD_LIMIT = 8 * 1024 * 1024  # most of a refused body that is read and dropped
 
-# Written into each run's fresh profile before LibreOffice starts. Macros are never executed
-# (CLAUDE.md rule 7): execution is disabled outright and the security level is "very high". The
-# VBA project is loaded only so it can be saved back unchanged ("Save original Basic code"), and
-# is never made executable.
+# Written into each run's fresh profile before LibreOffice starts. Macros never executed (CLAUDE.md
+# rule 7): execution disabled outright, security level "very high". VBA project loaded only so it
+# can be saved back unchanged ("Save original Basic code"), never made executable.
 PROFILE_SETTINGS = """<?xml version="1.0" encoding="UTF-8"?>
 <oor:items xmlns:oor="http://openoffice.org/2001/registry" \
 xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">

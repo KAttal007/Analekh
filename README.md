@@ -69,7 +69,15 @@ flowchart LR
 
 ## Status
 
-**v0.0.5, status on 21 October 2026.** The data layer runs on real NSE data:
+**v0.0.5, status on 27 October 2026.** The plan, the new ideas and what each one needs are in
+[docs/roadmap.md](docs/roadmap.md); AI without paid APIs is in [AI.md](AI.md).
+
+Since 21 October: sign-in, roles and model locks; the stack runs on the Oracle Cloud Mumbai VM
+(deployed from GitLab, database and files restored, nightly database backup); CI runs on the VM's
+own runners; margins by company type (EBITDA, NIM, core pre-provision profit) and interest ratios
+for lenders; the Excel bridge links and scans a real workbook.
+
+The data layer runs on real NSE data (counts as of 21 October 2026, the last full count):
 
 | | |
 |---|---|
@@ -102,28 +110,32 @@ The full picture is in design doc 26.1. In short:
 | 0 → v0.1.0 | Hand-check of about 10 values per filing against the results PDF for a golden set covering every results format; `analekh golden-test`; the 44 V11 suspects against their PDFs |
 | 1 → v0.2.0 | The 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests); the 169 without any sector; the Ind-AS profit tag for about 2,400 filings (owner's decision); the scheduler on a server (it runs in Docker on the laptop for now) |
 | 2 | Real model templates and existing models from an analyst; balance sheet and cash flow history; desktop Excel for the bridge; debt and cash for EV-based valuation |
-| 3 | A valid Anthropic API key; a source for presentations and transcripts; the embeddings provider |
-| 4 | Report drafting (Word and PowerPoint writers, style check, rating from the analyst's model); a valid API key to test it end to end |
-| 5 | Hosting: the VM runs in Oracle Cloud's Mumbai region (free tier) and the stack deploys from GitLab; the database restore, a domain, Cloudflare and backups are left (design doc 22.7) |
+| 3 | A model for extraction: the local stack in [AI.md](AI.md) (Ollama, Qwen2.5 7B) or an API key; a source for presentations and transcripts; V10 |
+| 4 | Report drafting (Word and PowerPoint writers, style check, rating from the analyst's model); a model to test it end to end |
+| 5 | Debt and cash for EV multiples; branded templates; demo. Hosting is up (Oracle Cloud Mumbai, deployed from GitLab); left: off-box backups, SSH limited to the owner, the domain and Cloudflare (design doc 22.7) |
 
 ### Next up
 
-1. **Report drafting** (design doc 6.8, 17): the quarterly update and initiating coverage
-   writers for Word and PowerPoint, with the grounding and style checks and the rating read from
-   the analyst's model; then the **Q&A screen**.
-2. **Hosting** (design doc 22.7): the Oracle Mumbai VM is up and NSE answers from it. Finish the
-   first deploy, restore the data (dump and restore, not re-download), then a domain with
-   Cloudflare in front, nightly backups, and the scheduler moved off the laptop.
-3. **Golden set and hand-check** across the results formats, then `analekh golden-test`:
-   completes Phase 0 (v0.1.0).
-4. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
-5. **Peer view** of growth and margins; red flags and alerts from the feeds.
-6. **Sector editing screen** (owner's values outrank NSE's).
+The full order, with the new ideas, is in [docs/roadmap.md](docs/roadmap.md). In short:
 
-Decisions waiting on the owner: the Ind-AS profit tag (about 2,400 filings); the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide);
-bank presentation and calculations (owner's walkthrough); hosting (the domain name); the logo;
-investor presentations through NSE's announcements list; the 250 BSE-only filers (manual import
-or a tooltip); the Anthropic API key.
+1. **Golden set and hand-check** across the results formats, then `analekh golden-test`, and
+   the 44 V11 suspects: completes Phase 0 (v0.1.0).
+2. **Hosting hardening** (design doc 22.7): the sign-in limit behind the proxies, SSH limited to
+   the owner, backups off the box with a test restore, the domain with Cloudflare.
+3. **Local AI stack** ([AI.md](AI.md)): Ollama on the VM and the laptop, the provider switch,
+   the quality gate on the golden set.
+4. **Report drafting** (design doc 6.8, 17): the quarterly update and initiating coverage
+   writers for Word and PowerPoint, with the grounding and style checks and the rating read from
+   the analyst's model; then **call highlights** and the **Q&A screen**.
+5. **Offer documents for recent listings** (RHP, then the Prospectus), once the SEBI host is approved.
+6. **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS.
+7. **Peer view** of growth and margins; red flags and alerts; the sector editing screen.
+
+Decisions waiting on the owner: the SEBI host for offer documents and NSE paths for
+announcements and debt filings (rule 1); moving each AI job to a local model; the Ind-AS profit
+tag (about 2,400 filings); the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide); bank
+presentation and calculations (owner's walkthrough); the domain name; the logo; the 250
+BSE-only filers (manual import or a tooltip).
 
 ### Tracker
 
@@ -156,8 +168,9 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Company search (API and CLI) | ✅ | Type-ahead: one letter matches the start, two or more match anywhere in ticker or name; paged |
 | Web design system and app shell (sidebar, tokens, dark mode, shared components) | ✅ | Used with real data; phone widths checked (390, 1,366, 2,000 px) |
 | Web type-ahead search box | ✅ | Used against the live API |
-| Results desk on Home (`GET /desk`) | ✅ | Reporters ten per page, YoY revenue, profit and EBITDA margin, movers, sector progress; filters in the URL |
-| Company page: basis switch, Latest quarter column (`GET /companies/{symbol}/glance`), lakh amounts | ✅ | QoQ and YoY with margins in bps; notes and tags open on hover or tap; dash with a reason when a comparison quarter was never filed |
+| Results desk on Home (`GET /desk`) | ✅ | Reporters ten per page, YoY revenue, profit and a Margin column by company type (EBITDA; NIM for lenders; core pre-provision profit for brokers and asset managers), movers, sector progress; filters in the URL |
+| Sign-in, roles, first password by email, model locks | ✅ | Every route signed in except login, reset and `/public/*`; admin and analyst; one holder per model with read-only views for others (migrations 0010 to 0012) |
+| Company page: basis switch, Latest quarter column (`GET /companies/{symbol}/glance`), lakh amounts | ✅ | QoQ and YoY with margins in bps; notes and tags open on hover or tap; dash with a reason when a comparison quarter was never filed. Lenders: NIM chart and Interest ratios (cost of borrowing, spread, yield); on phones the chart drops in-bar figures and the chart tabs scroll inside the card |
 | Revised results: newest filed value wins; Restated / Revised / Superseded tags | ✅ | `analekh recompute-latest` switched 108 values; NSE's revision flag stored on new filings |
 | Watchlist and coverage levels | ✅ | Desk-style watchlist: price, market cap, latest quarter, YoY, basis and status badges, coming results |
 | Feed watcher, polite fetcher, linking, storage | ✅ | Polled by Celery beat since 2026-10-21 (announcements every 5 minutes, event feeds every 30). XBRL stored gzipped. The results feed is frozen since 24 August; results now come as integrated filings |
@@ -183,16 +196,19 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Built-in NBFC and consumer templates | 🟡 | P&L and KPIs only; balance sheet and cash flow 🔲 |
 | Coverage Builder (fill, propose assumptions, finalize) | 🟡 | |
 | Discovery and tags, change sets, headless apply | 🟡 | |
-| Excel bridge (xlwings) | 🟡 | First run on an analyst's machine |
+| Excel bridge (xlwings) | 🟡 | Link and scan verified on a real workbook in desktop Excel (2026-10-24), open or closed; `apply` not yet tried on a real model |
 | Web review screens (change sets, assumptions, models, templates) | 🟡 | |
 
 #### Phase 3 · Document AI
 
 | Item | Status | Notes / still needed |
 |---|:---:|---|
-| PDF read, page classifier, KPI extraction with quote check, chunking, transcripts | 🟡 | API key, golden set, classifier tuning |
+| PDF read, page classifier, KPI extraction with quote check, chunking, transcripts | 🟡 | A model (local plan in [AI.md](AI.md)), golden set, classifier tuning. Scans read by RapidOCR |
 | V10 (XBRL wins over KPI values) in `docs/pipeline.py` | 🔲 | Map KPI names to XBRL names |
-| Embeddings | ⛔ | Provider undecided (open question 28.7) |
+| Embeddings | 🟡 | Local embedder in `docs/embeddings.py` (`EMBEDDINGS_PROVIDER=local`); open question 28.7 to close |
+| Call recordings to text (Whisper) | ✅ | `analekh transcribe-audio`, GPU when present |
+| Local models (Ollama) for extraction and drafts | 🔲 | [AI.md](AI.md): provider switch, `local_llm` queue, quality gate |
+| Offer documents (DRHP, RHP, Prospectus) | 💬 | Needs the SEBI host approved; [docs/roadmap.md](docs/roadmap.md) section 4.1 |
 
 #### Phase 4 · GenAI outputs
 
@@ -219,10 +235,10 @@ Keep these tables current in the same merge request as the change, and add a lin
 
 | Item | Status | Notes / still needed |
 |---|:---:|---|
-| GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main` |
-| Production deploy from GitLab | 🟡 | Runner tagged `india` on the Oracle Mumbai VM builds the Arm64 images and deploys by hand-approved job from `main` or a release tag (`PRODUCTION_URL`); first deploy in progress. Staging and DAST still need `STAGING_URL` |
-| Hosting in India | 🟡 | Oracle Cloud Mumbai, free tier (Arm64, 4 OCPU, 24 GB). NSE's API, RSS feeds and bhavcopy answer from the VM (tested 2026-10-26). To do: restore the database and files, domain and Cloudflare, backups, SSH limited to the owner's address, client-address check for the sign-in limit behind the proxies |
-| CI jobs on the VM (no GitLab minutes) | ✅ | Second runner (Docker executor) takes the untagged jobs; shared runners are off for the project. Container scanning gives no report on Arm64 images yet |
+| GitLab pipeline (lint, tests, web, security scans, image) | ✅ | Green on `main`. Python jobs run on `ghcr.io/astral-sh/uv:python3.12-trixie-slim` (uv built in), cache `.venv` keyed on `uv.lock`, and retry twice; pip and uv wait longer on a stalled download (2026-10-27) |
+| Production deploy from GitLab | ✅ | Runner tagged `india` on the Oracle Mumbai VM builds the Arm64 images and deploys by hand-approved job from `main` or a release tag (`PRODUCTION_URL`). Staging and DAST still need `STAGING_URL` |
+| Hosting in India | 🟡 | Oracle Cloud Mumbai, free tier (Arm64, 4 OCPU, 24 GB, Ubuntu 24.04). NSE's API, RSS feeds and bhavcopy answer from the VM. Database restored (Alembic `0012`), 59,366 stored files copied, nightly `pg_dump` kept 7 days, `fail2ban` and `unattended-upgrades` installed. To do: backups off the box, SSH limited to the owner's address, the sign-in limit behind the proxies, domain and Cloudflare |
+| CI jobs on the VM (no GitLab minutes) | ✅ | Second runner (Docker executor) takes the untagged jobs, with `pull_policy = ["if-not-present"]` so images are not pulled every job; shared runners are off for the project. Container scanning gives no report on Arm64 images yet |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0012`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
 | Design documents | ✅ | v0.0.5 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |

@@ -1,7 +1,7 @@
 """Single entry point for Claude API calls; logs tokens per call in llm_calls (design doc 11.3, 19).
 
-Every call enables server-side refusal fallbacks (``fallbacks="default"``) so a safety-classifier
-decline is retried on Anthropic's recommended fallback model instead of failing the job.
+Every call enables server-side refusal fallbacks (``fallbacks="default"``): a safety-classifier
+decline retries on Anthropic's recommended fallback model instead of failing the job.
 """
 
 import base64

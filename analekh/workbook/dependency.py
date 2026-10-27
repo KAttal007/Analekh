@@ -1,8 +1,8 @@
 """Static formula dependency graph (design doc 10.2).
 
-Built from openpyxl's formula tokenizer, so no Excel is needed. INDIRECT/OFFSET (and other
-volatile reference functions) cannot be resolved statically: any cell using them is reported as
-unknown impact rather than guessed at.
+Built from openpyxl's formula tokenizer, no Excel needed. INDIRECT/OFFSET (and other volatile
+reference functions) can't be resolved statically: any cell using them reported as unknown
+impact, not guessed.
 """
 
 import re

@@ -1,10 +1,10 @@
-"""Revised results: which filing of a quarter is in use, what it replaced and what changed.
+"""Revised results: which filing of a quarter is in use, what it replaced, what changed.
 
-A company can file a quarter more than once on the same basis: a revision correcting numbers, or
-the quarter's own figures after results that covered a half-year only (Canara Robeco AMC, March
-2026). The newest filed one is in use (``ingest.pipeline.refresh_latest``); the others are kept as
-history. NSE's own flag ("Original" / "Revision") is stored when the filing came from the
-integrated-filing list; older rows are labelled by filing order (``infer_revision_flags``).
+A company can file a quarter more than once on one basis: a revision correcting numbers, or the
+quarter's own figures after results covering a half-year only (Canara Robeco AMC, March 2026).
+Newest filed is in use (``ingest.pipeline.refresh_latest``); others kept as history. NSE's flag
+("Original" / "Revision") stored when filing came from integrated-filing list; older rows labelled
+by filing order (``infer_revision_flags``).
 """
 
 from dataclasses import dataclass, field

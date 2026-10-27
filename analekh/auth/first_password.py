@@ -1,9 +1,9 @@
-"""The first password: made by the server, emailed once, valid for `first_password_hours`
-(first-password design, sections 4 and 6).
+"""First password: server-made, emailed once, valid `first_password_hours` (first-password design,
+sections 4, 6).
 
-The plain text exists only as a return value of `issue` and in the email body. Nothing here logs
-it, and `issue` does not commit: the caller commits, then calls `send` (or use `send_now`), or
-hands `deliver` to a background task so the reply does not wait for the mail server.
+Plain text exists only as return value of `issue` and in email body; never logged. `issue` does
+not commit: caller commits, then calls `send` (or `send_now`), or hands `deliver` to background
+task so reply does not wait for mail server.
 """
 
 from collections.abc import Callable

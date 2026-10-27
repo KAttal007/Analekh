@@ -1,7 +1,7 @@
 """Grounded report generation (design doc 11): flash, call digest, red flags, draft note, Q&A.
 
-A manual tool loop keeps every tool result of the run so the grounding check can verify each
-number in the output. Ungrounded output is returned blocked, never silently shown.
+Manual tool loop keeps every tool result of the run so grounding check can verify each number in
+output. Ungrounded output returned blocked, never silently shown.
 """
 
 import json

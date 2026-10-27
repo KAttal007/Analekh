@@ -115,12 +115,11 @@ def _root_rels(data: bytes) -> bytes:
 
 
 def write_tag_file(path: Path, tag: Tag) -> None:
-    """Write the tag into the file by patching three small parts of the package.
+    """Write tag into file by patching three small package parts.
 
-    Everything else (sheets, styles, printer settings, images, VBA) is copied byte for byte, so
-    linking never changes the analyst's model beyond the hidden tag. The new file is built
-    beside the original and swapped in at the end: a failure leaves the original untouched, and
-    a file Excel has open raises WorkbookLocked.
+    Everything else (sheets, styles, printer settings, images, VBA) copied byte for byte: linking
+    never changes analyst's model beyond hidden tag. New file built beside original, swapped in at
+    end: failure leaves original untouched; file Excel has open raises WorkbookLocked.
     """
     tmp = path.with_name(f".{path.stem}.analekh-tmp{path.suffix}")
     try:

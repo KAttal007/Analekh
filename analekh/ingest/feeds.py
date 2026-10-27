@@ -1,6 +1,6 @@
-"""NSE RSS feed watcher for the whole universe (design doc 9.2).
+"""NSE RSS feed watcher for whole universe (design doc 9.2).
 
-Items carry no reliable GUID, so item_key = SHA-256(link + pubDate). Every item is kept forever;
+Items have no reliable GUID, so item_key = SHA-256(link + pubDate). Every item kept forever;
 upsert on (feed, item_key) makes polling idempotent.
 """
 

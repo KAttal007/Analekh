@@ -1,15 +1,14 @@
-"""Results seasons: when the results watcher asks NSE for new filings (design doc 9.6).
+"""Results seasons: when results watcher asks NSE for new filings (design doc 9.6).
 
-SEBI requires quarterly results within 45 days of the quarter end and the year's results within
-60 days (LODR 33). A season runs from day 5 after a quarter ends to two days past its deadline,
-since the XBRL can follow a last-day board meeting by up to 24 hours:
+SEBI: quarterly results within 45 days of quarter end, year's results within 60 days (LODR 33).
+Season runs from day 5 after quarter end to two days past deadline (XBRL can follow a last-day
+board meeting by up to 24 hours):
 
     Q1  5 Jul - 16 Aug     Q2  5 Oct - 16 Nov     Q3  5 Jan - 16 Feb     Q4  5 Apr - 1 Jun
 
-In a season the watcher runs every hour from 09:00 to 23:00 IST; outside one, once a day at
-21:00, for late filers and revisions. NSE shows a filing about a second after it is filed and
-fewer than 1% of filings come between midnight and 09:00 (checked on 2026-10-18), so this misses
-almost nothing and makes about 45% fewer requests than polling every hour all year.
+In season watcher runs hourly 09:00 to 23:00 IST; outside, once a day at 21:00 for late filers and
+revisions. NSE shows a filing ~1 second after filed and under 1% of filings come between midnight
+and 09:00 (checked 2026-10-18): misses almost nothing, ~45% fewer requests than hourly all year.
 """
 
 from dataclasses import dataclass

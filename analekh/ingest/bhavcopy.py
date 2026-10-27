@@ -1,12 +1,11 @@
 """Daily closing prices from NSE's bhavcopy (design doc 3.3: one static reference price at a time).
 
-NSE publishes one file per trading day after the close, on nsearchives (rule 1, owner-approved
-2026-10-17): a zip of one CSV with every traded security, its ISIN, open, high, low, close,
-previous close and volume. One request a day. Only the latest day is kept: each new file
-replaces the previous day's prices (owner's rule, 2026-10-18), and the day's change comes from the
-previous close the file carries. Rows are matched to companies by ISIN; market cap is the close
-times the shares outstanding: paid-up equity capital from the latest results filing / the face
-value in NSE's equity list. The results watcher recomputes it when new filings arrive.
+NSE publishes one file per trading day after close, on nsearchives (rule 1, owner-approved
+2026-10-17): zip of one CSV, every traded security with ISIN, open, high, low, close, previous
+close, volume. One request a day. Only latest day kept: each file replaces previous day's prices
+(owner's rule, 2026-10-18); day's change from the file's previous close. Rows matched to companies
+by ISIN; market cap = close x shares outstanding: paid-up equity capital from latest results
+filing / face value in NSE's equity list. Results watcher recomputes when new filings arrive.
 """
 
 import csv
@@ -111,15 +110,15 @@ JUMP = 50  # bonus and rights issues never move paid-up capital this far in a qu
 
 
 def paid_up_capital(history: list[tuple[date, Decimal]], assets: Decimal | None) -> Decimal | None:
-    """The paid-up capital to use from a company's filed values (period end, value).
+    """Paid-up capital to use from a company's filed values (period end, value).
 
-    Filers sometimes tag it 1,000 to 1,00,000 times too large: in the latest quarter (Steelcast,
-    CMR Green, Orient Bell, June 2026) or the earlier ones (Taurian, Lloyds). The errors only ever
-    go up, so when the latest quarter and the one before differ by more than JUMP times, the
-    smaller is used. A company whose every value is wrong (Vishwas: ₹10 lakh crore) is caught by
-    its total assets: heavily loss-making companies carry capital above their assets, but not
-    ASSETS_MULTIPLE times (GTL Infra and TTML: 20 times at most). A quarter filed twice
-    (standalone, consolidated) with different values uses the larger."""
+    Filers sometimes tag it 1,000 to 1,00,000 times too large: in latest quarter (Steelcast, CMR
+    Green, Orient Bell, June 2026) or earlier ones (Taurian, Lloyds). Errors only go up, so when
+    latest quarter and the one before differ by more than JUMP times, use the smaller. Company with
+    every value wrong (Vishwas: Rs 10 lakh crore) caught by total assets: heavy loss-makers carry
+    capital above assets, but not ASSETS_MULTIPLE times (GTL Infra, TTML: 20x at most). Quarter
+    filed twice (standalone, consolidated) with different values: use larger.
+    """
     by_period: dict[date, Decimal] = {}
     for end, value in history:
         if assets is not None and value > assets * ASSETS_MULTIPLE:
@@ -135,10 +134,11 @@ def paid_up_capital(history: list[tuple[date, Decimal]], assets: Decimal | None)
 
 
 def shares_outstanding(session: Session, company_ids: list[int]) -> dict[int, Decimal]:
-    """Shares in issue: paid-up equity capital from each company's results filings divided by the
-    face value in NSE's equity list. The filed face value is a fallback only: filers tag it as 0
-    (Honasa), as their capital (Bharti Airtel: 19,13,672) or from before a split, while the list is
-    current, as the price is. (Insurers' NumberOfShares is no better: New India, 2,400.)"""
+    """Shares in issue: paid-up equity capital from results filings / face value in NSE's equity
+    list. Filed face value is fallback only: filers tag 0 (Honasa), their capital (Bharti Airtel:
+    19,13,672) or pre-split value, while the list is current, as price is. (Insurers' NumberOfShares
+    no better: New India, 2,400.)
+    """
     face: dict[int, Decimal] = {}
     insurers: set[int] = set()
     for cid, value, taxonomy in session.execute(

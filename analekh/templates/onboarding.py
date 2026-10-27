@@ -1,9 +1,9 @@
 """Template onboarding (design doc 14, 6.3).
 
 Upload -> read structure -> suggested mapping with confidence -> analyst confirms once -> test
-build with one real company -> activate. Editing creates a new version; models keep the version
-they were built on. Uploading an existing model for another company clears its historical
-hardcoded inputs (formulas kept); uncertain cells are listed, never deleted.
+build with one real company -> activate. Editing makes a new version; models keep the version they
+were built on. Uploading an existing model for another company clears its historical hardcoded
+inputs (formulas kept); uncertain cells listed, never deleted.
 """
 
 import io

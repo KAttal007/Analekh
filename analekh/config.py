@@ -30,9 +30,9 @@ class Settings(BaseSettings):
     feed_poll_seconds: int = 300
     event_feed_poll_seconds: int = 1800
     universe_refresh_cron: str = "0 6 * * 1"  # weekly, Monday 06:00 IST
-    # One request to NSE's latest-results list per run, at 09:00, 10:00 ... 23:00 IST; outside a
-    # results season analekh.seasons skips every run but 21:00 (design doc 9.6; every hour from
-    # 2026-10-23, every 2 hours from 2026-10-16, once a day before that).
+    # One request to NSE's latest-results list per run, 09:00 to 23:00 IST hourly; outside a results
+    # season analekh.seasons skips all but 21:00 (design doc 9.6; hourly from 2026-10-23, every 2
+    # hours from 2026-10-16, daily before).
     results_watch_cron: str = "0 9-23 * * *"
     # NSE's daily bhavcopy, after the close on trading days; hourly retries until it is published
     # (a stored day is skipped, so only the first successful run downloads anything).
@@ -49,15 +49,15 @@ class Settings(BaseSettings):
     # A listed XBRL file that arrives cut off is fetched this many times in all before it is
     # skipped (seen on Laurus Labs: the XML stops partway through).
     integrated_file_attempts: int = 2
-    # The results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest
-    # day on record: 692 filings, so 1000 covers a day of missed runs. A truncated page makes the
-    # next run ask for double, up to the cap; a full one resets it.
+    # Results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest day
+    # on record: 692 filings, so 1000 covers a day of missed runs. Truncated page: next run asks
+    # double, up to cap; full page resets.
     latest_page_size: int = 1000
     latest_max_page_size: int = 4000
 
-    # Recalculation on Apply (design doc 16.5, 22.1). With RECALC_URL set, workbooks are sent to the
-    # `recalc` service (LibreOffice in its own container, on an internal network); the token travels
-    # in the X-Recalc-Token header only. With it empty, LibreOffice runs locally when installed.
+    # Recalculation on Apply (design doc 16.5, 22.1). RECALC_URL set: workbooks go to `recalc`
+    # service (LibreOffice, own container, internal network); token only in X-Recalc-Token header.
+    # Empty: local LibreOffice if installed.
     recalc_url: str = ""
     recalc_token: str = ""
     # The service kills LibreOffice after this long and answers 504; the client waits 15 s longer
@@ -75,15 +75,15 @@ class Settings(BaseSettings):
     # --adopt-local` moves it to the first admin.
     default_user_id: str = "local"
 
-    # Browser origins allowed to call the API with the session cookie, separated by ";": the web
-    # app, and the Office add-in once its dev certificate covers 127.0.0.1 (its manifest still says
-    # https://localhost:3000, so add that origin here until then).
+    # Browser origins allowed to call API with session cookie, ";"-separated: web app, and Office
+    # add-in once its dev certificate covers 127.0.0.1 (manifest still says https://localhost:3000,
+    # so add that origin until then).
     cors_origins: str = "http://127.0.0.1:5173;https://127.0.0.1:3000"
 
     # Sign-in (auth design, stage 1)
-    # The one switch: ENV=dev keeps sign-in OFF (every request acts as the built-in admin; the
-    # session cookie works over plain http); anything else (ENV=prod) keeps it ON. Defaults to
-    # prod so a forgotten setting fails safe; local `.env` files say ENV=dev.
+    # One switch: ENV=dev = sign-in OFF (every request is built-in admin; session cookie works over
+    # http); anything else (ENV=prod) = ON. Defaults to prod so forgotten setting fails safe; local
+    # `.env` says ENV=dev.
     env: str = "prod"
     # Optional override, dev only: AUTH_ENABLED=true tries the real sign-in while ENV=dev.
     # AUTH_ENABLED=false outside dev is refused at start-up (check_auth_switch).
@@ -107,9 +107,9 @@ class Settings(BaseSettings):
     # Long enough that guessing pays nothing (owner, 2026-10-22: raised from 5); short enough that
     # a colleague paused by someone else's typos is not shut out for long.
     login_pause_minutes: int = 15
-    # Failed sign-ins per client address (any accounts): past the limit, that address gets a 429
-    # until its oldest failure leaves the window. Kept in memory, per API process: before hosting
-    # with several processes or behind a proxy, move it to Redis and read trusted proxy headers.
+    # Failed sign-ins per client address (any accounts): past limit, address gets 429 until oldest
+    # failure leaves window. In memory, per API process: before hosting with several processes or
+    # behind a proxy, move to Redis and read trusted proxy headers.
     login_ip_max_failures: int = 30
     login_ip_window_minutes: int = 15
     login_ip_max_tracked: int = 10_000
@@ -138,9 +138,9 @@ class Settings(BaseSettings):
     public_cache_seconds: int = 60
     public_cache_max_entries: int = 64
     public_calendar_max_days: int = 120  # a public request may not scan more than four months
-    # Database pool. The API runs requests on `api_thread_limit` worker threads; the pool must be
-    # at least that big or waiting threads starve the ones that would free a connection. When it
-    # is full a request waits `db_pool_timeout_seconds`, then gets a 503 instead of hanging.
+    # Database pool. API runs requests on `api_thread_limit` threads; pool must be at least that big
+    # or waiting threads starve those that would free a connection. Full pool: request waits
+    # `db_pool_timeout_seconds`, then 503, no hang.
     api_thread_limit: int = 40
     db_pool_size: int = 20
     db_pool_overflow: int = 20

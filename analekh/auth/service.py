@@ -1,8 +1,8 @@
 """Sign-in service: sessions, failure tiers, disable (auth design, section 5).
 
-Everything goes through SQLAlchemy bound parameters. Tokens are random and only their SHA-256 is
-stored. Functions flush but never commit: the caller commits, and must commit after a failed
-sign-in too, so the failure counters persist. `now` is a parameter so tests control time.
+SQLAlchemy bound parameters only. Tokens random; only SHA-256 stored. Functions flush, never
+commit: caller commits, also after a failed sign-in so failure counters persist. `now` is a
+parameter so tests control time.
 """
 
 import hashlib

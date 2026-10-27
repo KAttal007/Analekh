@@ -1,12 +1,12 @@
-"""Results and meeting calendar, read from the Board Meetings feed (design doc 6.9).
+"""Results and meeting calendar, read from Board Meetings feed (design doc 6.9).
 
-NSE's Board_Meetings.xml writes each intimation as a company name for the title and
-"<purpose> |Meeting Date: 27-Oct-2026" for the description (seen in real items, 2026-10-21).
-Nothing is stored beyond the feed items already kept: the calendar is a read over them.
+NSE's Board_Meetings.xml: company name as title, "<purpose> |Meeting Date: 27-Oct-2026" as
+description (seen in real items, 2026-10-21). Nothing stored beyond feed items already kept:
+calendar is a read over them.
 
-An event has a ``kind``: ``results`` (purpose names financial results), ``meeting`` (any other
-board meeting) or ``concall`` (reserved: an earnings-call source needs the owner's approval under
-rule 1, so no code produces it yet; the API and the web app already carry the kind).
+Event ``kind``: ``results`` (purpose names financial results), ``meeting`` (any other board
+meeting), ``concall`` (reserved: earnings-call source needs owner's approval under rule 1, no code
+produces it yet; API and web app already carry the kind).
 """
 
 import re
@@ -67,8 +67,9 @@ def events(
 ) -> list[CalendarEvent]:
     """Calendar events dated start..end, oldest first.
 
-    A company's results date can move: the newest intimation of its results meeting wins, so a
-    rescheduled board meeting shows once, on its new date. Other meetings are kept per date."""
+    A company's results date can move: newest intimation of its results meeting wins, so a
+    rescheduled board meeting shows once, on new date. Other meetings kept per date.
+    """
     since = (now or datetime.now(UTC)) - timedelta(days=LOOKBACK_DAYS)
     watched: set[int] = set()
     if watchlist_user:
@@ -107,9 +108,8 @@ def events(
         else:
             other[(company.id, when)] = ev
 
-    # Past days: who actually filed results then. The feed only holds recent intimations, so
-    # without this the days already gone would be empty. A filing replaces that company's
-    # announced results on the same day.
+    # Past days: who actually filed results then. Feed holds only recent intimations, so without
+    # this past days would be empty. A filing replaces that company's announced results on same day.
     filed = _filed_results(session, start, end, watched, now)
     filed_keys = {(e.symbol, e.date) for e in filed}
     latest_results = {

@@ -1,6 +1,7 @@
 # Pending items
 
 Open work, checked against CLAUDE.md ("Where the skeleton stops") and the model-locks work.
+Last reviewed 2026-10-27. The plan and order of work are in [roadmap.md](roadmap.md).
 Tick a box when it is done. Items marked *status unknown* have not been confirmed.
 
 ## Owner actions
@@ -12,8 +13,9 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 
 ## Data and mapping
 
-- [ ] Sector mapping: run the index list importer (`universe/sectors.py`); `data/sector_map.csv` holds overrides only
-- [ ] SME list path: confirm it in `universe/loader.py`
+- [x] Sector mapping: index list importer run (2026-10-16): NSE's own sector for 1,430 companies; `data/sector_map.csv` holds overrides only
+- [ ] LSEG-to-NSE sector mapping (25 groups to decide) and the 169 companies with no sector
+- [x] SME list path confirmed (580 companies; two-digit-year dates parsed)
 - [ ] Fill `universe/data/nifty500.csv` (backfill priority list, still empty)
 - [ ] Verify XBRL element names marked `# verify` in `xbrl/elements.py` against real filings; run `analekh revalidate` after changes
 - [ ] Map the insurers' balance sheet (not mapped yet)
@@ -25,7 +27,10 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 ## Pipeline and GenAI
 
 - [ ] Wire V10 (XBRL wins over AI-extracted values) into `docs/pipeline.py`
-- [ ] Decide the embeddings provider (open question 28.7)
+- [ ] Confirm the embeddings provider (open question 28.7; a local embedder is built and is the default)
+- [ ] Local AI stack ([AI.md](../AI.md)): Ollama on the VM and the laptop, speeds recorded, Tailscale link, provider switch in `genai/client.py` with a `local_llm` queue, golden-set gate per job
+- [ ] Owner decision: SEBI host for offer documents ([roadmap.md](roadmap.md) 4.1); NSE paths for announcements and debt filings (4.2, 4.3)
+- [ ] Before building offer documents: check how RHPs and Prospectuses appear in SEBI's listing, and whether the abridged prospectus carries the summary financials; read SEBI's website terms
 - [ ] Unprocessed feed items: about 290 items from issuers outside the universe (mostly debt-only or unlisted) are never picked up, since the queue needs a matched company. They inflate the "unprocessed" column in `admin/app.py`. Proposed: count only matched items there and leave the rest in "unlinked" (not decided). Review the list in `out/unmatched_feed_items.csv` for companies worth adding to the universe
 
 ## Valuation
@@ -50,6 +55,9 @@ Done:
 - [x] Nightly `pg_dump` on the VM at 03:00 IST, checked readable, 7 days kept (`~/backup-db.sh`, cron)
 - [x] Object-storage files copied from the laptop to the server's MinIO (59,366 files, 4.5 GB, same count and ownership as the source); an iXBRL filing opens from the company page on the server
 - [x] `fail2ban` and `unattended-upgrades` installed (service status still to be confirmed)
+- [x] Hosting and the NSE-from-cloud finding recorded in `docs/design/deviations.md` and design doc 22.7 (2026-10-27)
+- [x] CI on uv's image with `.venv` cached on `uv.lock`, retries and longer timeouts; Docker runner `pull_policy = ["if-not-present"]` (2026-10-27)
+- [x] Ubuntu checked: 24.04.5 LTS, no release upgrade needed; routine `apt upgrade` with a backup first
 
 Remaining:
 
@@ -57,12 +65,13 @@ Remaining:
 - [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only)
 - [ ] Check that the per-address sign-in limit sees the real client address behind Caddy and nginx (code check; otherwise one address could lock everyone out, or the limit does nothing)
 - [ ] Domain name and Cloudflare in front (the `sslip.io` name cannot be proxied); then allow ports 80 and 443 only from Cloudflare's ranges
-- [ ] Record the hosting and the NSE-from-cloud finding in `docs/design/deviations.md` (design doc 22.7)
 - [ ] Container scanning gives no report on the Arm64 images (allowed to fail); decide how to scan them
 - [ ] Confirm `fail2ban` and `unattended-upgrades` are running: `systemctl is-active fail2ban`, `sudo fail2ban-client status sshd`, `systemctl list-timers apt-daily-upgrade.timer --no-pager`
 - [ ] Confirm the first scheduled backup ran: `tail -3 ~/backups/backup.log` on the VM
 
-Suggested order: the sign-in client-address check (security), SSH limited to the owner's address, the off-box backup bucket, then the domain with Cloudflare, the deviations entry and the scanning decision.
+- [ ] SSH from the college wifi and from Oracle Cloud Shell times out (seen 2026-10-27; the phone hotspot works). Cloud Shell could not reach the VM on 443 either, so check its network setting before relying on it
+
+Suggested order: the sign-in client-address check (security), SSH limited to the owner's address, the off-box backup bucket, then the domain with Cloudflare and the scanning decision.
 
 ## Status unknown (confirm)
 

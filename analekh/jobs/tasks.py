@@ -1,8 +1,8 @@
-"""Idempotent background jobs (design doc 2.2, 4, 9). Re-running any task never duplicates rows.
+"""Idempotent background jobs (design doc 2.2, 4, 9). Re-running a task never duplicates rows.
 
-Coverage levels decide the work: results XBRL is fetched and parsed for every filer; announcement
-PDFs are stored for everyone but the document pipeline runs only for watchlist companies or a
-company someone asked to analyse.
+Coverage levels decide work: results XBRL fetched and parsed for every filer; announcement PDFs
+stored for everyone, document pipeline only for watchlist companies or one someone asked to
+analyse.
 """
 
 import logging
@@ -164,9 +164,8 @@ def refresh_universe() -> dict:
 def sync_model(self, model_id: int, filing_id: int) -> dict:
     """Build a change set for a linked model from new results (section 16).
 
-    POST /models/{id}/sync locks the model for this job under the job's id; the job gives that
-    lock back when it ends, whether it succeeds or fails. A call with no job id (`analekh sync`)
-    has no lock to give back.
+    POST /models/{id}/sync locks model for this job under job's id; job gives lock back when it
+    ends, success or fail. Call with no job id (`analekh sync`) has no lock to give back.
     """
     try:
         return _sync_model(model_id, filing_id)
@@ -176,11 +175,11 @@ def sync_model(self, model_id: int, filing_id: int) -> dict:
 
 
 def _release_job_lock(model_id: int, job_id: str) -> None:
-    """Give back the lock this job holds, in a session of its own (the job's own session has
-    closed by now, committed or rolled back). Only a lock still carrying this job's id goes: a
-    newer job's lock, a colleague's after an admin freed the model, or none at all, stay as they
-    are. A failed release is logged, not raised, so the job's own outcome stands; the lock then
-    waits for its holder or an admin."""
+    """Give back lock this job holds, in its own session (job's session already closed, committed or
+    rolled back). Only a lock still carrying this job's id goes: newer job's lock, a colleague's
+    after admin freed model, or none, stay as they are. Failed release logged, not raised, so job's
+    outcome stands; lock then waits for holder or admin.
+    """
     from analekh.locks import release_for_job
 
     try:
@@ -192,10 +191,11 @@ def _release_job_lock(model_id: int, job_id: str) -> None:
 
 @task_revoked.connect
 def release_revoked_sync(sender: Any = None, request: Any = None, **_: Any) -> None:
-    """A sync job cancelled before it started, or killed while running, never reaches its own
-    `finally`: the worker's revoke signal gives its lock back instead. The worker sends the task
-    object as `sender` and the message as a `Context`, whose task name is `task`. A plain revoke
-    of a job already running sends nothing: the job then ends normally and releases itself."""
+    """Sync job cancelled before start, or killed while running, never reaches its `finally`:
+    worker's revoke signal gives lock back instead. Worker sends task object as `sender` and message
+    as `Context`, whose task name is `task`. Plain revoke of a running job sends nothing: job ends
+    normally and releases itself.
+    """
     name = getattr(sender, "name", None) or getattr(request, "task", None)
     if request is None or name != sync_model.name:
         return
@@ -260,18 +260,17 @@ def bulk_fetch_results(
     """Integrated-filing results for many companies (default: every company with a sector).
 
     One company per transaction, so a stopped run keeps what it stored; ``skip_done`` skips
-    companies that already have a results filing, so rerunning resumes. Stops at the first sign
-    that NSE is refusing or throttling us (403/429, timeouts) instead of retrying into a block.
-    Progress goes to one JSON line per company under ``log_dir``.
+    companies with a results filing, so rerun resumes. Stops at first sign NSE refuses or throttles
+    (403/429, timeouts), no retrying into a block. Progress: one JSON line per company under
+    ``log_dir``.
 
-    ``start_at`` resumes at that ticker (inclusive, in ticker order): the company NSE stalled on
-    stored nothing (its transaction rolled back), so it is fetched again in full.
-    ``skip_no_filings`` leaves out companies already listed in no-filings.csv as having nothing
-    on NSE, so a restart doesn't spend requests re-checking them (errors there are retried).
-    ``history`` fetches results from before integrated filings instead (NSE's financial-results
-    list, XBRL from 2018): every company in scope, whether or not it has filings already, and
-    the no-filings list is left alone. ``sectors`` limits the run to those sectors (exact names,
-    as on the company page), so a long run can go sector by sector.
+    ``start_at`` resumes at that ticker (inclusive, ticker order): company NSE stalled on stored
+    nothing (transaction rolled back), so fetched again in full. ``skip_no_filings`` skips companies
+    in no-filings.csv (nothing on NSE), so restart spends no requests rechecking them (errors there
+    retried). ``history`` fetches pre-integrated results instead (NSE's financial-results list, XBRL
+    from 2018): every company in scope, with or without filings, no-filings list untouched.
+    ``sectors`` limits run to those sectors (exact names, as on company page): long run goes sector
+    by sector.
     """
     import json
     import time

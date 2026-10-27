@@ -1,8 +1,8 @@
-"""Per-model locks and queued jobs (model-locks stage 2, task 4): a queued update gives its lock
-back when it ends, whether it succeeds, fails or is cancelled, and only the lock it was given.
+"""Per-model locks and queued jobs (model-locks stage 2, task 4): queued update gives its lock back
+when it ends, success, fail or cancel, and only the lock it was given.
 
-The task opens its own sessions (session_scope), so these tests work on committed rows in the
-test database and remove them afterwards.
+Task opens own sessions (session_scope), so these tests work on committed rows in test database
+and remove them afterwards.
 """
 
 from types import SimpleNamespace

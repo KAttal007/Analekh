@@ -1,15 +1,13 @@
 """Comparable companies table (design doc 18).
 
-TTM figures are the sum of the last four reported quarters, which must run back to back (a gap
-would sum four quarters spread over more than a year), all on one basis: consolidated when the
-company has four consolidated quarters, else standalone (many companies file standalone only),
-unless the caller fixes the basis. Each row records its basis so a mixed table is visible. EBITDA
-is derived as on the company page (glance.py) and left out for lenders and insurers. Book value is
-the latest balance sheet's equity (attributable to owners when consolidated; capital plus
-reserves for banks). EV = market cap + debt - cash, shown only once both debt and cash are
-sourced; until then EV multiples are blank rather than market cap passed off as EV. Multiples
-that would divide by zero or a negative denominator are left blank (shown as "n.m."), never
-forced.
+TTM = sum of last four reported quarters, must run back to back (a gap would sum four quarters
+over more than a year), all on one basis: consolidated if company has four consolidated quarters,
+else standalone (many file standalone only), unless caller fixes basis. Each row records basis so
+a mixed table is visible. EBITDA derived as on company page (glance.py), left out for lenders and
+insurers. Book value = latest balance sheet's equity (owners' when consolidated; capital plus
+reserves for banks). EV = market cap + debt - cash, shown only once both sourced; until then EV
+multiples blank, not market cap passed off as EV. Multiples dividing by zero or negative
+denominator left blank ("n.m."), never forced.
 """
 
 import io

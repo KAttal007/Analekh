@@ -36,7 +36,7 @@ INDAS: dict[str, tuple[str, ...]] = {
     "cfo": ("CashFlowsFromUsedInOperatingActivities",),
     # NBFCs (Division III) tag interest income apart from fees (FeesAndCommissionIncome): Bajaj
     # Finance, September 2026; 79 of 84 Ind-AS lenders tag it (June 2026). For a lender, finance
-    # costs are its interest expense.
+    # costs = interest expense.
     "interest_income": ("InterestEarned",),
     "interest_expense": ("FinanceCosts",),
     # Expected-credit-loss provisions (Bajaj Finance, September 2026): left out of the core
@@ -45,8 +45,8 @@ INDAS: dict[str, tuple[str, ...]] = {
 }
 
 # Banks: RBI format. Interest earned + other income = total income; total income - expenditure
-# (excluding provisions) - provisions + exceptional items = PBT. Seen on HDFC Bank and SBI
-# integrated filings, March and June 2026 quarters, both of which tie out.
+# (excl. provisions) - provisions + exceptional items = PBT. Seen on HDFC Bank, SBI integrated
+# filings, March and June 2026 quarters, both tie out.
 BANKING: dict[str, tuple[str, ...]] = {
     "revenue": ("InterestEarned",),
     "other_income": ("OtherIncome",),
@@ -76,10 +76,10 @@ BANKING: dict[str, tuple[str, ...]] = {
 }
 NBFC: dict[str, tuple[str, ...]] = {}  # Ind-AS names apply
 
-# General insurers: IRDAI format. Revenue account: premium earned + investment income + other
-# income = operating income; less operating expenses (claims, commission, expenses) = operating
-# profit, which moves to the shareholders' account; plus shareholders' investment and other
-# income, less non-operating expenses = PBT. Seen on ICICI Lombard (June 2026), which ties out.
+# General insurers: IRDAI format. Revenue account: premium earned + investment income + other income
+# = operating income; less operating expenses (claims, commission, expenses) = operating profit,
+# which moves to shareholders' account; plus shareholders' investment and other income, less
+# non-operating expenses = PBT. Seen on ICICI Lombard (June 2026), ties out.
 INSURANCE: dict[str, tuple[str, ...]] = {
     "revenue": ("PremiumEarned",),
     "gross_premium": ("GrossPremiumsWritten",),
@@ -115,12 +115,12 @@ INSURANCE: dict[str, tuple[str, ...]] = {
 }
 
 # Life insurers: IRDAI's life format (NSE files it as INTEGRATED_FILING_LI_). Policyholders'
-# account: net premium + investment income + other income + transfer from the shareholders'
-# account = total income; less benefits, actuarial liability, commission and expenses = surplus.
-# PBT comes from the shareholders' account (its income - its expenses). Seen on Canara HSBC Life,
-# five quarters to September 2026, all of which tie out exactly. Net premium is the top line, as
-# in the IRDAI format; APE and VNB, which analysts track, are not in the XBRL. The ratios
-# (solvency, persistency, expenses of management) are tagged as fractions: 1.8041 = 180.41%.
+# account: net premium + investment income + other income + transfer from shareholders' account =
+# total income; less benefits, actuarial liability, commission, expenses = surplus. PBT from
+# shareholders' account (income - expenses). Seen on Canara HSBC Life, five quarters to September
+# 2026, all tie out exactly. Net premium is top line, as in IRDAI format; APE and VNB (analysts
+# track) not in XBRL. Ratios (solvency, persistency, expenses of management) tagged as fractions:
+# 1.8041 = 180.41%.
 LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
     "revenue": ("NetPremiumIncome",),
     "gross_premium": ("GrossPremiumIncome",),
@@ -154,13 +154,13 @@ LIFE_INSURANCE: dict[str, tuple[str, ...]] = {
     "total_liabilities": (),
 }
 
-# Lenders' interest ratios (interest.py): NIM, yield, cost of borrowing, spread. Interest income
-# and expense are the "interest_income" / "interest_expense" lines in each format's table above.
+# Lenders' interest ratios (interest.py): NIM, yield, cost of borrowing, spread. Interest income and
+# expense = "interest_income" / "interest_expense" lines in each format's table above.
 # Balance-sheet lines summed into interest-earning assets and interest-bearing funding, whichever a
-# filing tags (banks: RBI Schedule 3 names; NBFCs: Division III names). Cash and balances with the
-# RBI (mostly cash in hand and the CRR, which earns nothing) and cash equivalents are left out; so
-# is DebtSecurities on the asset side, which in Division III is a liability (debt issued). Seen on
-# HDFC Bank and Bajaj Finance, 30 September 2026; banks file the balance sheet half-yearly only.
+# filing tags (banks: RBI Schedule 3 names; NBFCs: Division III names). Cash and RBI balances
+# (mostly cash in hand and CRR, earns nothing) and cash equivalents left out; so is DebtSecurities
+# on asset side (in Division III a liability: debt issued). Seen on HDFC Bank, Bajaj Finance, 30
+# September 2026; banks file balance sheet half-yearly only.
 EARNING_ASSETS = (
     "Advances",  # banks
     "Loans",  # NBFCs
@@ -202,11 +202,11 @@ def candidates(logical: str, taxonomy: str = "indas") -> tuple[str, ...]:
 
 
 def detect_taxonomy(elements: set[str]) -> str | None:
-    """Results format from the elements a filing tags, or None when nothing marks it.
+    """Results format from elements a filing tags, or None when nothing marks it.
 
-    Integrated filings share one schema for every filer, so the schema name no longer tells banks
-    and insurers apart. Banks and insurers never tag RevenueFromOperations; NBFCs do, and also tag
-    InterestEarned as part of their revenue, so that alone is not a bank marker.
+    Integrated filings share one schema for every filer, so schema name no longer separates banks
+    and insurers. Banks and insurers never tag RevenueFromOperations; NBFCs do, and also tag
+    InterestEarned as part of revenue, so that alone isn't a bank marker.
     """
     if "RevenueFromOperations" in elements:
         return None

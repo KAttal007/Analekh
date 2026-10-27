@@ -1,9 +1,8 @@
 """Grounding check (design doc 11.3).
 
-Every number in generated text must match a value returned by a tool call (or calc) in the same
-run. Unmatched numbers block the output and are shown to the analyst. Matching allows for the
-ways analysts write numbers: thousands separators, Indian grouping, % vs ratio, crore/lakh
-scaling, and display rounding.
+Every number in generated text must match a value from a tool call (or calc) in the same run.
+Unmatched numbers block output and show to analyst. Matching allows how analysts write numbers:
+thousands separators, Indian grouping, % vs ratio, crore/lakh scaling, display rounding.
 """
 
 import contextlib

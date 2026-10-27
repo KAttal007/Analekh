@@ -1,8 +1,8 @@
 """Model discovery and recognition, server side (design doc 13.2).
 
-The Excel bridge sends hints from each workbook it finds; this matches them against the
-universe in order of strength: hidden tag, then file name, then contents. The user confirms
-every new link once; after that the hidden tag makes recognition exact.
+Excel bridge sends hints per workbook; this matches them against universe by strength: hidden tag,
+then file name, then contents. User confirms each new link once; after that hidden tag makes
+recognition exact.
 """
 
 import re

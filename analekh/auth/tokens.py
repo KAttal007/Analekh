@@ -1,7 +1,7 @@
-"""Bearer tokens for the Excel bridge and add-in (auth design, section 5).
+"""Bearer tokens for Excel bridge and add-in (auth design, section 5).
 
-A token is a long random string the user creates and sees once; only its SHA-256 is stored. It
-travels in the `Authorization: Bearer` header, never in a URL, and carries the user's role.
+Long random string, user creates it and sees it once; only SHA-256 stored. Sent in
+`Authorization: Bearer` header, never in a URL; carries user's role.
 """
 
 import hashlib

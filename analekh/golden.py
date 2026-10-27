@@ -1,6 +1,6 @@
 """Golden-set accuracy (design doc 24): hand-checked values from real filings, compared exactly.
 
-Layout: ``tests/fixtures/golden/manifest.yaml`` lists filings and the values an analyst checked
+Layout: ``tests/fixtures/golden/manifest.yaml`` lists filings and values an analyst checked
 against the published results PDF::
 
     filings:
@@ -14,14 +14,14 @@ against the published results PDF::
           - element: OtherIncome             # or a raw element name
             ...
 
-The manifest comes from a worksheet: ``analekh golden-sheet`` copies the picked filings' XBRL
-from storage (no downloads) and writes ``golden-worksheet.xlsx`` with each line, Analekh's value
-and a link to the results PDF; the analyst marks every line against the PDF, and
-``analekh golden-import`` writes the manifest. A confirmed line expects the XBRL value (the PDF is
-rounded); a corrected one expects the PDF's value, so it fails until the cause is fixed.
+Manifest comes from a worksheet: ``analekh golden-sheet`` copies picked filings' XBRL from storage
+(no downloads) and writes ``golden-worksheet.xlsx`` (each line, Analekh's value, link to results
+PDF); analyst marks each line against PDF; ``analekh golden-import`` writes manifest. Confirmed
+line expects XBRL value (PDF is rounded); corrected line expects PDF's value, so it fails until
+cause is fixed.
 
-Raw exchange files are not committed if licensing is unclear (section 23): keep the folder
-local, or in a private CI artifact. Target: 100% exact match on mapped elements.
+Raw exchange files not committed if licensing unclear (section 23): keep folder local or in a
+private CI artifact. Target: 100% exact match on mapped elements.
 """
 
 import json
@@ -147,11 +147,10 @@ def _pick(symbol: str, end: str, statement: str, fmt: str) -> Pick:
     return Pick(symbol, date.fromisoformat(end), statement == "C", fmt)
 
 
-# Twenty filings across every results format, established large caps only. Recent filings are
-# picked from those NSE gave a results PDF link for; four from September 2023 cover the schemas
-# used before integrated filings (Ind-AS 2020, in-bse-fin and the RBI entry point), whose PDFs
-# are on the company's site. Quarter ends vary so the year to date is a half year, nine months or
-# a full year.
+# Twenty filings across every results format, established large caps only. Recent ones picked from
+# those NSE gave a results PDF link for; four from September 2023 cover pre-integrated schemas
+# (Ind-AS 2020, in-bse-fin, RBI entry point), PDFs on company's site. Quarter ends vary so year to
+# date is half year, nine months or full year.
 PICKS: tuple[Pick, ...] = (
     _pick("BHARTIARTL", "2025-06-30", "C", "Ind-AS"),
     _pick("M&M", "2025-09-30", "C", "Ind-AS"),
@@ -175,9 +174,9 @@ PICKS: tuple[Pick, ...] = (
     _pick("HDFCLIFE", "2026-06-30", "S", "Life insurer"),
 )
 
-# Lines checked for the quarter, by results format, as the PDF names them. Revenue and profit
-# are also checked for the year to date (results XBRL tags only the current period and the year
-# to date, not last year's columns): the dates, not the context ids, pick the column (rule 5).
+# Lines checked per quarter, by results format, as PDF names them. Revenue and profit also checked
+# for year to date (results XBRL tags only current period and YTD, not last year's columns): dates,
+# not context ids, pick the column (rule 5).
 LINES: dict[str, tuple[tuple[str, str], ...]] = {
     "indas": (
         ("revenue", "Revenue from operations"),
@@ -307,9 +306,8 @@ def sheet_lines(filing: ParsedFiling, taxonomy: str) -> list[SheetLine]:
     for period, p_start, p_end, rows in periods:
         for line, label in rows:
             fact = resolve(filing, line, taxonomy, p_start, p_end)
-            # A quarter line Analekh cannot find stays on the sheet, so the gap is recorded; not
-            # for exceptional items (often untagged when nil) or the year to date (older files
-            # tag none).
+            # Quarter line Analekh cannot find stays on sheet so the gap is recorded; not for
+            # exceptional items (often untagged when nil) or year to date (older files tag none).
             quarter_gap = p_start == start and line != "exceptional_items"
             if fact is not None or quarter_gap:
                 out.append(SheetLine(line, label, period, p_start, p_end, fact))

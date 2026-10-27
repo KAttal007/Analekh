@@ -1,7 +1,7 @@
 """Password hashing and email normalisation (auth design, section 5).
 
-Passwords are hashed with argon2id and never stored or logged in clear. Over-long passwords are
-refused before any hashing, so a huge input cannot be used to burn server time.
+argon2id; never stored or logged in clear. Over-long passwords refused before hashing, so huge
+input cannot burn server time.
 """
 
 import re

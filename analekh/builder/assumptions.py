@@ -1,9 +1,9 @@
 """First-pass assumptions (design doc 15.1 step 4, F11).
 
-Each driver gets a proposal from history (averages and trends of the last 4 to 12 quarters),
-with a one-line rationale built only from those numbers and citations to the facts used.
-Management guidance from the document pipeline can refine a proposal through the optional
-``refine`` hook (GenAI engine), which must keep the citations. The analyst accepts or edits each.
+Each driver gets a proposal from history (averages, trends of last 4 to 12 quarters), one-line
+rationale from those numbers only, citations to facts used. Management guidance from document
+pipeline can refine it through optional ``refine`` hook (GenAI engine), which must keep citations.
+Analyst accepts or edits each.
 """
 
 from collections.abc import Callable

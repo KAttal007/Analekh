@@ -1,9 +1,8 @@
-"""Results history: every stored quarter's P&L lines for one company on one basis (design doc
-19.1, company page), newest last, with an Excel export.
+"""Results history: every stored quarter's P&L lines for one company on one basis (design doc 19.1,
+company page), newest last, with Excel export.
 
-The same lines, derivations and exclusions as the latest-quarter view (glance.py): the company's
-own results format, EBITDA left out for lenders and insurers, and filings V11 suspects of the
-wrong unit left out.
+Same lines, derivations and exclusions as latest-quarter view (glance.py): company's own results
+format, EBITDA left out for lenders and insurers, filings V11 suspects of wrong unit left out.
 """
 
 import io

@@ -1,9 +1,9 @@
 """Apply approved change items (design doc 16.4).
 
-Headless path: openpyxl writes, then LibreOffice recalculation. The xlwings path (native Excel
-recalculation, formatting preserved) lives in analekh.excel_bridge and takes the same item list.
-The original workbook is never overwritten: the caller stores the result as a new model_version.
-Macros are preserved (keep_vba) and never executed.
+Headless path: openpyxl writes, then LibreOffice recalculates. xlwings path (native Excel
+recalculation, formatting kept) lives in analekh.excel_bridge, same item list. Original workbook
+never overwritten: caller stores result as new model_version. Macros kept (keep_vba), never
+executed.
 """
 
 import io

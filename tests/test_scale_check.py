@@ -114,9 +114,9 @@ def test_both_bases_slipped_together_are_corrected():
 
 
 def test_the_twin_of_a_corrected_filing_is_corrected_too():
-    # Rane Madras-like, second pass: consolidated is corrected already; the standalone filing is
-    # still 100 times small against its own past AND the consolidated, and the two bases normally
-    # run level. Standalone below consolidated counts here, unlike for a holding company.
+    # Rane Madras-like, second pass: consolidated already corrected; standalone still 100x small
+    # against own past AND consolidated, and the two bases normally run level. Standalone below
+    # consolidated counts here, unlike for a holding company.
     parsed = with_real_eps_unit(parse_instance(quarter_file(612, "Standalone", divide=100)))
     own = history([(s, e, v - 20) for s, e, v in NEIGHBOURS])
     consolidated = history(NEIGHBOURS + [(*Q2, 651)])

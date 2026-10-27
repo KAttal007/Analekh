@@ -1,8 +1,8 @@
-"""Find models in watched folders and extract identification hints (design doc 13.1-13.2).
+"""Find models in watched folders, extract identification hints (design doc 13.1-13.2).
 
-Runs on the analyst's machine. Reads .xlsx/.xlsm with openpyxl (macros are never executed),
-collects the hidden tag, header and cover text, modified time and fingerprint, and sends only
-those hints to the server: workbooks themselves stay on the user's machine (section 23).
+Runs on analyst's machine. Reads .xlsx/.xlsm with openpyxl (macros never executed); collects hidden
+tag, header and cover text, modified time, fingerprint; sends only those hints to server. Workbooks
+stay on user's machine (section 23).
 """
 
 import shutil
@@ -40,11 +40,11 @@ def _load(path: Path) -> Workbook:
 
 
 def _load_even_if_open(path: Path) -> Workbook:
-    """Read the workbook; if another program holds it, read a copy instead.
+    """Read workbook; if another program holds it, read a copy.
 
-    First a plain copy of the saved file; if Windows refuses that too (Excel often holds a file
-    exclusively), Excel itself is asked for a copy of the open workbook, which includes unsaved
-    edits. Nothing is written back to the original.
+    First a plain copy of saved file; if Windows refuses that too (Excel often holds files
+    exclusively), ask Excel itself for a copy of the open workbook (includes unsaved edits). Nothing
+    written back to original.
     """
     try:
         return _load(path)

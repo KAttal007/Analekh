@@ -1,8 +1,8 @@
 """Pitch-page refresh (design doc 12): replace ``{{SYMBOL.metric}}`` placeholders in a PowerPoint
-file with current values and log every replacement.
+file with current values, log every replacement.
 
-Placeholders may be split across text runs by PowerPoint; replacement works on whole paragraphs
-and rewrites the first run, which keeps that run's formatting.
+PowerPoint may split placeholders across text runs; replacement works on whole paragraphs and
+rewrites first run, keeping that run's formatting.
 """
 
 import io

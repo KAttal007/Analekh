@@ -1,18 +1,18 @@
 """Earnings-call audio to timestamped text (design doc 9.3, transcripts).
 
-SEBI has listed companies put the call recording online within 24 hours, days before the written
-transcript (due within 5 working days). Transcribing the recording gives notes the same day; the
-official transcript replaces this text when it arrives.
+SEBI: listed companies put call recording online within 24 hours, days before written transcript
+(due in 5 working days). Transcribing the recording gives same-day notes; official transcript
+replaces this text when it arrives.
 
-Whisper (large-v3) through faster-whisper/CTranslate2, on the GPU when there is one. A voice
-activity filter skips hold music and silence; an initial prompt carries the company's name and
-finance vocabulary, which Whisper otherwise mishears. No speaker separation: Indian calls announce
-each questioner ("The next question is from ..."), which docs/transcripts.py already uses.
+Whisper (large-v3) via faster-whisper/CTranslate2, GPU when present. Voice activity filter skips
+hold music and silence; initial prompt carries company name and finance vocabulary (Whisper
+mishears otherwise). No speaker separation: Indian calls announce each questioner ("The next
+question is from ..."), which docs/transcripts.py already uses.
 
-Numbers are where speech-to-text is weakest ("fifteen" vs "fifty"), so anything generated from
-this text is grounded against it and cross-checked with the filed XBRL before it is shown.
+Numbers are speech-to-text's weakest spot ("fifteen" vs "fifty"): anything generated from this
+text is grounded against it and cross-checked with filed XBRL before shown.
 
-Install with ``uv sync --group audio``.
+Install: ``uv sync --group audio``.
 """
 
 import json

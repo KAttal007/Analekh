@@ -1,11 +1,11 @@
 """Template and model mapping (design doc 12, 14.2, Appendix B).
 
-A mapping says where each fact or KPI goes in a workbook. It is suggested by the workbook
-understanding engine, confirmed once per template (or discovered model), and reused for every
-company built from it. Rows are located by label, not fixed row number, so inserted rows do not
-break a mapping. Each row carries the suggestion's confidence.
+Says where each fact or KPI goes in a workbook. Suggested by workbook understanding engine,
+confirmed once per template (or discovered model), reused for every company built from it. Rows
+located by label, not fixed row number, so inserted rows don't break it. Each row carries
+suggestion's confidence.
 Sources: ``xbrl:Element``, ``kpi:name``, or sums like ``xbrl:A + xbrl:B``.
-Transforms: ``none``, ``div:N``, ``mul:N``; ``sign: -1`` flips the sign after the transform.
+Transforms: ``none``, ``div:N``, ``mul:N``; ``sign: -1`` flips sign after transform.
 """
 
 from decimal import Decimal

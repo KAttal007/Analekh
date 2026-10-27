@@ -1,9 +1,9 @@
 """Workbook understanding engine (design doc 12): one reader for any workbook.
 
-It produces a structure map: period axis, input vs formula rows, labels matched to standard
-fields, drivers, checks, dependencies, hygiene findings and a fingerprint. Model discovery,
-template onboarding, the Coverage Builder and quarterly sync all build on it. Macros are kept
-but never executed: openpyxl never runs VBA.
+Produces structure map: period axis, input vs formula rows, labels matched to standard fields,
+drivers, checks, dependencies, hygiene findings, fingerprint. Model discovery, template
+onboarding, Coverage Builder and quarterly sync build on it. Macros kept, never executed:
+openpyxl never runs VBA.
 """
 
 import io

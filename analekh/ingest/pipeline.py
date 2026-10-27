@@ -1,18 +1,15 @@
 """One path for every results file, live or backfill: hash -> store -> parse -> validate -> facts.
 
-Results XBRL is fetched and parsed for every company that files (design doc 9.2). Announcement
-PDFs are stored for everyone (cheap) but only processed by the document pipeline for watchlist or
-on-demand companies.
+Results XBRL fetched and parsed for every filer (design doc 9.2). Announcement PDFs stored for
+everyone (cheap), processed by document pipeline only for watchlist or on-demand companies.
 
-Re-running is idempotent: a file whose hash is already stored is skipped. A different file for an
-already-stored period is a revision: its facts are inserted and the newest FILED value of each
-line is the one in use (is_latest), whatever order the files were downloaded in; superseded values
-stay as history (V9). Nothing is deleted.
+Re-running is idempotent: file with stored hash skipped. Different file for stored period =
+revision: facts inserted, newest FILED value of each line is in use (is_latest), whatever order
+downloaded; superseded values stay as history (V9). Nothing deleted.
 
-V11 can find a filing's rupee amounts tagged in the wrong unit (100 times too small, say). When
-both its signals agree, the corrected amounts are stored and the filing records the factor
-(meta "scale"); the file in object storage keeps the values as filed, so revalidating always
-recomputes from it and never applies a factor twice.
+V11 can find a filing's rupee amounts tagged in wrong unit (100x too small, say). When both
+signals agree, corrected amounts stored and filing records factor (meta "scale"); file in object
+storage keeps values as filed, so revalidating recomputes from it, never applies a factor twice.
 """
 
 from dataclasses import dataclass
@@ -48,10 +45,11 @@ ANNOUNCEMENT_KINDS = (
 
 
 class IncompleteXbrl(ValueError):
-    """The file's values point to periods it never defines: NSE's older "_WEB" publications
-    (up to December 2022) leave out the quarter, year-to-date and balance-sheet contexts, so
-    most figures, including the basis, can't be placed. Such files are not stored (owner's
-    decision 2026-10-15: history from 2023, no rebuilding of contexts by id)."""
+    """File's values point to periods it never defines: NSE's older "_WEB" publications (to December
+    2022) omit quarter, year-to-date and balance-sheet contexts, so most figures, including basis,
+    can't be placed. Not stored (owner's decision 2026-10-15: history from 2023, no rebuilding
+    contexts by id).
+    """
 
 
 MAIN_CONTEXTS = ("OneD", "FourD", "OneI")
@@ -230,9 +228,9 @@ def ingest_results_xbrl(
     return IngestResult(filing, skipped=False, report=report)
 
 
-# For each line of each period (element, dates, basis, dimensions), the value in use is the one
-# from the most recently FILED filing; a filing without a date counts as the oldest. Two steps, so
-# no moment has two values in use for the same line.
+# Per line of each period (element, dates, basis, dimensions), value in use = one from most recently
+# FILED filing; undated filing counts oldest. Two steps, so no moment has two values in use for a
+# line.
 _LATEST_SQL = """
 WITH ranked AS (
     SELECT f.id,
@@ -291,10 +289,10 @@ def process_feed_item(
         item.processed_at = datetime.now().astimezone()
         return None
     if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".zip"):
-        # NSE document bundles (KMP and public-announcement files, up to tens of MB). Only PDFs are
-        # stored, so downloading one always ends in NotAPdf. Close without a request, and keep the
-        # reason in `error` (prefixed "Skipped:", so it is not mistaken for a failure) to show what
-        # we are not ingesting, and to find these again if unzip support is added.
+        # NSE document bundles (KMP, public-announcement files, up to tens of MB). Only PDFs stored,
+        # so downloading one always ends in NotAPdf. Close without request, keep reason in `error`
+        # (prefix "Skipped:", so not mistaken for failure): shows what we skip, and finds these
+        # again if unzip support is added.
         item.processed_at = datetime.now().astimezone()
         item.error = SKIPPED_ZIP
         return None

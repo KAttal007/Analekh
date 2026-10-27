@@ -1,7 +1,7 @@
 """Celery app and beat schedule (design doc 9.2, 22.1).
 
-Results and announcements are polled at the feeds' published 5-minute TTL; event feeds slower.
-The universe refreshes weekly (UNIVERSE_REFRESH_CRON); background backfill runs nightly.
+Results and announcements polled at feeds' published 5-minute TTL; event feeds slower. Universe
+refreshes weekly (UNIVERSE_REFRESH_CRON); background backfill nightly.
 """
 
 from celery import Celery

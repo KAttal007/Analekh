@@ -1,7 +1,7 @@
-"""AI fallback for row labels the synonym and fuzzy passes could not place (design doc 12).
+"""AI fallback for row labels synonym and fuzzy passes could not place (design doc 12).
 
-Uses the small model with a closed list of fields; the workbook engine caps AI confidence below
-fuzzy-match confidence, so these rows are always shown to the user for confirmation.
+Small model, closed field list; workbook engine caps AI confidence below fuzzy-match confidence,
+so these rows always go to user for confirmation.
 """
 
 from typing import Any

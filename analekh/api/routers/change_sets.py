@@ -97,9 +97,9 @@ def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
         or 0
     )
     if cs.base_version != latest:
-        # A build or another change set saved a newer version since this one was drafted: a new
-        # version derived from the old base would drop that work. Block, never rebase: rebasing
-        # would change what the analyst approved (owner's ruling).
+        # Build or other change set saved a newer version since this was drafted. Deriving from old
+        # base would drop that work. Block, never rebase: rebase changes what analyst approved
+        # (owner's ruling).
         raise HTTPException(
             409,
             {
@@ -149,9 +149,8 @@ def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
             },
         ) from err
     except RecalcUnavailable as err:
-        # Nothing is saved without fresh cached values (checks, ModelReader and the report tools
-        # read them). The lock is released as this request ends, and the change set stays
-        # approved, so Apply can be clicked again.
+        # Nothing saved without fresh cached values (checks, ModelReader, report tools read them).
+        # Lock released when request ends; change set stays approved, so Apply can be clicked again.
         log.error("apply of change set %s refused: %s", cs.id, err)
         raise HTTPException(
             503,

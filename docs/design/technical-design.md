@@ -1051,7 +1051,7 @@ GitLab (Free tier) is the single source of truth. GitHub hosts a read-only publi
 | Security policies | Merge request approval and scan execution policies need Ultimate and are not in effect on Free. Until then, scanner warnings are reviewed in each pipeline. |
 | Registry | Images pushed to the GitLab container registry, tagged by commit SHA and release tag. |
 | Environments | staging deploys automatically from main; production deploys from release tags with manual approval; deployment history per environment. Not set up yet; the deploy jobs run only when STAGING_URL or PRODUCTION_URL is set. |
-| Runner | Self-hosted GitLab Runner on a VM in an Indian region (tag: india) for deployments and live smoke tests; GitLab-hosted runners for lint, test, build and scans. The self-hosted India runner is not set up yet. |
+| Runner | Two self-hosted runners on the Oracle Cloud Mumbai VM (Arm64): a shell runner tagged india builds the Arm64 images and deploys; a Docker runner takes every untagged job (images kept with pull_policy if-not-present). GitLab's shared runners are off for the project, so no compute minutes are used. Python jobs run on uv's own image (Python 3.12, Debian 13), cache the virtual environment keyed on uv.lock, and retry twice after a network or runner failure. |
 | Secrets | Protected and masked CI/CD variables scoped per environment: GITHUB_MIRROR_TOKEN, GITHUB_MIRROR_USER, GITHUB_MIRROR_REPO, deployment SSH key, runtime keys. |
 | Mirror to GitHub | A pipeline job runs after a green pipeline on main and on release tags, and pushes the commit (fast-forward only, no force) and tags to GitHub using a fine-grained token limited to that one repository with contents read and write. A resource group prevents concurrent mirror pushes. A pipeline job is used instead of GitLab's built-in push mirroring so that only green builds reach the public repository. The job clears the alpine/git image's entrypoint (it is git, and the runner needs a shell) and is skipped when GITHUB_MIRROR_TOKEN is not set. |
 | Commits | Signed by the owner with an SSH key; the AI assistant prepares changes and messages but never commits. |
@@ -1068,9 +1068,10 @@ GitLab (Free tier) is the single source of truth. GitHub hosts a read-only publi
 
 - **Needs:** about 2 vCPUs, 4 GB of RAM and 60 to 80 GB of disk (the data is about 5.4 GB on 21 October 2026: PostgreSQL 4.6 GB, raw files 0.8 GB with XBRL compressed, growing about 0.5 GB a results season), in an Indian region, with HTTPS and a login.
 - **The gate:** NSE may refuse requests from data-centre addresses. One honest request from the new machine to the results lookup and one bhavcopy must succeed before anything moves.
-- **Tried (October 2026):** Oracle Cloud's free tier (the card was charged for verification and no account was created); Azure for Students (the university email could not be verified). AWS and Google Cloud need a card, and their credits last three to six months.
-- **Plan:** verify through GitHub Education (which issues an Azure for Students code), or run an always-on machine at home with Cloudflare Tunnel, which keeps the home connection NSE already serves; a VPS in India (about USD 20 to 25 a month) once there is a budget.
-- **Moving:** the data goes by pg_dump and a MinIO copy, never downloaded from NSE again; the scheduler moves off the laptop; GitLab CI deploys from main and release tags.
+- **Where it runs (since 26 October 2026):** one Arm64 VM on Oracle Cloud's free tier in Mumbai (4 OCPU, 24 GB, Ubuntu 24.04 LTS, reserved public address). NSE's integrated-filing lookup, RSS feeds and bhavcopy answered from it before anything moved. The production stack (API, worker, beat, web, PostgreSQL, Valkey, MinIO, recalc, Caddy with automatic HTTPS on an sslip.io name) deploys from GitLab; only ports 80 and 443 are published. The data moved by pg_dump and a MinIO copy (59,366 files), never downloaded from NSE again. A nightly pg_dump is kept for 7 days.
+- **Left:** backups copied off the box (a private Object Storage bucket) with one test restore; SSH limited to the owner's address (open to all today, key only); the sign-in limit seeing the real client address behind the proxies; a domain with Cloudflare in front.
+- **Tried first (October 2026):** Azure for Students (the university email could not be verified); AWS and Google Cloud need a card and their credits run out. Oracle's first sign-up failed; a second attempt succeeded.
+- **GPU work:** the VM has no GPU. Speech and the larger local models run on the owner's laptop (RTX 4060, 8 GB) when it is on, reached over a private tunnel; the VM's CPU is the fallback for small batch jobs. See AI.md.
 
 ## 23. Security, compliance and data rights
 
@@ -1142,13 +1143,15 @@ Phase 0 is time-boxed to two to three days and decides whether the full build pr
 | 4. GenAI outputs | Tools, calc, grounding check and report loop built; the Reports set-up screen (company, report type, basis, quarter, input readiness, output outline) built on real data. | Phase 3's KPIs and call notes; the report structure decision (section 28); the Word and PowerPoint writers for the two reports, the style check, reading the rating from the analyst's model, and the recent reports list. |
 | 5. Discovery, IB, polish | Comps (market cap and P/E, P/B from the latest close), profile slide, alerts and the add-in have working cores. | Debt and cash for EV multiples; branded slide templates; hosting in an Indian region with a login so the app can be shared (section 22.7). |
 
+Update, 27 October 2026 (to be folded into the next version): sign-in, roles, first password by email and model locks are built; the stack runs on the Oracle Mumbai VM with the data restored, which takes the scheduler off the laptop; margins follow the company type (EBITDA, NIM for lenders, core pre-provision profit for brokers and asset managers); the Excel bridge links and scans a real workbook. For Phases 3 and 4 the plan is now local models without paid APIs (AI.md), so a valid API key is no longer the gate: a local model passing the golden set is. The roadmap, with the new ideas, is docs/roadmap.md.
+
 #### 26.2 What to build next
 
 Ordered by value:
 
-Done since 18 October: the season schedule, the scheduler in Docker, the V2-blocked filings, the results history table and the results calendar.
+Done since 18 October: the season schedule, the scheduler in Docker, the V2-blocked filings, the results history table and the results calendar. Done since 21 October: hosting (section 22.7), sign-in and model locks, margins by company type.
 
-Ordered by value:
+Ordered by value (the current order, with new ideas, is in docs/roadmap.md):
 
 - **Report drafting** (workflow 6.8): the quarterly update and initiating coverage writers for Word and PowerPoint, section by section from the outline the Reports screen shows, with the grounding and style checks, the recommendation read from the analyst's model, and the recent reports list. Testable end to end once there is a valid API key.
 - **Q&A screen**, after Reports.
@@ -1167,6 +1170,8 @@ Left out of v1 by the owner's choice, for a later release (the first two need pa
 - **Live and intraday prices** through a paid market-data API (Kite Connect or similar), in place of the end-of-day bhavcopy (section 3.3).
 - **NSE's finer classification** (industry and basic industry, such as Gems, Jewellery and Watches under Consumer Durables) for every company. NSE publishes only the 22 sectors in its index lists, and its per-company classification is not open to Analekh (section 4.2); setting thousands by hand is not worth it (owner, 18 October 2026). A licensed data feed would supply it.
 - **Live earnings-call listener** (owner, 20 October 2026): Analekh's own agent that joins a company's earnings call as it happens and transcribes it live, instead of waiting for the recording on NSE (filed within a day). A call record (company, time, link) starts a headless browser a few minutes early; it registers with the analyst's own details (never a made-up identity, never past a captcha or an operator), records the webcast's audio stream with ffmpeg (or a virtual audio device when the page exposes no stream), and the local Whisper (section 11) transcribes 5 to 10 second pieces on the GPU, about 10 seconds behind the speaker. The company page's Call highlights card shows the transcript as it arrives, marked live and unverified; guidance, margin and capex remarks are extracted with their quotes under the grounding check, and XBRL still wins on any figure. The official recording's transcript replaces it once filed. Fixed scripts handle the common webcast hosts, with a browser agent for unknown registration pages; phone-only calls would need a telephony service (paid per minute) and come later. Transcripts stay in the analyst's own database, never republished, per the calls' terms. Open points: finding calls automatically needs NSE's announcements list (a rule 1 decision, as for investor presentations; until then the analyst pastes the link), and the listener needs an always-on machine (section 22.7). First step when picked up: replay an existing call recording as if live, to measure delay and accuracy.
+
+Proposed since 27 October 2026, not decided (details in docs/roadmap.md): offer documents (DRHP, RHP, Prospectus) from SEBI's site for recently listed companies, with the Prospectus as the final record and quarterly XBRL winning once filed; debt-segment results for debt-only issuers; KPIs and peers seeded from an offer document's "Basis for Offer Price"; a lock-in calendar; the analyst's approved script voiced over the slides by a local text-to-speech model, with consent and labelling. Each new host or path needs the owner's approval under rule 1.
 
 Versions follow the build phases: v0.0.x while Phase 0 is under way, v0.1.x once Phase 0 is complete, v0.2.x once Phase 1 is complete, and so on (the middle number counts completed phases; the last counts revisions within a phase). The first release for proper testing is v1.0.0-pre-release. This document and the code are at v0.0.5.
 
@@ -1198,13 +1203,15 @@ Versions follow the build phases: v0.0.x while Phase 0 is under way, v0.1.x once
 - Settled in 0.0.3: banks and insurers use their regulators' element sets (RBI, IRDAI general and life); NBFCs use the Ind-AS names. Still open: how stable the tags are across the full universe, which the completed backfill and the golden set will show.
 - Should Analekh link each quarter's investor presentation from NSE's announcements list (subject "Investor Presentation"; one request a day, plus a backfill by date range or per company)? It needs the owner's approval to widen the allow-list. Some filings under that subject are only meeting intimations.
 - How to cover the 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests): a manual import, or a note that NSE has no data? Periods before March 2023 need the company's own files.
-- Which host: GitHub Education's Azure for Students route, an always-on home machine with Cloudflare Tunnel, or a paid VPS in India? Each must pass the NSE test first (section 22.7).
+- Settled on 26 October 2026: the host is Oracle Cloud's free tier in Mumbai; NSE answers from it (section 22.7).
+- Which language model for each AI job: a local model (Ollama, Qwen2.5 7B or 14B on the laptop's GPU or the VM's CPU) or Claude? The owner aims for no API costs; each job moves after it passes the golden set (AI.md).
+- Should Analekh read offer documents from SEBI's site (`www.sebi.gov.in`, listing page, filing pages and their PDFs; one listing request a day)? It needs the owner's approval, as rule 1 does for NSE.
 - Can annual statements be downloaded cleanly from NSE's annual report XBRL section for backfill?
 - Is there a public shareholding pattern feed, or must shareholding come from filings?
 - How should the 25 undecided LSEG groups map to NSE sector names, and how to classify the 169 companies with no sector at all? Do Microsoft's terms allow storing Stocks data type fields?
 - Do transcripts appear in the announcements feed with a consistent subject line? (Recordings come first and can be transcribed locally.)
 - xlwings or Office.js first for the demo machine?
-- Hosted or local embeddings?
+- Hosted or local embeddings? (A local embedder is built and set as the default; to confirm.)
 - Would NSE confirm in writing that polling its RSS feeds for a personal or open-source tool is acceptable?
 - Settled in 0.0.5: a report's rating and target price come from the analyst's own model or the analyst, never from Analekh; reports are a quarterly update and an initiating coverage note, each as Word and PowerPoint; the results watcher follows the results seasons.
 - Settled in 0.0.4: prices come from NSE's bhavcopy, end of day, latest day only. Still open: whether a results season's schedule should follow the results calendar once the feed watcher runs.

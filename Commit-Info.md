@@ -3,6 +3,21 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-27** Roadmap and documents brought up to date. New `docs/roadmap.md`: where each
+  phase stands, the order of work, AI without paid APIs, new sources (SEBI offer documents for
+  recent listings: RHP for early coverage, the Prospectus as the final record; debt-segment
+  results; investor presentations), and new outputs (source links in reports, filing-to-draft
+  time, KPIs and peers from "Basis for Offer Price", lock-in calendar, the analyst's voice over
+  the slides), with what each needs from the owner. `AI.md` maps every AI job to the VM, the
+  laptop's RTX 4060 or Claude, with a deployment guide. README status and tracker, design doc
+  22.5, 22.7, 26 and 28, the deviations log (hosting, CI runners, the local-model and SEBI
+  proposals), `pending-items.md` and CLAUDE.md now reflect hosting, sign-in and locks, margins by
+  company type and the CI changes. The Word copy and architecture PDF wait for the next version.
+  CI: Python jobs on uv's own image (Debian 13, uv built in), `.venv` cached on `uv.lock`, two
+  retries and longer pip and uv timeouts after PyPI stalls; the Docker runner keeps images
+  (`if-not-present`). Phones: the Interest ratios chart drops in-bar figures and the chart tabs
+  scroll inside the card. Unblocks the owner's decisions on the SEBI host and local models.
+
 - **2026-10-26** Net interest margin for lenders. The Results desk's EBITDA margin column is now
   "Margin": EBITDA for companies outside finance, NIM for banks and NBFCs (tagged per row, on
   consolidated figures when they allow it, else standalone). The company page charts NIM instead

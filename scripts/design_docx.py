@@ -1,15 +1,14 @@
-"""Build the formatted design document (.docx) from docs/design/technical-design.md, using the
-previous version's Word file as the template: its styles, list numbering, title block, table look
-and the landscape section around Figure 1. Figures are the diagram panels of architecture.html
-(scripts/diagram_panels.py writes panel1..N.png); each one gets a landscape page, with the heading
-just above it when there is one. Numbered lists ("1. ...") restart at 1. Headers and footers get
-the new version number.
+"""Build formatted design document (.docx) from docs/design/technical-design.md, using previous
+version's Word file as template: styles, list numbering, title block, table look, landscape
+section around Figure 1. Figures = diagram panels of architecture.html (scripts/diagram_panels.py
+writes panel1..N.png); each gets a landscape page, heading just above when there is one. Numbered
+lists ("1. ...") restart at 1. Headers and footers get new version number.
 
     uv run python scripts/diagram_panels.py file:///.../docs/design/architecture.html out/figs
     uv run python scripts/design_docx.py "docs/design/<previous>.docx"
         docs/design/technical-design.md "docs/design/<new>.docx" out/figs   (one command)
 
-Bump OLD and NEW below (and the template argument) for the next version.
+Bump OLD and NEW below (and template argument) for next version.
 """
 
 import copy

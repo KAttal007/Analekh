@@ -1,10 +1,10 @@
 """Integrated filing (financials) lookup: which results XBRL files a company has filed.
 
-SEBI moved quarterly results into integrated filings, and NSE's results RSS feed stopped carrying
-them (frozen since 24 August 2026, seen 2026-10-14). The list behind NSE's integrated-filing page
-gives every filing per company with its XBRL link on nsearchives. Rule 1 was amended on 2026-10-14
-to allow this one endpoint, queried per company; the files themselves come from nsearchives as
-before. The endpoint answers without the home page's cookies; requests stay honest Analekh ones.
+SEBI moved quarterly results into integrated filings; NSE's results RSS stopped carrying them
+(frozen since 24 August 2026, seen 2026-10-14). List behind NSE's integrated-filing page gives
+every filing per company with XBRL link on nsearchives. Rule 1 amended 2026-10-14 for this one
+endpoint, queried per company; files still come from nsearchives. Endpoint answers without home
+page cookies; requests stay honest Analekh ones.
 """
 
 import csv
@@ -33,9 +33,9 @@ PAGE_URL = (
     "?integratedType=integratedfilingfinancials"
 )
 FINANCIALS = "Integrated Filing- Financials"
-# Results filed before integrated filings: NSE's corporate financial-results list, one request per
-# company (no paging), with XBRL from 2018 (rule 1, owner-approved 2026-10-15). It ends where
-# integrated filings begin (December 2024 / March 2025).
+# Results before integrated filings: NSE's corporate financial-results list, one request per company
+# (no paging), XBRL from 2018 (rule 1, owner-approved 2026-10-15). Ends where integrated filings
+# begin (December 2024 / March 2025).
 HISTORY_URL = "https://www.nseindia.com/api/corporates-financial-results"
 HISTORY_PAGE_URL = "https://www.nseindia.com/companies-listing/corporate-filings-financial-results"
 PAGE_SIZE = 50
@@ -135,9 +135,9 @@ def _history_row(row: dict) -> IntegratedFiling:
         symbol=(row.get("symbol") or "").strip().upper(),
         period_end=_date(row.get("toDate")),
         consolidated=None if not nature else not nature.startswith("non"),
-        # Up to December 2022 the list links "_WEB.xml" files that leave out the main periods
-        # (see pipeline.IncompleteXbrl); from March 2023 complete files. The older ones can't be
-        # read, so they are never fetched.
+        # Up to December 2022 the list links "_WEB.xml" files without the main periods (see
+        # pipeline.IncompleteXbrl); from March 2023 complete files. Older ones unreadable, never
+        # fetched.
         xbrl_url=None if (url or "").endswith("_WEB.xml") else url,
         broadcast_at=_ist(filed) or _ist(f"{filed}:00"),  # filingDate has no seconds
         revision=None,  # the list carries no Original / Revision flag
@@ -289,10 +289,10 @@ def unchanged_links(
 ) -> set[str]:
     """Listed XBRL links already stored and listed as before: nothing to download.
 
-    A link NSE lists with a new broadcast time or Original/Revision flag is fetched once more, in
-    case a corrected file sits behind it. A filing remembers each listing it was fetched for
-    (meta "listed", by link): an identical file, or one stored under another link, is then not
-    fetched again on every run. A listing that gives no time or flag matches any.
+    A link NSE lists with new broadcast time or Original/Revision flag is fetched once more (a
+    corrected file may sit behind it). A filing remembers each listing it was fetched for (meta
+    "listed", by link): identical file, or one stored under another link, not fetched again every
+    run. A listing with no time or flag matches any.
     """
     urls = sorted({f.xbrl_url for f in listed if f.xbrl_url})
     if not urls:
@@ -331,10 +331,10 @@ def _download_and_ingest(
     company: Company,
     f: IntegratedFiling,
 ) -> IngestResult | None:
-    """One listed filing into the store; None when NSE lists a file it no longer serves (seen on
-    Adani Enterprises) or serves a broken one (XML cut off partway, seen on Laurus Labs), so the
-    company's other filings are kept rather than all lost. A broken file is fetched once more in
-    case the download itself was cut short."""
+    """One listed filing into store; None when NSE lists a file it no longer serves (Adani
+    Enterprises) or serves broken (XML cut off, Laurus Labs), so company's other filings are kept,
+    not all lost. Broken file fetched once more in case download was cut short.
+    """
     if f.xbrl_url is None:
         raise ValueError("listed filing has no XBRL link")
     attempts = get_settings().integrated_file_attempts
@@ -371,9 +371,9 @@ def _download_and_ingest(
     return None
 
 
-# The results watcher reads NSE's latest-results list in ONE request per run (rule 1). A truncated
-# page (fewer rows than NSE's totalCount) makes the next run ask for double, up to
-# latest_max_page_size; a full one resets it. Sizes come from config.py.
+# Results watcher reads NSE's latest-results list in ONE request per run (rule 1). Truncated page
+# (fewer rows than NSE's totalCount): next run asks double, up to latest_max_page_size; full page
+# resets. Sizes from config.py.
 
 
 def next_page_size(last_summary: dict | None) -> int:

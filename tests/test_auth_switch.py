@@ -1,7 +1,7 @@
-"""The development switch that turns sign-in off (AUTH_ENABLED=false).
+"""Development switch that turns sign-in off (AUTH_ENABLED=false).
 
-It must default to on, work only when ENV=dev, and never leave a way to sign in as the
-development user with a password.
+Must default to on, work only when ENV=dev, and never leave a way to sign in as the development
+user with a password.
 """
 
 import pytest
