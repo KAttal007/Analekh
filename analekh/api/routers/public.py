@@ -18,8 +18,6 @@ from analekh.desk import desk
 
 router = APIRouter(prefix="/public", tags=["public"])
 
-# One answer per key, shared by every visitor and kept for `public_cache_seconds`. Each worker
-# process has its own copy. Bounded, so distinct ranges cannot grow it without limit.
 _cache: dict[tuple, tuple[float, object]] = {}
 _cache_lock = threading.Lock()
 

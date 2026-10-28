@@ -27,16 +27,13 @@ def iter_workbooks(folders: list[Path]) -> Iterator[Path]:
             continue
         for path in folder.rglob("*"):
             if (
-                path.suffix.lower() in EXTENSIONS
-                and not path.name.startswith(("~$", "."))  # Excel lock files, our own temp files
+                path.suffix.lower() in EXTENSIONS and not path.name.startswith(("~$", "."))  # Excel lock files, our own temp files
             ):
                 yield path
 
 
 def _load(path: Path) -> Workbook:
-    return load_workbook(
-        path, read_only=False, keep_vba=path.suffix.lower() == ".xlsm", data_only=True
-    )
+    return load_workbook(path, read_only=False, keep_vba=path.suffix.lower() == ".xlsm", data_only=True)
 
 
 def _load_even_if_open(path: Path) -> Workbook:

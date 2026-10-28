@@ -110,11 +110,7 @@ def test_release_commits_although_the_jobs_own_work_rolled_back(committed, monke
 
         with session_scope() as s:
             s.add(AuditEntry(user_id=ids.ana, action="test.job-work", detail={}))
-            s.execute(
-                update(ModelLock)
-                .where(ModelLock.model_id == model_id)
-                .values(last_seen_at=func.clock_timestamp())
-            )
+            s.execute(update(ModelLock).where(ModelLock.model_id == model_id).values(last_seen_at=func.clock_timestamp()))
             s.flush()
             raise RuntimeError("change set failed")
 

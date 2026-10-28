@@ -1,11 +1,4 @@
-import {
-  type KeyboardEvent,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
@@ -42,7 +35,6 @@ export function PageHeader({
   );
 }
 
-// Initials on a colour picked from the ticker, so each company keeps the same colour.
 const AVATAR_HUES = [212, 262, 190, 152, 28, 340, 232, 14];
 
 export function Avatar({ symbol, name }: { symbol: string; name: string }) {
@@ -50,34 +42,18 @@ export function Avatar({ symbol, name }: { symbol: string; name: string }) {
     .replace(/\b(limited|ltd\.?|the)\b/gi, "")
     .trim()
     .split(/\s+/);
-  const initials = (
-    words.length > 1 ? words[0][0] + words[1][0] : symbol.slice(0, 2)
-  ).toUpperCase();
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : symbol.slice(0, 2)).toUpperCase();
   let h = 0;
   for (const ch of symbol) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const hue = AVATAR_HUES[h % AVATAR_HUES.length];
   return (
-    <span
-      className="avatar"
-      aria-hidden="true"
-      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 58%), hsl(${hue} 65% 44%))` }}
-    >
+    <span className="avatar" aria-hidden="true" style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 58%), hsl(${hue} 65% 44%))` }}>
       {initials}
     </span>
   );
 }
 
-export function EmptyState({
-  icon = "inbox",
-  title,
-  children,
-  actions,
-}: {
-  icon?: IconName;
-  title: string;
-  children?: ReactNode;
-  actions?: ReactNode;
-}) {
+export function EmptyState({ icon = "inbox", title, children, actions }: { icon?: IconName; title: string; children?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="empty">
       <div className="empty-icon">
@@ -92,15 +68,7 @@ export function EmptyState({
 
 export type Tone = "neutral" | "accent" | "ok" | "warn" | "error";
 
-export function Badge({
-  tone = "neutral",
-  title,
-  children,
-}: {
-  tone?: Tone;
-  title?: string;
-  children: ReactNode;
-}) {
+export function Badge({ tone = "neutral", title, children }: { tone?: Tone; title?: string; children: ReactNode }) {
   return (
     <span className={tone === "neutral" ? "badge" : `badge badge-${tone}`} title={title}>
       {children}
@@ -108,7 +76,6 @@ export function Badge({
   );
 }
 
-// Maps the status words the API uses to a badge colour.
 const TONES: Record<string, Tone> = {
   active: "ok",
   accepted: "ok",
@@ -131,17 +98,10 @@ export function StatusBadge({ status }: { status: string | null | undefined }) {
   return <Badge tone={TONES[status] ?? "neutral"}>{status.replaceAll("_", " ")}</Badge>;
 }
 
-export function Skeleton({
-  width = "100%",
-  height = 14,
-}: {
-  width?: number | string;
-  height?: number;
-}) {
+export function Skeleton({ width = "100%", height = 14 }: { width?: number | string; height?: number }) {
   return <span className="skeleton" style={{ width, height }} />;
 }
 
-/** Placeholder while a screen loads: a heading, a row of figure tiles and a table. */
 export function Loading({ rows = 6 }: { rows?: number }) {
   return (
     <div className="skeleton-stack" role="status" aria-label="Loading">
@@ -215,15 +175,7 @@ export function TagTip({ label, tone, text }: { label: string; tone?: Tone; text
   }, [at]);
   return (
     <span className="tag-tip" onMouseEnter={show} onMouseLeave={hide}>
-      <button
-        ref={button}
-        type="button"
-        className="info-tip-btn tag-tip-btn"
-        aria-label={`${label}: ${text}`}
-        onFocus={show}
-        onBlur={hide}
-        onKeyDown={(e) => e.key === "Escape" && hide()}
-      >
+      <button ref={button} type="button" className="info-tip-btn tag-tip-btn" aria-label={`${label}: ${text}`} onFocus={show} onBlur={hide} onKeyDown={(e) => e.key === "Escape" && hide()}>
         <Badge tone={tone}>{label}</Badge>
       </button>
       {/* In <body>: containers used for container queries would otherwise position it. */}
@@ -250,15 +202,7 @@ export function TagTip({ label, tone, text }: { label: string; tone?: Tone; text
  *  click elsewhere, scrolling or resizing closes it, and Esc puts focus back on the button. The
  *  panel is placed against the window like TagTip's note, so a scroll box never cuts it off;
  *  focus moves into it on open and Tab out of it closes it, so keyboard order still works. */
-export function Popover({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
+export function Popover({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState<{ left: number; top: number; above: boolean } | null>(null);
@@ -302,14 +246,10 @@ export function Popover({
       e.stopPropagation();
       close(true);
     } else if (e.key === "Tab") {
-      // Leaving the panel: back to the button, and the browser carries on from there.
       const items = panel.current?.querySelectorAll<HTMLElement>("a, button") ?? [];
       const last = items[items.length - 1];
       const first = items[0];
-      if (
-        (!e.shiftKey && document.activeElement === last) ||
-        (e.shiftKey && document.activeElement === first)
-      ) {
+      if ((!e.shiftKey && document.activeElement === last) || (e.shiftKey && document.activeElement === first)) {
         close(true);
         if (e.shiftKey) e.preventDefault();
       }
@@ -428,14 +368,7 @@ export function Segmented<T extends string>({
     <div className="segmented" role="tablist" aria-label={label}>
       <SegmentThumb />
       {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="tab"
-          title={o.title}
-          aria-selected={value === o.value}
-          onClick={() => onChange(o.value)}
-        >
+        <button key={o.value} type="button" role="tab" title={o.title} aria-selected={value === o.value} onClick={() => onChange(o.value)}>
           {o.label}
         </button>
       ))}

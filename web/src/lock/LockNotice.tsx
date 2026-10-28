@@ -29,12 +29,7 @@ export function LockNotice({ modelId, gate }: { modelId: number; gate: Gate }) {
         takenAt={gate.lock.taken_at}
         action={
           isAdmin && (
-            <button
-              type="button"
-              className="btn-sm"
-              onClick={() => release.mutate()}
-              disabled={release.isPending}
-            >
+            <button type="button" className="btn-sm" onClick={() => release.mutate()} disabled={release.isPending}>
               Release lock
             </button>
           )

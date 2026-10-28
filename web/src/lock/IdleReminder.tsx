@@ -61,10 +61,7 @@ export function IdleReminder() {
     <div className="lock-reminder" role="region" aria-label="Models still open" aria-live="polite">
       {one ? (
         <p>
-          You still have {names.name(one.model_id)}'s model open.{" "}
-          {one.job_running
-            ? "Work is still running on it; it closes itself when done."
-            : "Close it if you are done."}
+          You still have {names.name(one.model_id)}'s model open. {one.job_running ? "Work is still running on it; it closes itself when done." : "Close it if you are done."}
         </p>
       ) : (
         <>
@@ -79,13 +76,7 @@ export function IdleReminder() {
                     // A job started while this was up: the job lets go itself, so no Close.
                     <span className="muted">Running</span>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      aria-label={`Close ${name}'s model`}
-                      disabled={release.isPending}
-                      onClick={() => release.mutate(l.model_id)}
-                    >
+                    <button type="button" className="btn btn-sm" aria-label={`Close ${name}'s model`} disabled={release.isPending} onClick={() => release.mutate(l.model_id)}>
                       Close
                     </button>
                   )}
@@ -98,12 +89,7 @@ export function IdleReminder() {
       {release.isError && <ErrorNote error={release.error} />}
       <div className="lock-reminder-actions">
         {one && !one.job_running && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={release.isPending}
-            onClick={() => release.mutate(one.model_id)}
-          >
+          <button type="button" className="btn btn-sm" disabled={release.isPending} onClick={() => release.mutate(one.model_id)}>
             Close
           </button>
         )}

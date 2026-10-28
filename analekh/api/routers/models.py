@@ -45,51 +45,32 @@ def start(body: schemas.CoverageRequest, db: DB, store: Store, user: User) -> sc
         return _start(body, db, store, company)
 
 
-def _start(
-    body: schemas.CoverageRequest, db: DB, store: Store, company: Company
-) -> schemas.BuildOut:
+def _start(body: schemas.CoverageRequest, db: DB, store: Store, company: Company) -> schemas.BuildOut:
     ensure_builtin_templates(db, store)
-    template = (
-        db.get(Template, body.template_id)
-        if body.template_id
-        else default_for(db, company.industry or company.sector)
-    )
+    template = db.get(Template, body.template_id) if body.template_id else default_for(db, company.industry or company.sector)
     template = template or default_for(db, None)
     if template is None or template.status != "active":
         raise HTTPException(409, "no active template for this sector; upload and test one")
     try:
         res = start_coverage(db, store, company, template)
     except NoHistoryError as exc:
-        raise HTTPException(
-            409, f"{exc}; run POST /companies/{company.nse_symbol}/analyse to backfill first"
-        ) from exc
+        raise HTTPException(409, f"{exc}; run POST /companies/{company.nse_symbol}/analyse to backfill first") from exc
     return schemas.BuildOut(
         model=schemas.ModelOut.model_validate(res.model),
         build_status=res.build.status,
         filled_cells=len(res.fill.written),
         blank_rows=res.fill.blank_rows,
-        assumptions=[
-            schemas.AssumptionOut.model_validate(a)
-            for a in db.scalars(select(Assumption).where(Assumption.model_id == res.model.id))
-        ],
+        assumptions=[schemas.AssumptionOut.model_validate(a) for a in db.scalars(select(Assumption).where(Assumption.model_id == res.model.id))],
     )
 
 
 @router.get("/models/{model_id}/assumptions", response_model=list[schemas.AssumptionOut])
 def assumptions(model_id: int, db: DB) -> list[Assumption]:
-    return list(
-        db.scalars(
-            select(Assumption)
-            .where(Assumption.model_id == _model(db, model_id).id)
-            .order_by(Assumption.id)
-        )
-    )
+    return list(db.scalars(select(Assumption).where(Assumption.model_id == _model(db, model_id).id).order_by(Assumption.id)))
 
 
 @router.post("/models/{model_id}/assumptions/decisions", response_model=list[schemas.AssumptionOut])
-def decide_assumptions(
-    model_id: int, body: schemas.AssumptionDecisions, db: DB, user: User
-) -> list[Assumption]:
+def decide_assumptions(model_id: int, body: schemas.AssumptionDecisions, db: DB, user: User) -> list[Assumption]:
     """Accept, edit or reject proposed assumptions: part of the build, so it holds the lock."""
     _model(db, model_id)
     with holding(db, model_ids=[model_id], user_id=user, activity="build"):
@@ -98,8 +79,6 @@ def decide_assumptions(
 
 def _decide(model_id: int, body: schemas.AssumptionDecisions, db: DB) -> list[Assumption]:
     rows = {a.id: a for a in assumptions(model_id, db)}
-    # Only rows still pending when the request came in can be decided: a page showing a row as
-    # pending after a colleague decided it must not overwrite that decision.
     pending = {a.id for a in rows.values() if a.decision == "pending"}
     if body.accept_all:
         for a in rows.values():
@@ -114,11 +93,7 @@ def _decide(model_id: int, body: schemas.AssumptionDecisions, db: DB) -> list[As
         if d.decision == "edited" and d.final_value is None:
             raise HTTPException(422, "edited decisions need final_value")
         item.decision = d.decision
-        item.final_value = (
-            d.final_value
-            if d.decision == "edited"
-            else (item.proposed_value if d.decision == "accepted" else None)
-        )
+        item.final_value = d.final_value if d.decision == "edited" else (item.proposed_value if d.decision == "accepted" else None)
     db.flush()
     return list(rows.values())
 
@@ -193,8 +168,6 @@ def sync(model_id: int, body: schemas.SyncRequest, db: DB, user: User) -> schema
     _model(db, model_id)
     job_id = str(uuid4())
     acquire(db, model_id=model_id, user_id=user, activity="update", job_id=job_id)
-    # A fresh lock already carries the job; a lock the user held already (their report or
-    # build in another tab, or an earlier sync) is moved to this job.
     attach_job(db, model_id=model_id, user_id=user, job_id=job_id, activity="update")
     db.commit()
     try:
@@ -207,11 +180,7 @@ def sync(model_id: int, body: schemas.SyncRequest, db: DB, user: User) -> schema
 
 @router.get("/models/{model_id}/versions/{version}")
 def download_version(model_id: int, version: int, db: DB, store: Store) -> Response:
-    mv = db.scalar(
-        select(ModelVersion).where(
-            ModelVersion.model_id == model_id, ModelVersion.version == version
-        )
-    )
+    mv = db.scalar(select(ModelVersion).where(ModelVersion.model_id == model_id, ModelVersion.version == version))
     if mv is None:
         raise HTTPException(404)
     data = store.get(mv.storage_key)

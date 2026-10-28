@@ -9,15 +9,9 @@ from sqlalchemy.orm import Session, sessionmaker
 if TYPE_CHECKING:
     from analekh.db.models import Model, User
 
-# A database of its own: tests run in rolled-back transactions, but against the working database
-# (10M facts after the full sweep) every unscoped query scans real data: 6 minutes instead of 50 s.
-TEST_DB = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://app:app@127.0.0.1:5432/analekh_test"
-)
+TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://app:app@127.0.0.1:5432/analekh_test")
 
 
-# Tests must never reach the working database: its id sequences advance even when a test rolls
-# back (this is how model ids reached 243 before the first real link).
 if not (make_url(TEST_DB).database or "").endswith("_test"):
     raise RuntimeError(f"TEST_DATABASE_URL must name a database ending in _test, not {TEST_DB!r}")
 
@@ -34,13 +28,7 @@ def _ensure_database(url: str) -> None:
             )
             if not exists:
                 conn.execute(text(f'CREATE DATABASE "{target.database}"'))
-            # Many tests provoke constraint errors on purpose (duplicate email, bad role, race on
-            # file hash) and code handles them. Server log is shared with working database and
-            # should show only real errors, so test database logs none; a failing test says so
-            # through pytest.
-            conn.execute(
-                text(f"ALTER DATABASE \"{target.database}\" SET log_min_messages = 'fatal'")
-            )
+            conn.execute(text(f"ALTER DATABASE \"{target.database}\" SET log_min_messages = 'fatal'"))
     finally:
         admin.dispose()
 
@@ -55,7 +43,6 @@ def _no_real_claude(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     from analekh.config import get_settings
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
-    # Tests run the real sign-in; ENV=dev alone would switch it off (test_auth_switch covers that).
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("AUTH_ENABLED", "true")
     get_settings.cache_clear()

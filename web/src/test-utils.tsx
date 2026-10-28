@@ -4,7 +4,6 @@ import type { ReactElement } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { vi } from "vitest";
 
-// jsdom has no ResizeObserver; the segmented switches and the sidebar highlight use one.
 globalThis.ResizeObserver ??= class {
   observe() {}
   unobserve() {}
@@ -33,7 +32,6 @@ export function mockApi(routes: Record<string, Handler>) {
       status: 404,
       body: { detail: `no route ${method} ${url}` },
     };
-    // An explicit null body is the JSON `null` (e.g. a free model's lock); no body is `{}`.
     const json = JSON.stringify(reply.body === undefined ? {} : reply.body);
     return new Response(reply.status === 204 ? null : json, {
       status: reply.status,
@@ -50,9 +48,7 @@ export function Where() {
 
 export function renderAt(ui: ReactElement, initial = "/") {
   return render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[initial]}>
         <Where />
         {ui}

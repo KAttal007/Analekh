@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Writes /etc/analekh/production.env on the VM: random passwords for Postgres, MinIO and the
-# recalc service, plus the values only you can supply (asked for below; secrets are not echoed).
-# Holds no secrets itself. Run once on the server:  bash make-production-env.sh
-# Re-running asks before replacing the file, because new passwords would not match the Postgres
-# and MinIO data volumes created with the old ones.
 set -euo pipefail
 
 TARGET=/etc/analekh/production.env
@@ -23,7 +18,6 @@ echo
 read -r -p "Address that receives alerts [$smtp_user]: " alert_to
 alert_to=${alert_to:-$smtp_user}
 
-# '@' in the user name must be %40 inside the URL.
 smtp_user_enc=${smtp_user//@/%40}
 pg=$(openssl rand -hex 24)
 minio=$(openssl rand -hex 24)
@@ -59,8 +53,6 @@ SMTP_URL=smtp://$smtp_user_enc:$smtp_pass@smtp.gmail.com:587
 ALERT_EMAIL_TO=$alert_to
 ANTHROPIC_API_KEY=$anthropic
 EOF
-# The pipeline runs `docker compose` as gitlab-runner, which reads this file: give that group
-# read access and nobody else.
 sudo chown root:gitlab-runner /etc/analekh "$TARGET"
 sudo chmod 750 /etc/analekh
 sudo chmod 640 "$TARGET"

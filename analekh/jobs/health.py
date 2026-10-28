@@ -9,10 +9,7 @@ from urllib.parse import urlparse
 from analekh.config import get_settings
 
 TIMEOUT_SECONDS = 0.4
-NOT_RUNNING = (
-    "Background jobs aren't running on this machine: they need Redis and a Celery worker, "
-    "which come with hosting. Nothing was queued."
-)
+NOT_RUNNING = "Background jobs aren't running on this machine: they need Redis and a Celery worker, which come with hosting. Nothing was queued."
 
 
 UP_FOR_SECONDS = 15.0  # how long "up" is trusted

@@ -14,38 +14,19 @@ from analekh.db.models import Chunk, Document, Filing
 RRF_K = 60
 
 
-def hybrid_search(
-    session: Session, company_id: int, query: str, k: int = 8, embedder: Any = None
-) -> list[dict[str, Any]]:
-    base = (
-        select(Chunk, Filing)
-        .join(Document, Chunk.document_id == Document.id)
-        .join(Filing, Document.filing_id == Filing.id)
-        .where(Filing.company_id == company_id)
-    )
+def hybrid_search(session: Session, company_id: int, query: str, k: int = 8, embedder: Any = None) -> list[dict[str, Any]]:
+    base = select(Chunk, Filing).join(Document, Chunk.document_id == Document.id).join(Filing, Document.filing_id == Filing.id).where(Filing.company_id == company_id)
     ranked: dict[int, float] = {}
     rows: dict[int, tuple[Chunk, Filing]] = {}
 
     tsq = func.websearch_to_tsquery("english", query)
-    for rank, (chunk, filing) in enumerate(
-        session.execute(
-            base.where(Chunk.tsv.op("@@")(tsq))
-            .order_by(func.ts_rank(Chunk.tsv, tsq).desc())
-            .limit(k * 3)
-        ).all()
-    ):
+    for rank, (chunk, filing) in enumerate(session.execute(base.where(Chunk.tsv.op("@@")(tsq)).order_by(func.ts_rank(Chunk.tsv, tsq).desc()).limit(k * 3)).all()):
         ranked[chunk.id] = ranked.get(chunk.id, 0) + 1 / (RRF_K + rank)
         rows[chunk.id] = (chunk, filing)
 
     if embedder is not None:
         vec = embedder.embed([query])[0]
-        for rank, (chunk, filing) in enumerate(
-            session.execute(
-                base.where(Chunk.embedding.is_not(None))
-                .order_by(Chunk.embedding.cosine_distance(vec))
-                .limit(k * 3)
-            ).all()
-        ):
+        for rank, (chunk, filing) in enumerate(session.execute(base.where(Chunk.embedding.is_not(None)).order_by(Chunk.embedding.cosine_distance(vec)).limit(k * 3)).all()):
             ranked[chunk.id] = ranked.get(chunk.id, 0) + 1 / (RRF_K + rank)
             rows[chunk.id] = (chunk, filing)
 

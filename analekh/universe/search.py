@@ -70,17 +70,8 @@ def _run(
     offset: int,
     include_inactive: bool,
 ) -> list[SearchHit]:
-    stmt = (
-        select(Company, rank.label("rank"))
-        .where(where if include_inactive else and_(where, Company.is_active))
-        .order_by(rank.desc(), Company.nse_symbol)
-        .limit(limit)
-        .offset(offset)
-    )
-    return [
-        SearchHit(c.id, c.nse_symbol, c.name, c.isin, c.sector, c.is_active, float(r))
-        for c, r in session.execute(stmt).all()
-    ]
+    stmt = select(Company, rank.label("rank")).where(where if include_inactive else and_(where, Company.is_active)).order_by(rank.desc(), Company.nse_symbol).limit(limit).offset(offset)
+    return [SearchHit(c.id, c.nse_symbol, c.name, c.isin, c.sector, c.is_active, float(r)) for c, r in session.execute(stmt).all()]
 
 
 def get(session: Session, symbol: str) -> Company | None:

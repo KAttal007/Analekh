@@ -78,9 +78,7 @@ Each line above gets its test in the owning task (Tasks 2, 3, 4, 5, 7, 8).
 def test_model_lock_table_exists(db_session):
     from analekh.db.models import ModelLock
 
-    assert {"model_id", "user_id", "activity", "job_id", "taken_at", "last_seen_at"} <= set(
-        ModelLock.__table__.columns.keys()
-    )
+    assert {"model_id", "user_id", "activity", "job_id", "taken_at", "last_seen_at"} <= set(ModelLock.__table__.columns.keys())
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -207,9 +205,7 @@ def test_sync_refused_when_locked_by_colleague(client, analyst_a_token, analyst_
     assert r.json()["detail"]["code"] == "model_locked"
 
 
-def test_report_start_refused_when_locked(
-    client, analyst_a_token, analyst_b_token, model
-): ...  # same shape against the report start endpoint
+def test_report_start_refused_when_locked(client, analyst_a_token, analyst_b_token, model): ...  # same shape against the report start endpoint
 
 
 def test_build_refused_when_locked(client, analyst_a_token, analyst_b_token, company): ...
@@ -249,9 +245,7 @@ git commit -m "feat(locks): refuse update, build and report starts on a held mod
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_sync_task_releases_lock_on_success(
-    db_session, model, analyst, run_sync_task
-): ...  # acquire with job_id, run task, assert no ModelLock row
+def test_sync_task_releases_lock_on_success(db_session, model, analyst, run_sync_task): ...  # acquire with job_id, run task, assert no ModelLock row
 
 
 def test_sync_task_releases_lock_on_failure(db_session, model, analyst, run_sync_task_that_raises):
@@ -299,17 +293,13 @@ git commit -m "feat(locks): release on job success, failure or cancel"
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_status_shows_holder_name_to_colleague(
-    client, token_a, token_b, model
-): ...  # A acquires; B GET lock -> holder_name == A.name, mine False
+def test_status_shows_holder_name_to_colleague(client, token_a, token_b, model): ...  # A acquires; B GET lock -> holder_name == A.name, mine False
 
 
 def test_non_holder_cannot_release(client, token_a, token_b, model): ...  # B POST release -> 403
 
 
-def test_admin_release_names_holder_in_audit(
-    client, token_a, admin_token, model
-): ...  # admin POST admin release -> 204; audit has holder_id
+def test_admin_release_names_holder_in_audit(client, token_a, admin_token, model): ...  # admin POST admin release -> 204; audit has holder_id
 
 
 def test_me_locks_lists_only_mine(client, token_a, token_b, model, model2): ...

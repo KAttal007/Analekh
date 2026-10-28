@@ -10,7 +10,6 @@ from analekh.config import get_settings
 from analekh.db.models import Chunk, Document
 from analekh.docs.chunking import TextChunk
 
-# 1024-dim, multilingual-capable, runs on CPU. Swap freely; then update EMBEDDING_DIM + migrate.
 LOCAL_MODEL = "BAAI/bge-large-en-v1.5"
 
 
@@ -46,7 +45,5 @@ def store_chunks(
         part = chunks[i : i + batch]
         vectors = embedder.embed([c.text for c in part]) if embedder else [None] * len(part)
         for c, vec in zip(part, vectors, strict=True):
-            session.add(
-                Chunk(document_id=document.id, page=c.page, ord=c.ord, text=c.text, embedding=vec)
-            )
+            session.add(Chunk(document_id=document.id, page=c.page, ord=c.ord, text=c.text, embedding=vec))
     return len(chunks)

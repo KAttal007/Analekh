@@ -66,9 +66,7 @@ it("sign-in lists each held model with a Close button", async () => {
   expect(box.textContent).toContain("You still have 2 models open");
   expect(box.textContent).toContain("Tata Consultancy Services");
   expect(box.textContent).toContain("Infosys");
-  expect(
-    screen.getByRole("button", { name: "Close Tata Consultancy Services's model" }),
-  ).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Close Tata Consultancy Services's model" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Close Infosys's model" })).toBeTruthy();
 });
 
@@ -88,9 +86,7 @@ it("a model whose update job is running shows as running, with no Close", async 
   const box = await screen.findByRole("region", { name: "Models still open" });
   expect(box.textContent).toContain("Tata Consultancy Services");
   expect(box.textContent).toContain("Running");
-  expect(
-    screen.queryByRole("button", { name: "Close Tata Consultancy Services's model" }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: "Close Tata Consultancy Services's model" })).toBeNull();
   expect(screen.getByRole("button", { name: "Close Infosys's model" })).toBeTruthy();
 });
 
@@ -118,16 +114,10 @@ it("Close gives that model back; the last one closes the reminder", async () => 
   renderAt(<SignInLocks />);
   fireEvent.click(await screen.findByRole("button", { name: "Close Infosys's model" }));
   await waitFor(() => expect(screen.queryByText(/Infosys/)).toBeNull());
-  expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/2/lock/release")).toBe(
-    true,
-  );
-  expect(screen.getByRole("region", { name: "Models still open" }).textContent).toContain(
-    "You still have 1 model open",
-  );
+  expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/2/lock/release")).toBe(true);
+  expect(screen.getByRole("region", { name: "Models still open" }).textContent).toContain("You still have 1 model open");
   fireEvent.click(screen.getByRole("button", { name: "Close Tata Consultancy Services's model" }));
-  await waitFor(() =>
-    expect(screen.queryByRole("region", { name: "Models still open" })).toBeNull(),
-  );
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Models still open" })).toBeNull());
 });
 
 it("Keep open dismisses it without giving anything back", async () => {

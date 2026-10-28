@@ -23,8 +23,6 @@ PORT = 9341
 
 async def main(url: str, out: str) -> None:
     profile = tempfile.mkdtemp(prefix="edge-cdp-")
-    # Fixed argv, no shell, local dev script: nothing user-supplied reaches the command.
-    # nosemgrep
     proc = subprocess.Popen(
         [
             EDGE,
@@ -85,8 +83,6 @@ async def main(url: str, out: str) -> None:
                     fh.write(base64.b64decode(shot["data"]))
                 print("panel", i, round(w), round(h))
     finally:
-        # Edge starts child processes: stop the whole tree, then remove the throwaway profile
-        # (about 450 MB each), or every run leaves both behind.
         if os.name == "nt":
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
         else:

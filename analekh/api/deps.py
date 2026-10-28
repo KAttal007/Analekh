@@ -76,15 +76,12 @@ def _dev_user(db: Session) -> UserRow:
     user = db.get(UserRow, uid)
     if user is None:
         s = get_settings()
-        user = UserRow(
-            id=uid, email=s.dev_user_email, name=s.dev_user_name, role="admin", auth_kind="password"
-        )
+        user = UserRow(id=uid, email=s.dev_user_email, name=s.dev_user_name, role="admin", auth_kind="password")
         db.add(user)
         db.commit()
     return user
 
 
-# While a user must still choose their own password, these are the only routes that answer
 # (first-password design, section 6). Matched on the route's path template, not the URL.
 FIRST_PASSWORD_ALLOWED: frozenset[tuple[str, str]] = frozenset(
     {
@@ -144,8 +141,7 @@ def company_or_404(db: Session, symbol: str) -> Company:
     if c is None:
         raise HTTPException(
             404,
-            f"{symbol.upper()} is not in the NSE universe; run "
-            "`analekh universe load` if the list has not been loaded",
+            f"{symbol.upper()} is not in the NSE universe; run `analekh universe load` if the list has not been loaded",
         )
     return c
 

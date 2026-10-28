@@ -1,9 +1,4 @@
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type CompanyIndexEntry } from "../api/client";
@@ -18,14 +13,6 @@ const PREFETCH_MS = 150; // pause on a highlighted result before fetching its co
 export type Suggestion = Pick<CompanyIndexEntry, "id" | "nse_symbol" | "name" | "sector">;
 
 // Type-ahead over every NSE company (design doc F2). The list narrows with each keystroke:
-// "T" lists tickers and names starting with T, "TC" anything with TC in the ticker or name.
-// The company list loads once in the background and is searched in the browser, so results
-// update on every keystroke with no network wait. The server answers only when the list is not
-// loaded yet, or when nothing matches locally (its fuzzy search catches typos).
-// With `onPick` it picks instead of navigating (adding a peer to comps): no "/" shortcut, no
-// company-page prefetch, and companies in `exclude` are left out of the list.
-// `shortcut`: answers to "/" (default: only the main search does). A page whose own picker stands
-// in for the top bar (Reports, Comps) sets it, so "/" still lands in the one search on screen.
 export function CompanySearch({
   onPick,
   placeholder = "Search any NSE company by name or ticker",
@@ -48,7 +35,6 @@ export function CompanySearch({
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  // "/" jumps to the search box from anywhere, unless the user is already typing somewhere.
   useEffect(() => {
     if (!shortcut) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -68,15 +54,10 @@ export function CompanySearch({
     return () => clearTimeout(t);
   }, [q]);
 
-  // Local search: the whole universe, prepared once.
   const indexQuery = useQuery(companyIndexQuery);
-  const index = useMemo(
-    () => (indexQuery.data ? prepareIndex(indexQuery.data) : null),
-    [indexQuery.data],
-  );
+  const index = useMemo(() => (indexQuery.data ? prepareIndex(indexQuery.data) : null), [indexQuery.data]);
   const local = useMemo(() => (index ? searchIndex(index, q) : null), [index, q]);
 
-  // Server search: before the list has loaded, or as the typo fallback when nothing matched.
   const askServer = term.length >= 1 && (local === null || (local.length === 0 && term.length > 2));
   const server = useInfiniteQuery({
     queryKey: ["search", term],
@@ -89,10 +70,7 @@ export function CompanySearch({
 
   const fromLocal = local !== null && local.length > 0;
   const skip = new Set(exclude);
-  const hits: Suggestion[] = (
-    fromLocal ? local.slice(0, shown) : askServer ? (server.data?.pages.flat() ?? []) : []
-  ).filter((h) => !skip.has(h.nse_symbol));
-  // Results match what was typed: always for local results; for the server once it caught up.
+  const hits: Suggestion[] = (fromLocal ? local.slice(0, shown) : askServer ? (server.data?.pages.flat() ?? []) : []).filter((h) => !skip.has(h.nse_symbol));
   const current = fromLocal || (term === q.trim() && !server.isPlaceholderData);
   const selected = Math.min(active, hits.length - 1);
 
@@ -104,12 +82,9 @@ export function CompanySearch({
     }
   };
   useEffect(() => {
-    listRef.current
-      ?.querySelector('[aria-selected="true"]')
-      ?.scrollIntoView?.({ block: "nearest" });
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
 
-  // Fetch the highlighted company ahead of the click, so its page opens with data in hand.
   const highlighted = hits[selected]?.nse_symbol;
   useEffect(() => {
     if (!highlighted || onPick) return;
@@ -156,7 +131,6 @@ export function CompanySearch({
           listRef.current?.scrollTo?.({ top: 0 });
         }}
         onKeyDown={onKeyDown}
-        // load the company page's code before it's needed
         onFocus={onPick ? undefined : () => void loadCompanyPage()}
       />
       {!q && shortcut && <kbd aria-hidden="true">/</kbd>}
@@ -172,14 +146,7 @@ export function CompanySearch({
           }}
         >
           {hits.map((h, i) => (
-            <li
-              key={h.id}
-              role="option"
-              aria-selected={i === selected}
-              className={i === selected ? "active" : undefined}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => open(h)}
-            >
+            <li key={h.id} role="option" aria-selected={i === selected} className={i === selected ? "active" : undefined} onMouseEnter={() => setActive(i)} onClick={() => open(h)}>
               <strong>{h.nse_symbol}</strong>
               <span className="name">{highlight(h.name, fromLocal ? typed : term)}</span>
               {h.sector && <span className="muted">{h.sector}</span>}
@@ -192,7 +159,6 @@ export function CompanySearch({
   );
 }
 
-// Marks where the typed text (or each typed word) appears in `name`; one letter only at the start.
 function highlight(name: string, term: string): ReactNode {
   const words = term
     .split(/\s+/)
@@ -201,8 +167,6 @@ function highlight(name: string, term: string): ReactNode {
     .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!words.length) return name;
   const anchor = term.length === 1 ? "^" : "";
-  // Words escaped above: typed text is matched literally.
-  // nosemgrep
   const parts = name.split(new RegExp(`${anchor}(${words.join("|")})`, "gi"));
   return parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p));
 }

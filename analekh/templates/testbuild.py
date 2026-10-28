@@ -31,9 +31,7 @@ def run_test_build(
     issues: dict[str, object] = {}
     if last_actual is None:
         issues["error"] = f"no quarterly results stored for {company.nse_symbol}"
-        test = TemplateTest(
-            template_id=template.id, company_id=company.id, result="fail", issues=issues
-        )
+        test = TemplateTest(template_id=template.id, company_id=company.id, result="fail", issues=issues)
         session.add(test)
         session.flush()
         return test
@@ -46,13 +44,9 @@ def run_test_build(
 
     mapped = {t.key for r in mapping.rows for t in r.terms() if t.kind == "xbrl"}
     unmapped = sorted(source.elements(last_actual, mapping.consolidated) - mapped)
-    broken = [
-        f"{h.sheet}!{h.cell}: {h.detail}" for h in scan_hygiene(wb) if h.kind == "error_value"
-    ]
+    broken = [f"{h.sheet}!{h.cell}: {h.detail}" for h in scan_hygiene(wb) if h.kind == "error_value"]
     issues = {
-        "period": fill.axis.columns[
-            max(c for c in fill.axis.columns if not fill.axis.is_estimate(c))
-        ].label,
+        "period": fill.axis.columns[max(c for c in fill.axis.columns if not fill.axis.is_estimate(c))].label,
         "checks": checks.as_dict(),
         "template_rows_not_reported": fill.blank_rows,
         "partially_reported_rows": fill.partial_rows,

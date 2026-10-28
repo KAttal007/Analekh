@@ -36,9 +36,7 @@ def _q(x: float, places: str = "0.0001") -> Decimal:
     return Decimal(str(x)).quantize(Decimal(places), rounding=ROUND_HALF_UP)
 
 
-def _series(
-    source: ValueSource, mapping: Mapping, label: str, periods: list[date]
-) -> list[tuple[date, Decimal, list[dict[str, Any]]]]:
+def _series(source: ValueSource, mapping: Mapping, label: str, periods: list[date]) -> list[tuple[date, Decimal, list[dict[str, Any]]]]:
     row = next((r for r in mapping.rows if r.row_label == label), None)
     if row is None:
         return []
@@ -70,11 +68,7 @@ def propose(
     """kinds: driver name -> growth | ratio_to_revenue | tax_rate | ratio."""
     periods = quarter_ends(last_actual, LOOKBACK_QUARTERS, 0)
     rev_row = _revenue_row(mapping)
-    revenue = (
-        {e: v for e, v, _ in _series(source, mapping, rev_row.row_label, periods)}
-        if rev_row
-        else {}
-    )
+    revenue = {e: v for e, v, _ in _series(source, mapping, rev_row.row_label, periods)} if rev_row else {}
     pbt_row = next((r for r in mapping.rows if r.source == "xbrl:ProfitBeforeTax"), None)
     out: list[Proposal] = []
     for d in mapping.drivers:
@@ -100,19 +94,14 @@ def _propose_one(
     cites = [c for _, _, cs in series for c in cs]
     if kind == "growth":
         recent = series[-5:]
-        growth = [
-            float(b / a - 1) for (_, a, _), (_, b, _) in zip(recent, recent[1:], strict=False) if a
-        ]
+        growth = [float(b / a - 1) for (_, a, _), (_, b, _) in zip(recent, recent[1:], strict=False) if a]
         if not growth:
             return None
         avg = mean(growth)
         return Proposal(
             d.name,
             _q(avg),
-            (
-                f"Average quarter-on-quarter growth of {d.actual_row_label.lower()} over the last "
-                f"{len(growth)} quarters was {avg * 100:.1f}%."
-            ),
+            (f"Average quarter-on-quarter growth of {d.actual_row_label.lower()} over the last {len(growth)} quarters was {avg * 100:.1f}%."),
             cites,
             labels,
         )
@@ -126,11 +115,7 @@ def _propose_one(
         return Proposal(
             d.name,
             _q(avg),
-            (
-                f"{d.actual_row_label} averaged {avg * 100:.1f}% of revenue over "
-                f"{len(ratios)} quarters ({direction}: {ratios[0] * 100:.1f}% to "
-                f"{ratios[-1] * 100:.1f}%)."
-            ),
+            (f"{d.actual_row_label} averaged {avg * 100:.1f}% of revenue over {len(ratios)} quarters ({direction}: {ratios[0] * 100:.1f}% to {ratios[-1] * 100:.1f}%)."),
             cites,
             labels,
         )

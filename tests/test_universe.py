@@ -22,7 +22,6 @@ ACMEIND,Acme Industries Limited,EQ,17-Mar-2005,2,1,INE000A01022,2
 OLDCO,Old Company Limited,BE,01-Jan-2000,10,1,INE000O01033,10
 """
 )
-# SME_EQUITY_L.csv as seen 2026-10-13: no MARKET_LOT, trailing comma, two-digit years.
 SME_L = (
     b"SYMBOL,NAME_OF_COMPANY,SERIES,DATE_OF_LISTING,PAID_UP_VALUE,ISIN_NUMBER,FACE_VALUE,\n"
     b"""TINYSME,Tiny SME Limited,SM,12-Aug-24,10,INE000T01044,10,
@@ -54,9 +53,7 @@ def test_sector_worksheet_applies_only_confirmed_nse_sectors(db, tmp_path):
 
     r = sectors.import_sector_worksheet(db, tmp_path / "sectors.xlsx", map_path)
     assert r == {"rows": 3, "confirmed": 2, "not_an_nse_sector": 1, "updated": 1}
-    demo, acme = (
-        db.scalar(select(Company).where(Company.nse_symbol == s)) for s in ("DEMOFIN", "ACMEIND")
-    )
+    demo, acme = (db.scalar(select(Company).where(Company.nse_symbol == s)) for s in ("DEMOFIN", "ACMEIND"))
     assert (demo.sector, demo.sector_source) == ("Financial Services", "user")
     assert acme.sector is None
     assert sectors.load_sector_map(map_path) == {"DEMOFIN": ("Financial Services", None)}
@@ -71,18 +68,13 @@ def test_upsert_by_isin_renames_and_deactivates(db):
     first = upsert_universe(db, parse_equity_list(EQUITY_L))
     assert sorted(first.inserted) == ["ACMEIND", "DEMOFIN", "OLDCO"]
 
-    # Next week: DEMOFIN renamed to DEMOFINANCE (same ISIN), OLDCO delisted.
-    week2 = EQUITY_L.replace(b"DEMOFIN,", b"DEMOFINANCE,").replace(
-        b"OLDCO,Old Company Limited,BE,01-Jan-2000,10,1,INE000O01033,10\n", b""
-    )
+    week2 = EQUITY_L.replace(b"DEMOFIN,", b"DEMOFINANCE,").replace(b"OLDCO,Old Company Limited,BE,01-Jan-2000,10,1,INE000O01033,10\n", b"")
     second = upsert_universe(db, parse_equity_list(week2))
     assert second.renamed == [("DEMOFIN", "DEMOFINANCE")]
     assert second.deactivated == ["OLDCO"]
     old = db.scalar(select(Company).where(Company.nse_symbol == "OLDCO"))
     assert old is not None and not old.is_active
-    assert (
-        db.scalar(select(Company).where(Company.isin == "INE000D01011")).nse_symbol == "DEMOFINANCE"
-    )
+    assert db.scalar(select(Company).where(Company.isin == "INE000D01011")).nse_symbol == "DEMOFINANCE"
 
 
 def test_search_symbol_prefix_and_fuzzy_name(db):
@@ -137,12 +129,9 @@ ATLAS,Atlas Tyres Limited,EQ,01-Jan-2001,10,1,INE000A01066,10
     def symbols(q: str, **kw: int) -> list[str]:
         return [h.nse_symbol for h in search(db, q, **kw)]
 
-    # One character: ticker or name starts with it (not Atlas Tyres, whose second word does).
     assert symbols("T") == ["TCIEXP", "TCS", "TIGER"]
-    # Two or more: anywhere in the ticker or name, closest matches first.
     assert symbols("TC") == ["TCIEXP", "TCS", "MATCHBX", "OTCX"]
     assert symbols("tcs") == ["TCS"]
-    # Paging for long lists.
     assert symbols("T", limit=2) + symbols("T", limit=2, offset=2) == ["TCIEXP", "TCS", "TIGER"]
     assert symbols("T", limit=2, offset=3) == []
 
@@ -167,17 +156,12 @@ def test_watchlist_controls_coverage_level(db):
     assert not coverage.is_watched(db, demo.id)
 
 
-# Layout of NSE Indices' constituent lists (as on niftyindices.com, 2026-10-16). Companies are
-# SYNTHETIC.
 NIFTY_HEADER = b"Company Name,Industry,Symbol,Series,ISIN Code\n"
 
 
 def test_parse_constituents_ignores_header_case_and_bom():
-    data = (
-        "﻿company name , INDUSTRY,symbol,Series,ISIN Code\nAcme Ltd,Capital Goods,acme,EQ,X\n"
-    ).encode()
+    data = ("﻿company name , INDUSTRY,symbol,Series,ISIN Code\nAcme Ltd,Capital Goods,acme,EQ,X\n").encode()
     assert parse_constituents(data) == {"ACME": ("Capital Goods", None)}
-    # Stale lists still carry pre-2022 labels: only NSE's current sector names are taken.
     old = NIFTY_HEADER + b"Old Label Ltd,PHARMA,OLDLBL,EQ,X\nNew Ltd,Healthcare,NEWCO,EQ,Y\n"
     assert parse_constituents(old) == {"NEWCO": ("Healthcare", None)}
 
@@ -202,8 +186,7 @@ Old Company Limited,Capital Goods,OLDCO,EQ,INE000O01033
 Zed Bank Limited,Financial Services,ZEDBANK,EQ,INE000Z01077
 Zed Life Insurance Limited,Financial Services,ZEDLIFE,EQ,INE000Z01088
 """,
-        "ind_niftybanklist.csv": NIFTY_HEADER
-        + b"Zed Bank Limited,Financial Services,ZEDBANK,EQ,INE000Z01077\n",
+        "ind_niftybanklist.csv": NIFTY_HEADER + b"Zed Bank Limited,Financial Services,ZEDBANK,EQ,INE000Z01077\n",
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -219,7 +202,6 @@ Zed Life Insurance Limited,Financial Services,ZEDLIFE,EQ,INE000Z01088
     assert by_symbol["ACMEIND"].sector == "Capital Goods"
     assert by_symbol["OLDCO"].sector == "Set by analyst"  # never overwritten
     assert by_symbol["ZEDBANK"].results_taxonomy == "banking"  # bank index membership
-    # No strong signal: left for the first filing's schema reference to decide.
     assert by_symbol["ACMEIND"].results_taxonomy is None
     assert by_symbol["ZEDLIFE"].results_taxonomy is None
 
@@ -253,17 +235,13 @@ def test_stocks_workbook_import_and_source_precedence(db, tmp_path):
 
     assert by_symbol["DEMOFIN"].sector_lseg == "Banking Services"  # always kept
 
-    # NSE's taxonomy wins over LSEG's (owner, 2026-10-16); LSEG never replaces NSE; the LSEG value
-    # stays in sector_lseg.
     assert apply_sectors(db, {"ACMEIND": ("Capital Goods", None)}, source="nse_indices") == 1
     assert (by_symbol["ACMEIND"].sector, by_symbol["ACMEIND"].sector_source) == (
         "Capital Goods",
         "nse_indices",
     )
     assert by_symbol["ACMEIND"].sector_lseg == "Machinery, Equipment & Components"
-    assert (
-        apply_sectors(db, {"ACMEIND": ("Industrial Machinery", None)}, source="excel_stocks") == 0
-    )
+    assert apply_sectors(db, {"ACMEIND": ("Industrial Machinery", None)}, source="excel_stocks") == 0
     assert by_symbol["ACMEIND"].sector == "Capital Goods"
 
 

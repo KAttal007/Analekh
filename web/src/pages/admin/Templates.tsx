@@ -2,14 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type Template } from "../../api/client";
 import { Icon } from "../../components/Icon";
-import {
-  Badge,
-  EmptyState,
-  ErrorNote,
-  Loading,
-  PageHeader,
-  StatusBadge,
-} from "../../components/ui";
+import { Badge, EmptyState, ErrorNote, Loading, PageHeader, StatusBadge } from "../../components/ui";
 
 // Template onboarding (design doc 14): upload, review suggested mapping, test build, activate.
 export function Templates() {
@@ -36,10 +29,7 @@ export function Templates() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Templates"
-        subtitle="Your model layouts. Upload one, review how its rows map to reported figures, test-build it on a company, then activate it."
-      />
+      <PageHeader title="Templates" subtitle="Your model layouts. Upload one, review how its rows map to reported figures, test-build it on a company, then activate it." />
 
       <form
         className="card"
@@ -86,12 +76,7 @@ export function Templates() {
           <h2>Your templates</h2>
           <label className="field field-inline">
             Test company
-            <input
-              className="input-sm"
-              placeholder="TICKER"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            />
+            <input className="input-sm" placeholder="TICKER" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
           </label>
         </div>
         {isLoading ? (
@@ -105,8 +90,7 @@ export function Templates() {
         ) : data.length === 0 ? (
           <div className="card-body">
             <EmptyState icon="layers" title="No templates yet">
-              Upload a workbook above. Analekh reads its layout and suggests how each row maps to
-              reported figures, for you to confirm.
+              Upload a workbook above. Analekh reads its layout and suggests how each row maps to reported figures, for you to confirm.
             </EmptyState>
           </div>
         ) : (
@@ -141,19 +125,10 @@ export function Templates() {
                       </td>
                       <td>
                         <div className="cell-actions">
-                          <button
-                            className="btn-sm"
-                            onClick={() => test.mutate(t)}
-                            disabled={!symbol}
-                            title={symbol ? `Test-build on ${symbol}` : "Enter a test company"}
-                          >
+                          <button className="btn-sm" onClick={() => test.mutate(t)} disabled={!symbol} title={symbol ? `Test-build on ${symbol}` : "Enter a test company"}>
                             Test build
                           </button>
-                          <button
-                            className="btn-sm btn-primary"
-                            onClick={() => activate.mutate(t)}
-                            disabled={t.status === "active"}
-                          >
+                          <button className="btn-sm btn-primary" onClick={() => activate.mutate(t)} disabled={t.status === "active"}>
                             Activate
                           </button>
                         </div>

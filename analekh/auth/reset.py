@@ -52,8 +52,6 @@ def request_reset(
     now = service._now(now)
     row = db.get(PasswordReset, user.id)
     if row is not None:
-        # Inside the cooldown: keep the code already sent and send nothing. The caller replies the
-        # same way, so the wait cannot reveal that the account exists.
         issued = row.expires_at - timedelta(minutes=s.reset_code_minutes)
         if now - issued < timedelta(seconds=s.reset_request_cooldown_seconds):
             return False
@@ -64,20 +62,14 @@ def request_reset(
     else:
         row.code_hash, row.expires_at, row.attempts = _hash_code(code), expires, 0
     db.flush()
-    body = (
-        f"Your Analekh password reset code is {code}.\n\n"
-        f"It works once and expires in {s.reset_code_minutes} minutes. "
-        "If you did not ask for it, ignore this message."
-    )
+    body = f"Your Analekh password reset code is {code}.\n\nIt works once and expires in {s.reset_code_minutes} minutes. If you did not ask for it, ignore this message."
     if schedule is not None:
         schedule(user.email, "Your Analekh reset code", body)
         return True
     return send_mail(user.email, "Your Analekh reset code", body)
 
 
-def confirm_reset(
-    db: Session, email: str, code: str, new_password: str, now: datetime | None = None
-) -> bool:
+def confirm_reset(db: Session, email: str, code: str, new_password: str, now: datetime | None = None) -> bool:
     """Check the code and set the new password (which ends every session and clears any block).
     A wrong code counts an attempt; an expired or exhausted code is deleted. A new password that
     misses the rules raises PasswordRuleError (PasswordTooShort / PasswordTooLong for length)

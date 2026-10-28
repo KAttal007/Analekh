@@ -51,9 +51,6 @@ def _signed_in(db) -> TestClient:
     return c
 
 
-# Sign out everywhere
-
-
 def test_sign_out_everywhere_ends_every_session_and_token(raw, db, user):
     laptop, desktop = _signed_in(db), _signed_in(db)
     _, token = create_api_token(db, user, "bridge")
@@ -62,10 +59,7 @@ def test_sign_out_everywhere_ends_every_session_and_token(raw, db, user):
 
     res = laptop.post("/auth/logout-everywhere", headers=CSRF)
     assert res.status_code == 204
-    assert (
-        'analekh_session=""' in res.headers["set-cookie"]
-        or "Max-Age=0" in res.headers["set-cookie"]
-    )
+    assert 'analekh_session=""' in res.headers["set-cookie"] or "Max-Age=0" in res.headers["set-cookie"]
     assert laptop.get("/auth/me").status_code == 401
     assert desktop.get("/auth/me").status_code == 401
     assert raw.get("/auth/me", headers=bearer).status_code == 401
@@ -84,17 +78,11 @@ def test_sign_out_everywhere_needs_a_session(raw):
     assert raw.post("/auth/logout-everywhere", headers=CSRF).status_code == 401
 
 
-# Periodic purge
-
-
 def test_purge_deletes_only_unusable_sessions(db, user):
     cfg = get_settings()
     fresh = service.login(db, "kaushal@firm.in", GOOD, now=T0).token
-    idle = service.login(
-        db, "kaushal@firm.in", GOOD, now=T0 - timedelta(hours=cfg.session_idle_hours, minutes=1)
-    ).token
+    idle = service.login(db, "kaushal@firm.in", GOOD, now=T0 - timedelta(hours=cfg.session_idle_hours, minutes=1)).token
     assert fresh and idle
-    # sign-in clears only the signing-in user's stale rows; age one without signing in again
     row = db.get(AuthSession, service._hash_token(fresh))
     assert row is not None
     other = service.create_user(db, "other@firm.in", "Other", "analyst", GOOD)
@@ -117,9 +105,6 @@ def test_purge_runs_on_the_beat_schedule():
 
     entry = celery_app.conf.beat_schedule["purge-sessions"]
     assert entry["task"] == "analekh.jobs.tasks.purge_sessions"
-
-
-# Users page fields
 
 
 def test_users_list_shows_last_seen_and_current_pause(db, user, monkeypatch):
@@ -155,9 +140,6 @@ def test_users_list_hides_a_pause_that_has_ended(db, user):
     assert rows[0]["paused_until"] is None
 
 
-# Reset: the length check lives in confirm_reset itself
-
-
 def test_confirm_reset_refuses_bad_length_before_spending_an_attempt(db, user, sent):
     reset.request_reset(db, "kaushal@firm.in")
     code = sent[-1][2].split("code is ")[1][:6]
@@ -169,9 +151,6 @@ def test_confirm_reset_refuses_bad_length_before_spending_an_attempt(db, user, s
     row = db.get(PasswordReset, user.id)
     assert row is not None and row.attempts == 0
     assert reset.confirm_reset(db, "kaushal@firm.in", code, NEW) is True
-
-
-# Body-size cap at the edge
 
 
 @pytest.fixture
@@ -199,9 +178,6 @@ def test_streamed_oversized_body_is_cut_off(raw, small_cap):
 def test_small_bodies_pass_the_cap(raw, user, small_cap):
     res = raw.post("/auth/login", json={"email": "kaushal@firm.in", "password": GOOD})
     assert res.status_code == 200
-
-
-# Reset timing: a known account must not answer measurably slower than an unknown one
 
 
 def _reply_seconds(path: str, payload: dict) -> tuple[int, float]:

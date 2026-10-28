@@ -26,8 +26,7 @@ const quiet = {
   "GET /api/alerts/channels": () => ({ status: 500, body: { detail: "off" } }),
   "GET /api/alerts": () => ({ status: 200, body: [] }),
 };
-const limitInput = async () =>
-  (await screen.findByLabelText("Maximum file size")) as HTMLInputElement;
+const limitInput = async () => (await screen.findByLabelText("Maximum file size")) as HTMLInputElement;
 
 test("the upload-limit card shows the current limit and who changed it", async () => {
   mockApi({ ...quiet, "GET /api/settings/upload-limit": () => ({ status: 200, body: LIMIT }) });
@@ -47,9 +46,7 @@ test("saving sends the size in bytes", async () => {
   renderAt(<AdminSettings />);
   fireEvent.change(await limitInput(), { target: { value: "40" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ bytes: 40 * MB }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ bytes: 40 * MB }));
 });
 
 test("a value above the ceiling shows the server's text and keeps what was typed", async () => {

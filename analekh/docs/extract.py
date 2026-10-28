@@ -105,9 +105,7 @@ def build_prompt(company: str, kpis: dict[str, str], period_hint: str | None) ->
     )
 
 
-def map_back(
-    raw: dict[str, Any], selected: list[PageScore], pages: dict[int, PageText]
-) -> Extraction:
+def map_back(raw: dict[str, Any], selected: list[PageScore], pages: dict[int, PageText]) -> Extraction:
     """Translate sub-PDF page numbers to original pages and verify quotes locally."""
     order = [s.page for s in selected]
 

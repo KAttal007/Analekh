@@ -286,9 +286,7 @@ def test_local_uses_the_vba_filter_for_xlsm(configure, monkeypatch):
         seen.append(list(args))
         uri = next(a for a in args if a.startswith("-env:")).split("=", 1)[1]
         profile = Path(url2pathname(urlparse(uri).path))
-        assert "DisableMacrosExecution" in (
-            profile / "user" / "registrymodifications.xcu"
-        ).read_text(encoding="utf-8")
+        assert "DisableMacrosExecution" in (profile / "user" / "registrymodifications.xcu").read_text(encoding="utf-8")
         out_dir = Path(args[args.index("--outdir") + 1])
         out_dir.mkdir()
         (out_dir / Path(args[-1]).name).write_bytes(FRESH_M)

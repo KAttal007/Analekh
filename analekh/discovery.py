@@ -96,11 +96,7 @@ class Matcher:
             )
 
         stem = PurePath(hints.path).stem.upper()
-        tokens = [
-            t
-            for t in re.split(r"[^A-Z0-9&]+", stem)
-            if t and t not in GENERIC and not re.fullmatch(r"(FY|Q\d|H\d)?\d{2,4}[AE]?", t)
-        ]
+        tokens = [t for t in re.split(r"[^A-Z0-9&]+", stem) if t and t not in GENERIC and not re.fullmatch(r"(FY|Q\d|H\d)?\d{2,4}[AE]?", t)]
         for t in tokens:
             if t in self.by_symbol:
                 c = self.by_symbol[t]
@@ -170,15 +166,11 @@ def discover(session: Session, hints: list[WorkbookHints]) -> list[Candidate]:
     return [matcher.identify(h, linked) for h in hints]
 
 
-def link(
-    session: Session, company: Company, hints: WorkbookHints, name: str | None = None
-) -> Model:
+def link(session: Session, company: Company, hints: WorkbookHints, name: str | None = None) -> Model:
     """Confirm a discovered workbook belongs to a company. The bridge then writes the tag."""
     if hints.tag_model_id:
         try:
-            existing = session.scalar(
-                select(Model).where(Model.doc_tag == uuid.UUID(hints.tag_model_id))
-            )
+            existing = session.scalar(select(Model).where(Model.doc_tag == uuid.UUID(hints.tag_model_id)))
         except ValueError:
             existing = None
         if existing is not None:

@@ -24,7 +24,6 @@ CSRF = {"X-Analekh-CSRF": "1"}
 def raw(db, store):
     app.dependency_overrides[get_session] = lambda: db
     app.dependency_overrides[get_store] = lambda: store
-    # The mail goes in a background task with its own session: here, the test's session.
     app.dependency_overrides[get_session_scope] = lambda: lambda: nullcontext(db)
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -103,15 +102,9 @@ def test_admin_creates_disables_and_changes_role(db, admin, raw, sent):
         == 409
     )
     assert admin.get("/users").status_code == 200
-    # the new user signs in with the emailed password, is promoted, then disabled
     other = TestClient(app)
-    assert (
-        other.post("/auth/login", json={"email": "new@firm.in", "password": plain}).status_code
-        == 200
-    )
-    assert (
-        admin.patch(f"/users/{uid}", json={"role": "admin"}, headers=CSRF).json()["role"] == "admin"
-    )
+    assert other.post("/auth/login", json={"email": "new@firm.in", "password": plain}).status_code == 200
+    assert admin.patch(f"/users/{uid}", json={"role": "admin"}, headers=CSRF).json()["role"] == "admin"
     assert admin.patch(f"/users/{uid}", json={"is_active": False}, headers=CSRF).status_code == 200
     assert other.get("/auth/me").status_code == 401
     actions = set(db.scalars(select(AuditEntry.action)))
@@ -119,10 +112,7 @@ def test_admin_creates_disables_and_changes_role(db, admin, raw, sent):
 
 
 def test_add_user_has_no_password_field_and_mails_one(db, admin, sent):
-    res = admin.post(
-        "/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF
-    )
-    # the reply says the mail is on its way; it is sent after the reply
+    res = admin.post("/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF)
     assert res.status_code == 201 and res.json()["first_password_mail"] == "sending"
     assert "password" not in res.json()
     assert len(sent) == 1 and sent[0][0] == "x@firm.in"
@@ -136,9 +126,7 @@ def test_add_user_has_no_password_field_and_mails_one(db, admin, sent):
 
 def test_add_user_mail_failure_keeps_the_user(db, admin, sent, monkeypatch):
     monkeypatch.setattr("analekh.alerts.mail.send_mail", lambda *a: False)
-    res = admin.post(
-        "/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF
-    )
+    res = admin.post("/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF)
     assert res.status_code == 201
     u = db.scalar(select(User).where(User.email == "x@firm.in"))
     assert u is not None and u.first_password_mail == "failed"
@@ -149,18 +137,14 @@ def test_add_user_mail_failure_keeps_the_user(db, admin, sent, monkeypatch):
 def test_add_user_refused_without_smtp(db, admin, monkeypatch):
     monkeypatch.setenv("SMTP_URL", "")
     get_settings.cache_clear()
-    res = admin.post(
-        "/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF
-    )
+    res = admin.post("/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF)
     assert res.status_code == 503 and "Email is not set up" in res.json()["detail"]
     assert db.scalar(select(User).where(User.email == "x@firm.in")) is None
 
 
 def test_generated_password_never_in_reply_or_log(admin, sent, caplog):
     caplog.set_level(logging.DEBUG)
-    res = admin.post(
-        "/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF
-    )
+    res = admin.post("/users", json={"email": "x@firm.in", "name": "X", "role": "analyst"}, headers=CSRF)
     plain = _first_password(sent)
     assert plain not in res.text and plain not in caplog.text
 
@@ -278,9 +262,7 @@ def test_create_admin_command_prompts_for_password(db, monkeypatch):
     from analekh import cli
 
     monkeypatch.setattr(cli, "_session", lambda: _Scope(db))
-    res = CliRunner().invoke(
-        cli.app, ["create-admin", "boss@firm.in", "Boss"], input=f"{GOOD}\n{GOOD}\n"
-    )
+    res = CliRunner().invoke(cli.app, ["create-admin", "boss@firm.in", "Boss"], input=f"{GOOD}\n{GOOD}\n")
     assert res.exit_code == 0, res.output
     u = db.scalar(select(User).where(User.email == "boss@firm.in"))
     assert u is not None and u.role == "admin"

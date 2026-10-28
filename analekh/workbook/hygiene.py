@@ -33,18 +33,10 @@ def scan_hygiene(wb: Workbook, axis: PeriodAxis | None = None) -> list[Finding]:
         for row in ws.iter_rows():
             formulas = [c for c in row if isinstance(c.value, str) and c.value.startswith("=")]
             for c in row:
-                if (
-                    isinstance(c.value, str)
-                    and c.value.startswith("=")
-                    and any(e in c.value.upper() for e in ("#REF!",))
-                    or isinstance(c.value, str)
-                    and c.value.strip() in ERROR_VALUES
-                ):
+                if isinstance(c.value, str) and c.value.startswith("=") and any(e in c.value.upper() for e in ("#REF!",)) or isinstance(c.value, str) and c.value.strip() in ERROR_VALUES:
                     findings.append(Finding("error_value", ws.title, c.coordinate, c.value))
             if len(formulas) < 3:
                 continue
-            # Hardcodes inside a formula row: numbers sitting between formulas, outside the
-            # actual-period columns where typed inputs are expected.
             first, last = formulas[0].column, formulas[-1].column
             for c in row:
                 if first < c.column < last and isinstance(c.value, int | float):
@@ -58,15 +50,11 @@ def scan_hygiene(wb: Workbook, axis: PeriodAxis | None = None) -> list[Finding]:
                             f"typed value {c.value} among formulas",
                         )
                     )
-            # Inconsistent formulas: translate each formula to its left neighbour's position;
-            # a consistent row reproduces the neighbour exactly.
             for prev, cur in zip(formulas, formulas[1:], strict=False):
                 if cur.column != prev.column + 1:
                     continue
                 try:
-                    moved = Translator(cur.value, origin=cur.coordinate).translate_formula(
-                        prev.coordinate
-                    )
+                    moved = Translator(cur.value, origin=cur.coordinate).translate_formula(prev.coordinate)
                 except Exception:  # noqa: BLE001 - unparseable formula: report, don't crash
                     continue
                 if moved != prev.value:
@@ -75,8 +63,7 @@ def scan_hygiene(wb: Workbook, axis: PeriodAxis | None = None) -> list[Finding]:
                             "inconsistent_formula",
                             ws.title,
                             cur.coordinate,
-                            f"differs from {get_column_letter(prev.column)}{prev.row}: "
-                            f"{cur.value} vs {prev.value}",
+                            f"differs from {get_column_letter(prev.column)}{prev.row}: {cur.value} vs {prev.value}",
                         )
                     )
     return findings

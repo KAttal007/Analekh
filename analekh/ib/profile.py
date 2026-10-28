@@ -28,9 +28,7 @@ def build(data: ProfileData) -> bytes:
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
 
-    def textbox(
-        x: float, y: float, w: float, h: float, text: str, size: int = 12, bold: bool = False
-    ) -> None:
+    def textbox(x: float, y: float, w: float, h: float, text: str, size: int = 12, bold: bool = False) -> None:
         tf = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h)).text_frame
         tf.word_wrap = True
         tf.text = text
@@ -41,9 +39,7 @@ def build(data: ProfileData) -> bytes:
     textbox(0.4, 1.0, 6.2, 2.4, data.business_summary, 12)
 
     rows, cols = len(data.financials) + 1, len(data.periods) + 1
-    table = slide.shapes.add_table(
-        rows, cols, Inches(6.9), Inches(1.0), Inches(6.0), Inches(0.3 * rows)
-    ).table
+    table = slide.shapes.add_table(rows, cols, Inches(6.9), Inches(1.0), Inches(6.0), Inches(0.3 * rows)).table
     table.cell(0, 0).text = "INR crore"
     for c, p in enumerate(data.periods, start=1):
         table.cell(0, c).text = p
@@ -52,9 +48,7 @@ def build(data: ProfileData) -> bytes:
         for c, v in enumerate(values, start=1):
             table.cell(r, c).text = v
 
-    textbox(
-        0.4, 3.7, 6.2, 2.0, "Valuation\n" + "\n".join(f"{k}: {v}" for k, v in data.valuation), 12
-    )
+    textbox(0.4, 3.7, 6.2, 2.0, "Valuation\n" + "\n".join(f"{k}: {v}" for k, v in data.valuation), 12)
     textbox(6.9, 4.6, 6.0, 2.4, "Recent events\n" + "\n".join(f"- {e}" for e in data.events), 12)
     out = io.BytesIO()
     prs.save(out)

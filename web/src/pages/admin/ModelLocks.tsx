@@ -23,10 +23,7 @@ export function ModelLocks() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Model locks"
-        subtitle="Who is working on which model. Release frees a model someone left open, and the audit log names whose it was."
-      />
+      <PageHeader title="Model locks" subtitle="Who is working on which model. Release frees a model someone left open, and the audit log names whose it was." />
       {release.isError && (
         <p className="error" role="alert">
           {release.error.message}
@@ -76,12 +73,7 @@ export function ModelLocks() {
                     <td className="muted">{filedAt(l.taken_at)}</td>
                     <td>
                       <div className="admin-actions">
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          disabled={release.isPending}
-                          onClick={() => release.mutate(l.model_id)}
-                        >
+                        <button type="button" className="btn btn-sm" disabled={release.isPending} onClick={() => release.mutate(l.model_id)}>
                           Release
                         </button>
                       </div>
@@ -93,10 +85,7 @@ export function ModelLocks() {
           </div>
         </div>
       )}
-      <p className="muted admin-note">
-        Releasing does not stop a running quarterly update job; it only lets someone else start on
-        the model.
-      </p>
+      <p className="muted admin-note">Releasing does not stop a running quarterly update job; it only lets someone else start on the model.</p>
     </div>
   );
 }

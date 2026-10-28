@@ -37,10 +37,8 @@ function Host() {
   return <NewPasswordField value={value} onChange={setValue} />;
 }
 
-const ticked = () =>
-  screen.getAllByRole("listitem").map((li) => li.getAttribute("data-met") === "true");
-const type = (value: string) =>
-  fireEvent.change(screen.getByLabelText("New password"), { target: { value } });
+const ticked = () => screen.getAllByRole("listitem").map((li) => li.getAttribute("data-met") === "true");
+const type = (value: string) => fireEvent.change(screen.getByLabelText("New password"), { target: { value } });
 
 async function show() {
   mockApi(routes());
@@ -59,7 +57,6 @@ test("never puts the value in the DOM as markup", async () => {
   await show();
   type("<script>alert(1)</script>Aa1");
   expect(document.querySelector("script")).toBeNull();
-  // Only the input's value attribute holds it; the rules list and the rest of the page do not.
   expect(document.querySelector("ul")!.innerHTML).not.toContain("alert(1)");
   expect(document.body.textContent).not.toContain("alert(1)");
 });
@@ -67,14 +64,11 @@ test("never puts the value in the DOM as markup", async () => {
 test("maxLength comes from the rules reply", async () => {
   mockApi(routes({ max_length: 30 }));
   renderAt(<Host />);
-  await waitFor(() =>
-    expect((screen.getByLabelText("New password") as HTMLInputElement).maxLength).toBe(30),
-  );
+  await waitFor(() => expect((screen.getByLabelText("New password") as HTMLInputElement).maxLength).toBe(30));
 });
 
 test("patterns agree with the server table", async () => {
   await show();
-  // [password, ticks the Python side gives for the seven rules, in order]
   const cases: [string, boolean[]][] = [
     ["", [false, false, false, false, false, false, true]],
     ["abcdefgh", [false, true, false, false, false, true, true]],

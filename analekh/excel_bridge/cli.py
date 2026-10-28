@@ -34,16 +34,13 @@ def _ok(resp: httpx.Response) -> httpx.Response:
     """Stop with a plain message instead of a traceback when the server says no."""
     if resp.status_code == 401:
         typer.echo(
-            "Not signed in: set ANALEKH_TOKEN to a token made in Settings (it may be missing, "
-            "mistyped or revoked).",
+            "Not signed in: set ANALEKH_TOKEN to a token made in Settings (it may be missing, mistyped or revoked).",
             err=True,
         )
         raise typer.Exit(1)
     if resp.is_error:
         detail = resp.json().get("detail") if "json" in resp.headers.get("content-type", "") else ""
-        typer.echo(
-            f"The server refused ({resp.status_code}): {detail or resp.reason_phrase}", err=True
-        )
+        typer.echo(f"The server refused ({resp.status_code}): {detail or resp.reason_phrase}", err=True)
         raise typer.Exit(1)
     return resp
 
@@ -62,15 +59,7 @@ def scan() -> None:
     with _api() as api:
         resp = _ok(api.post("/models/discover", json={"workbooks": [asdict(h) for h in hints]}))
     for c in resp.json()["candidates"]:
-        status = (
-            "linked"
-            if c.get("model_id")
-            else (
-                f"looks like {c['symbol']} ({c['method']}, {c['confidence']:.2f})"
-                if c["symbol"]
-                else "no match"
-            )
-        )
+        status = "linked" if c.get("model_id") else (f"looks like {c['symbol']} ({c['method']}, {c['confidence']:.2f})" if c["symbol"] else "no match")
         typer.echo(f"{c['path']}: {status}")
 
 
@@ -84,9 +73,7 @@ def link(path: Path, symbol: str) -> None:
     how = writer.link_tag(path, Tag(uuid.UUID(model["doc_tag"]), symbol.upper()))
     typer.echo(f"Linked {path.name} to {symbol.upper()} as model {model['id']}.")
     if how == "open":
-        typer.echo(
-            "The workbook is open in Excel: the link is in the open copy. Save it to keep it."
-        )
+        typer.echo("The workbook is open in Excel: the link is in the open copy. Save it to keep it.")
 
 
 @app.command()

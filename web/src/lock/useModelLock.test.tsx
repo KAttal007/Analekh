@@ -38,8 +38,7 @@ const HELD = {
   taken_at: "2026-10-24T10:42:00Z",
   mine: false,
 };
-const lockCalls = (calls: { url: string }[]) =>
-  calls.filter((c) => c.url === "/api/models/1/lock").length;
+const lockCalls = (calls: { url: string }[]) => calls.filter((c) => c.url === "/api/models/1/lock").length;
 
 test("a free model has no lock and is not mine", async () => {
   mockApi({ "GET /api/models/1/lock": () => ({ status: 200, body: null }) });
@@ -114,10 +113,7 @@ test("when a colleague's lock ends, the page's data is reloaded before it shows 
       const gate = useModelLock(1, 30, { refreshOnFree: [["rows", 1]] });
       const data = useQuery({
         queryKey: ["rows", 1],
-        queryFn: () =>
-          rows === "before"
-            ? Promise.resolve(rows)
-            : new Promise<string>((ok) => (reload = () => ok(rows))),
+        queryFn: () => (rows === "before" ? Promise.resolve(rows) : new Promise<string>((ok) => (reload = () => ok(rows)))),
       });
       return { gate, data: data.data };
     },

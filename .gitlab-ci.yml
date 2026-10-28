@@ -1,13 +1,4 @@
 # Analekh pipeline (design doc 22.5, Appendix F).
-# GitLab is the source of truth; green builds of main and release tags are mirrored to GitHub.
-#
-# Jobs that need infrastructure which does not exist yet run only once it is configured:
-#   deploy_staging / dast   -> STAGING_URL set and the self-hosted `india` runner registered
-#   deploy_production       -> PRODUCTION_URL set (release tags, manual approval)
-#   mirror_to_github        -> GITHUB_MIRROR_TOKEN / _USER / _REPO set (protected, masked)
-# Scanner template paths follow GitLab's documentation (checked October 2026). GitLab's own
-# dependency scanning needs the Ultimate tier, so dependency_audit (OSV-Scanner) covers the
-# lockfiles on the Free tier.
 
 stages: [lint, test, build, scan, deploy-staging, dast, release, mirror]
 
@@ -16,7 +7,6 @@ variables:
   UV_NO_SYNC: "1"
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  # The self-hosted runner's link to PyPI stalls now and then: wait longer and retry downloads.
   PIP_DEFAULT_TIMEOUT: "120"
   PIP_RETRIES: "10"
   UV_HTTP_TIMEOUT: "120"
@@ -38,8 +28,6 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "schedule"
 
 .py:
-  # uv's own image: Python 3.12 on Debian 13 (trixie, same as python:3.12-slim) with uv built in,
-  # so no `pip install uv` on every run. Checked to pull on the Arm64 runner VM (2026-10-27).
   image: ghcr.io/astral-sh/uv:python3.12-trixie-slim
   retry:
     max: 2
@@ -49,8 +37,6 @@ workflow:
       files: [uv.lock]
     paths: [.uv-cache, .venv]
   before_script:
-    # uv.lock pins everything when present; until it is committed, the requirements files
-    # exported from it (Appendix G) give the same exact versions.
     - |
       if [ -f uv.lock ]; then
         uv sync --frozen
@@ -102,7 +88,6 @@ web:
       files: [pnpm-lock.yaml]
     paths: [.pnpm-store]
   before_script:
-    # The pnpm version is pinned once, in package.json's packageManager field.
     - npm install -g "$(node -p "require('./package.json').packageManager")"
     - pnpm config set store-dir .pnpm-store
   script:
@@ -132,8 +117,6 @@ golden_set:
   artifacts:
     paths: [golden.json]
 
-# Built on the self-hosted `india` runner (shell executor, Arm64 VM in Mumbai) so the images run
-# where they are deployed. The shared x86 runners would produce images the VM cannot start.
 build_image:
   stage: build
   tags: [india]
@@ -141,10 +124,8 @@ build_image:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
-    # The recalculation service (LibreOffice in its own image), tagged the same way.
     - docker build -t "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA" deploy/recalc
     - docker push "$CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA"
-    # The web app (nginx + built React app) and MinIO (built from source), for the production stack.
     - docker build -f web/Dockerfile -t "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA" .
     - docker push "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA"
     - docker build -t "$CI_REGISTRY_IMAGE/minio:$CI_COMMIT_SHA" deploy/minio
@@ -163,7 +144,6 @@ container_scanning:
   variables:
     CS_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
 
-# The second image carries LibreOffice and its Debian dependencies, so its CVEs show up here.
 container_scanning_recalc:
   extends: container_scanning
   variables:
@@ -190,7 +170,6 @@ deploy_production:
   stage: release
   tags: [india]
   environment: { name: production, url: $PRODUCTION_URL }
-  # Manual approval, from release tags and from main (the first deployments run from main).
   rules:
     - if: $CI_COMMIT_TAG && $PRODUCTION_URL
       when: manual
@@ -215,5 +194,4 @@ mirror_to_github:
     - if: $CI_COMMIT_TAG
   script:
     - REMOTE="https://${GITHUB_MIRROR_USER}:${GITHUB_MIRROR_TOKEN}@github.com/${GITHUB_MIRROR_REPO}.git"
-    # No force flag: any divergence on GitHub fails the job instead of overwriting history.
     - if [ -n "$CI_COMMIT_TAG" ]; then git push "$REMOTE" "refs/tags/$CI_COMMIT_TAG"; else git push "$REMOTE" "HEAD:refs/heads/main"; fi

@@ -17,8 +17,6 @@ MAX_EMAIL = 254
 _EMAIL = re.compile(r"^[^@\s'\";,<>()\[\]\\]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 _hasher = PasswordHasher()
-# Checked against when the account does not exist, so an unknown email costs the same as a wrong
-# password.
 _DUMMY_HASH = _hasher.hash(secrets.token_urlsafe(16))  # random per process, never a real password
 
 _LETTERS = "abcdefghijkmnpqrstuvwxyz"  # no l, o
@@ -48,9 +46,7 @@ def _plural(n: int, one: str, many: str) -> str:
 
 
 @lru_cache
-def _rules(
-    lo: int, hi: int, letters: int, digits: int, specials: int, upper: int, lower: int
-) -> tuple[tuple[str, str, str], ...]:
+def _rules(lo: int, hi: int, letters: int, digits: int, specials: int, upper: int, lower: int) -> tuple[tuple[str, str, str], ...]:
     return (
         ("length", f"{lo} to {hi} characters", rf"^[\s\S]{{{lo},{hi}}}$"),
         (
@@ -132,9 +128,7 @@ def validate_new_password(plain: str) -> None:
     labels = {i: label for i, label, _p in _current_rules()}
     exc_class = PasswordRuleError
     if "length" in missing:
-        exc_class = (
-            PasswordTooLong if len(plain) > get_settings().password_max_length else PasswordTooShort
-        )
+        exc_class = PasswordTooLong if len(plain) > get_settings().password_max_length else PasswordTooShort
     raise exc_class([labels[i] for i in missing])
 
 
@@ -143,13 +137,9 @@ def check_password_length(plain: str) -> None:
     anything (a reset code attempt, a hash)."""
     cfg = get_settings()
     if len(plain) < cfg.password_min_length:
-        raise PasswordTooShort(
-            [f"{cfg.password_min_length} to {cfg.password_max_length} characters"]
-        )
+        raise PasswordTooShort([f"{cfg.password_min_length} to {cfg.password_max_length} characters"])
     if len(plain) > cfg.password_max_length:
-        raise PasswordTooLong(
-            [f"{cfg.password_min_length} to {cfg.password_max_length} characters"]
-        )
+        raise PasswordTooLong([f"{cfg.password_min_length} to {cfg.password_max_length} characters"])
 
 
 def generate_first_password() -> str:
@@ -160,7 +150,6 @@ def generate_first_password() -> str:
     chars += [secrets.choice(_LETTERS) for _ in range(2)]
     chars += [secrets.choice(_DIGITS) for _ in range(2)]
     chars += [secrets.choice(_SPECIALS) for _ in range(2)]
-    # the rest: mostly letters, so the letter count always clears the minimum
     rest = cfg.first_password_length - len(chars)
     pool = _LETTERS + _UPPER
     chars += [secrets.choice(pool) for _ in range(max(rest, 0))]

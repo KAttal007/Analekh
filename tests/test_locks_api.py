@@ -230,9 +230,7 @@ def test_holder_can_run_a_report_and_keeps_the_lock(ana, ana_user, model, fake_r
     assert lock is not None and (lock.activity, lock.job_id) == ("update", "job-1")
 
 
-def test_report_end_leaves_a_lock_its_holder_handed_to_an_update_job(
-    ravi, ravi_user, model, fake_report, db
-):
+def test_report_end_leaves_a_lock_its_holder_handed_to_an_update_job(ravi, ravi_user, model, fake_report, db):
     """Same user, two tabs: a report runs, then a sync takes the lock over for its job. The
     report's end must not free the model under the running update."""
     from analekh.locks import attach_job
@@ -267,9 +265,7 @@ def no_templates(monkeypatch):
     import analekh.api.routers.models as models_router
 
     monkeypatch.setattr(models_router, "ensure_builtin_templates", lambda *a, **k: None)
-    monkeypatch.setattr(
-        models_router, "default_for", lambda *a, **k: SimpleNamespace(status="active")
-    )
+    monkeypatch.setattr(models_router, "default_for", lambda *a, **k: SimpleNamespace(status="active"))
     return models_router
 
 
@@ -282,9 +278,7 @@ def test_build_refused_when_locked(ana_user, ravi, model, no_templates, monkeypa
     assert started == []
 
 
-def test_build_holds_the_company_model_then_lets_go_on_failure(
-    ravi, ravi_user, model, no_templates, monkeypatch, db
-):
+def test_build_holds_the_company_model_then_lets_go_on_failure(ravi, ravi_user, model, no_templates, monkeypatch, db):
     during: list[Any] = []
 
     def fake_start(*a: Any, **k: Any) -> Any:
@@ -331,16 +325,12 @@ def test_finalize_holds_the_lock_while_it_runs(ravi, ravi_user, model, monkeypat
 
 def test_assumption_decisions_refused_when_locked(ana_user, ravi, model, db):
     acquire(db, model_id=model.id, user_id=ana_user.id, activity="update")
-    r = ravi.post(
-        f"/models/{model.id}/assumptions/decisions", json={"accept_all": True}, headers=CSRF
-    )
+    r = ravi.post(f"/models/{model.id}/assumptions/decisions", json={"accept_all": True}, headers=CSRF)
     _assert_locked_reply(r, holder="Ana", activity="update")
 
 
 def test_assumption_decisions_let_go_after(ravi, model, db):
-    r = ravi.post(
-        f"/models/{model.id}/assumptions/decisions", json={"accept_all": True}, headers=CSRF
-    )
+    r = ravi.post(f"/models/{model.id}/assumptions/decisions", json={"accept_all": True}, headers=CSRF)
     assert r.status_code == 200
     assert status(db, model_id=model.id) is None
 
@@ -374,9 +364,7 @@ def change_set(model, db) -> ChangeSet:
     cs = ChangeSet(model_id=model.id, base_version=1, status="proposed")
     db.add(cs)
     db.flush()
-    db.add(
-        ChangeItem(change_set_id=cs.id, kind="actual_write", sheet="Data", cell="J3", new_value="9")
-    )
+    db.add(ChangeItem(change_set_id=cs.id, kind="actual_write", sheet="Data", cell="J3", new_value="9"))
     db.flush()
     db.refresh(cs)
     return cs
@@ -445,9 +433,7 @@ def test_change_set_apply_refused_when_locked(ana_user, ravi, model, change_set,
     assert change_set.status == "approved"
 
 
-def test_change_set_apply_holds_the_lock_while_it_runs(
-    ravi, ravi_user, model, change_set, store, monkeypatch, db
-):
+def test_change_set_apply_holds_the_lock_while_it_runs(ravi, ravi_user, model, change_set, store, monkeypatch, db):
     import analekh.api.routers.change_sets as cs_router
 
     store.put("models/base.xlsx", b"base", "application/octet-stream")
@@ -492,9 +478,7 @@ def _fake_headless(monkeypatch) -> None:
     monkeypatch.setattr(cs_router, "fingerprint", lambda wb: "fp")
 
 
-def test_change_set_apply_on_a_stale_base_is_refused(
-    ravi, model, change_set, store, monkeypatch, db
-):
+def test_change_set_apply_on_a_stale_base_is_refused(ravi, model, change_set, store, monkeypatch, db):
     """Drafted on v1, then a build or another change set saved v2: applying it would derive v3
     from v1 and drop v2's work, so it is refused and nothing is written."""
     _approve_on_versions(db, store, model, change_set, versions=2, base=1)
@@ -507,18 +491,14 @@ def test_change_set_apply_on_a_stale_base_is_refused(
         "base_version": 1,
         "latest_version": 2,
     }
-    count = db.scalar(
-        select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id)
-    )
+    count = db.scalar(select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id))
     assert count == 2
     db.refresh(change_set)
     assert change_set.status == "approved"
     assert status(db, model_id=model.id) is None
 
 
-def test_change_set_apply_on_the_latest_base_still_applies(
-    ravi, model, change_set, store, monkeypatch, db
-):
+def test_change_set_apply_on_the_latest_base_still_applies(ravi, model, change_set, store, monkeypatch, db):
     _approve_on_versions(db, store, model, change_set, versions=2, base=2)
     _fake_headless(monkeypatch)
     r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
@@ -528,9 +508,7 @@ def test_change_set_apply_on_the_latest_base_still_applies(
     assert status(db, model_id=model.id) is None
 
 
-def test_apply_recalc_unavailable_is_503_and_saves_nothing(
-    ravi, model, change_set, store, monkeypatch, db
-):
+def test_apply_recalc_unavailable_is_503_and_saves_nothing(ravi, model, change_set, store, monkeypatch, db):
     """The recalc service is down: no version is saved (its cached values would be stale), the
     lock is released and the change set stays approved, so Apply can be clicked again."""
     import analekh.api.routers.change_sets as cs_router
@@ -545,29 +523,22 @@ def test_apply_recalc_unavailable_is_503_and_saves_nothing(
     monkeypatch.setattr(cs_router, "recalc_file", down)
     puts: list[str] = []
     real_put = store.put
-    monkeypatch.setattr(
-        store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1]
-    )
+    monkeypatch.setattr(store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1])
     r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
     assert r.status_code == 503
     assert r.json()["detail"] == {
         "code": "recalc_unavailable",
-        "message": "Recalculation is unavailable right now. Try Apply again in a few minutes, "
-        "or apply from Excel with the Analekh bridge.",
+        "message": "Recalculation is unavailable right now. Try Apply again in a few minutes, or apply from Excel with the Analekh bridge.",
     }
     assert puts == []  # store.put was never called
-    versions = db.scalar(
-        select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id)
-    )
+    versions = db.scalar(select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id))
     assert versions == 1  # no new model_versions row
     db.refresh(change_set)
     assert change_set.status == "approved"
     assert status(db, model_id=model.id) is None  # no model_locks row left behind
 
 
-def test_apply_cannot_compute_is_422_lists_cells_and_saves_nothing(
-    ravi, model, change_set, store, monkeypatch, db
-):
+def test_apply_cannot_compute_is_422_lists_cells_and_saves_nothing(ravi, model, change_set, store, monkeypatch, db):
     """The model uses a function LibreOffice cannot run (a VBA UDF): 422 naming the cells, no
     version saved, the lock released and the change set still approved."""
     import analekh.api.routers.change_sets as cs_router
@@ -583,9 +554,7 @@ def test_apply_cannot_compute_is_422_lists_cells_and_saves_nothing(
     monkeypatch.setattr(cs_router, "recalc_file", cannot)
     puts: list[str] = []
     real_put = store.put
-    monkeypatch.setattr(
-        store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1]
-    )
+    monkeypatch.setattr(store, "put", lambda key, *a, **kw: (puts.append(key), real_put(key, *a, **kw))[1])
     r = ravi.post(f"/change-sets/{change_set.id}/apply", headers=CSRF)
     assert r.status_code == 422
     detail = r.json()["detail"]
@@ -595,9 +564,7 @@ def test_apply_cannot_compute_is_422_lists_cells_and_saves_nothing(
     assert "Sheet1!E2" in detail["message"] and "and more" in detail["message"]
     assert "Excel with the Analekh bridge" in detail["message"]
     assert puts == []
-    versions = db.scalar(
-        select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id)
-    )
+    versions = db.scalar(select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model.id))
     assert versions == 1
     db.refresh(change_set)
     assert change_set.status == "approved"
@@ -642,9 +609,7 @@ def real_session(engine, store, monkeypatch):
             s.execute(delete(Report).where(Report.company_id == ids.company))
             s.execute(delete(Model).where(Model.id == ids.model))
             s.execute(delete(Company).where(Company.id == ids.company))
-            users = list(
-                s.scalars(select(User.id).where(User.email.in_(["reala@firm.in", "realb@firm.in"])))
-            )
+            users = list(s.scalars(select(User.id).where(User.email.in_(["reala@firm.in", "realb@firm.in"]))))
             s.execute(delete(AuditEntry).where(AuditEntry.user_id.in_(users)))
             s.execute(delete(User).where(User.id.in_(users)))
 
@@ -678,14 +643,10 @@ def test_real_session_failed_report_commits_only_the_release(real_session, fake_
     assert _report(ana, symbol="REALCO", model_id=ids.model).status_code == 500
     assert _seen_from_another_session(factory, ids.model) is None
     with factory() as other:
-        assert (
-            other.scalar(select(func.count(Report.id)).where(Report.company_id == ids.company)) == 0
-        )
+        assert other.scalar(select(func.count(Report.id)).where(Report.company_id == ids.company)) == 0
 
 
-def test_real_session_colleague_refused_and_sync_lock_survives_the_request(
-    real_session, fake_report, queue
-):
+def test_real_session_colleague_refused_and_sync_lock_survives_the_request(real_session, fake_report, queue):
     factory, ids = real_session
     ana = _signed_in("reala@firm.in")
     ravi = _signed_in("realb@firm.in")
@@ -693,9 +654,7 @@ def test_real_session_colleague_refused_and_sync_lock_survives_the_request(
     assert r.status_code == 200
     seen = _seen_from_another_session(factory, ids.model)
     assert seen is not None and seen[0] == "update" and seen[2] == r.json()["job_id"]
-    _assert_locked_reply(
-        _report(ravi, symbol="REALCO", model_id=ids.model), holder="Real Ana", activity="update"
-    )
+    _assert_locked_reply(_report(ravi, symbol="REALCO", model_id=ids.model), holder="Real Ana", activity="update")
     seen_after = _seen_from_another_session(factory, ids.model)
     assert seen_after == seen  # the refusal's rollback left the holder's lock alone
 
@@ -734,11 +693,7 @@ def real_change_set(real_session, store, monkeypatch):
     def racing_holding(session, **kw):
         if meanwhile["status"] is not None:
             with factory.begin() as other:
-                other.execute(
-                    update(ChangeSet)
-                    .where(ChangeSet.id == cs_id)
-                    .values(status=meanwhile["status"])
-                )
+                other.execute(update(ChangeSet).where(ChangeSet.id == cs_id).values(status=meanwhile["status"]))
         with real_holding(session, **kw):
             yield
 
@@ -758,9 +713,7 @@ def real_change_set(real_session, store, monkeypatch):
 
 def _versions(factory, model_id: int) -> int:
     with factory() as other:
-        return other.scalar(
-            select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model_id)
-        )
+        return other.scalar(select(func.count()).select_from(ModelVersion).where(ModelVersion.model_id == model_id))
 
 
 def test_real_session_second_apply_after_a_concurrent_one_is_refused(real_change_set):
@@ -798,9 +751,7 @@ def test_attach_job_moves_the_holders_lock_to_the_new_job(db, analyst, analyst2,
     lock = status(db, model_id=model.id)
     assert lock is not None and (lock.job_id, lock.activity) == ("job-2", "update")
     # only the holder can
-    assert not attach_job(
-        db, model_id=model.id, user_id=analyst2.id, job_id="job-3", activity="update"
-    )
+    assert not attach_job(db, model_id=model.id, user_id=analyst2.id, job_id="job-3", activity="update")
     lock = status(db, model_id=model.id)
     assert lock is not None and lock.job_id == "job-2"
 
@@ -918,13 +869,7 @@ def test_admin_release_names_holder_in_audit(ana_user, boss, boss_user, model, d
     r = boss.post(f"/admin/locks/{model.id}/release", headers=CSRF)
     assert r.status_code == 204
     assert status(db, model_id=model.id) is None
-    entries = list(
-        db.scalars(
-            select(AuditEntry).where(
-                AuditEntry.action == "lock.release", AuditEntry.user_id == boss_user.id
-            )
-        )
-    )
+    entries = list(db.scalars(select(AuditEntry).where(AuditEntry.action == "lock.release", AuditEntry.user_id == boss_user.id)))
     assert len(entries) == 1
     assert entries[0].detail["holder_id"] == ana_user.id
     assert entries[0].detail["model_id"] == model.id
@@ -945,11 +890,7 @@ def test_admin_release_on_free_model_is_204_and_audits_nothing(boss, boss_user, 
     from analekh.db.models import AuditEntry
 
     assert boss.post(f"/admin/locks/{model.id}/release", headers=CSRF).status_code == 204
-    count = db.scalar(
-        select(func.count(AuditEntry.id)).where(
-            AuditEntry.action == "lock.release", AuditEntry.user_id == boss_user.id
-        )
-    )
+    count = db.scalar(select(func.count(AuditEntry.id)).where(AuditEntry.action == "lock.release", AuditEntry.user_id == boss_user.id))
     assert count == 0
 
 
@@ -966,17 +907,13 @@ def test_admin_lock_list_requires_admin(ana, ana_user, boss, model, db):
     assert boss.get("/admin/locks").status_code == 200
 
 
-def test_admin_lock_list_shows_everyones_locks_with_names(
-    ana_user, ravi_user, boss, model, model2, db
-):
+def test_admin_lock_list_shows_everyones_locks_with_names(ana_user, ravi_user, boss, model, model2, db):
     acquire(db, model_id=model.id, user_id=ana_user.id, activity="update", job_id="job-1")
     acquire(db, model_id=model2.id, user_id=ravi_user.id, activity="report")
     r = boss.get("/admin/locks")
     assert r.status_code == 200
     body = r.json()
-    assert [
-        (x["model_id"], x["holder_name"], x["activity"], x["job_running"], x["mine"]) for x in body
-    ] == [(model.id, "Ana", "update", True, False), (model2.id, "Ravi", "report", False, False)]
+    assert [(x["model_id"], x["holder_name"], x["activity"], x["job_running"], x["mine"]) for x in body] == [(model.id, "Ana", "update", True, False), (model2.id, "Ravi", "report", False, False)]
     first = body[0]
     assert first["holder_id"] == ana_user.id
     assert first["model_name"] == "Fixture Co model"

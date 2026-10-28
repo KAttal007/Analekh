@@ -49,11 +49,7 @@ export function useLockPollMs(): number {
  *  With `refreshOnFree`, the page's own queries are reloaded when a colleague's lock ends, and
  *  the page stays read-only (`held`) until they have: the colleague's work changed the model, so
  *  buttons must not come back on rows read before it. */
-export function useModelLock(
-  modelId: number,
-  pollMs: number,
-  opts: { freedTo?: string; refreshOnFree?: readonly QueryKey[] } = {},
-) {
+export function useModelLock(modelId: number, pollMs: number, opts: { freedTo?: string; refreshOnFree?: readonly QueryKey[] } = {}) {
   const qc = useQueryClient();
   // Waiting on a colleague: the answer last seen (this render) names someone else.
   const seen = qc.getQueryData<LockOut | null>(lockKey(modelId));
@@ -67,9 +63,7 @@ export function useModelLock(
       if (before && !before.mine && now === null && refreshOnFree?.length) {
         // The colleague let go: reload the page's data first, so "free" (and the buttons) only
         // arrive with rows that include their work.
-        await Promise.allSettled(
-          refreshOnFree.map((queryKey) => qc.invalidateQueries({ queryKey })),
-        );
+        await Promise.allSettled(refreshOnFree.map((queryKey) => qc.invalidateQueries({ queryKey })));
       }
       return now;
     },

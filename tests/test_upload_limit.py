@@ -32,10 +32,7 @@ def raw(db, store):
 
 def _as(raw, db, role):
     create_user(db, f"{role}@firm.in", role.title(), role, GOOD)
-    assert (
-        raw.post("/auth/login", json={"email": f"{role}@firm.in", "password": GOOD}).status_code
-        == 200
-    )
+    assert raw.post("/auth/login", json={"email": f"{role}@firm.in", "password": GOOD}).status_code == 200
     return raw
 
 
@@ -110,17 +107,9 @@ def test_raising_the_limit_allows_a_new_upload_only(admin, db):
 
 def test_above_the_ceiling_or_below_one_mb_is_rejected(admin):
     ceiling = get_settings().max_upload_ceiling_bytes
-    assert (
-        admin.put("/settings/upload-limit", json={"bytes": ceiling + 1}, headers=CSRF).status_code
-        == 422
-    )
-    assert (
-        admin.put("/settings/upload-limit", json={"bytes": MB - 1}, headers=CSRF).status_code == 422
-    )
-    assert (
-        admin.put("/settings/upload-limit", json={"bytes": ceiling}, headers=CSRF).status_code
-        == 200
-    )
+    assert admin.put("/settings/upload-limit", json={"bytes": ceiling + 1}, headers=CSRF).status_code == 422
+    assert admin.put("/settings/upload-limit", json={"bytes": MB - 1}, headers=CSRF).status_code == 422
+    assert admin.put("/settings/upload-limit", json={"bytes": ceiling}, headers=CSRF).status_code == 200
 
 
 def test_the_422_says_what_is_allowed(admin):
@@ -130,10 +119,7 @@ def test_the_422_says_what_is_allowed(admin):
 
 def test_analyst_can_read_but_not_change(analyst):
     assert analyst.get("/settings/upload-limit").status_code == 200
-    assert (
-        analyst.put("/settings/upload-limit", json={"bytes": 30 * MB}, headers=CSRF).status_code
-        == 403
-    )
+    assert analyst.put("/settings/upload-limit", json={"bytes": 30 * MB}, headers=CSRF).status_code == 403
 
 
 def test_lock_poll_seconds_defaults_to_20_and_is_exposed(analyst):
@@ -167,10 +153,5 @@ def test_template_upload_obeys_the_limit(admin):
 
 def test_no_route_reads_uploads_directly():
     api = Path(__file__).resolve().parents[1] / "analekh" / "api"
-    offenders = [
-        str(p.relative_to(api))
-        for p in api.rglob("*.py")
-        if p.name != "uploads.py"
-        and re.search(r"\.file\.read\(|await \w+\.read\(", p.read_text("utf8"))
-    ]
+    offenders = [str(p.relative_to(api)) for p in api.rglob("*.py") if p.name != "uploads.py" and re.search(r"\.file\.read\(|await \w+\.read\(", p.read_text("utf8"))]
     assert offenders == []

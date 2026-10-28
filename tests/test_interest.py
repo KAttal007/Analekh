@@ -18,7 +18,6 @@ MAR, JUN, SEP = date(2026, 3, 31), date(2026, 6, 30), date(2026, 9, 30)
 def test_filed_balances_are_used_and_june_is_interpolated_between_march_and_september():
     points = {MAR: Decimal(1000), SEP: Decimal(1200)}
     assert balance_at(points, MAR) == 1000 and balance_at(points, SEP) == 1200
-    # 91 of the 183 days from March to September: just under the midpoint.
     assert balance_at(points, JUN) == Decimal(1000) + Decimal(200) * 91 / 183
 
 
@@ -47,7 +46,6 @@ def test_ratios_never_come_out_as_huge_percentages_from_a_tiny_or_missing_base()
 
 
 def test_bank_ratios_tie_out():
-    # Shaped like a large bank's September 2026 quarter, in crore.
     parts = {
         "Advances": {MAR: Decimal(2937166), SEP: Decimal(3195566)},
         "Investments": {MAR: Decimal(884201), SEP: Decimal(923997)},
@@ -65,9 +63,7 @@ def _file(db, store, company, start, end, interest, finance, instant=None):
     q = pnl(interest * CRORE, 0, (interest - 10) * CRORE, 0)
     q |= {"InterestEarned": interest * CRORE, "FinanceCosts": finance * CRORE}
     values_instant = {k: v * CRORE for k, v in (instant or {}).items()}
-    data = build_instance(
-        q_start=start, q_end=end, ytd_start=start, values_q=q, values_instant=values_instant
-    )
+    data = build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q, values_instant=values_instant)
     ingest_results_xbrl(db, store, company, data)
 
 
@@ -102,8 +98,6 @@ def test_nbfc_nim_on_the_desk_and_ratios_in_the_history(db, store):
     d = desk(db, quarter_end=SEP, sector=sector, limit=500)
     row = next(r for r in d.rows if r.symbol == "LENDX")
     assert row.margin_kind == "nim" and row.margin_consolidated is True
-    # Earning assets: March 1000, June interpolated ~1099.5, September 1200: average ~1149.7.
-    # NIM = (40 - 20) x 4 / 1149.7 = 6.96%.
     assert row.margin == Decimal("6.96")
     assert row.margin_yoy is None  # no year-ago balance sheets
 
@@ -138,9 +132,7 @@ def test_ebitda_margin_stays_for_companies_outside_finance(db, store):
 
 def test_no_nim_for_asset_managers_and_lessors_whose_income_is_mostly_not_interest():
     parts = {"Loans": {MAR: Decimal(1000), SEP: Decimal(1200)}}
-    # Interest 3 on revenue 100 (an asset manager): no ratios, not a negative NIM.
     assert ratios(Decimal(3), Decimal(5), parts, date(2026, 7, 1), SEP, Decimal(100)).nim is None
-    # Interest 49 of revenue 100 (a card lender with large fee income): still a lender.
     assert ratios(Decimal(49), Decimal(20), parts, date(2026, 7, 1), SEP, Decimal(100)).nim
 
 
@@ -159,16 +151,13 @@ def _amc(db, store, symbol="ABSLAMC"):
         q = pnl(revenue * CRORE, 10 * CRORE, expenses * CRORE, 20 * CRORE)
         q |= {"FinanceCosts": 5 * CRORE, "ImpairmentOnFinancialInstruments": 3 * CRORE}
         q |= {"InterestEarned": 4 * CRORE}  # 2% of revenue
-        ingest_results_xbrl(
-            db, store, amc, build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
-        )
+        ingest_results_xbrl(db, store, amc, build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q))
     return amc, sector
 
 
 def test_asset_manager_shows_core_pre_provision_margin_not_ebitda_or_nim(db, store):
     amc, sector = _amc(db, store)
     row = next(r for r in desk(db, quarter_end=SEP, sector=sector).rows if r.symbol == "ABSLAMC")
-    # Operating expenses = 120 - 5 finance costs - 3 impairment = 112; (200 - 112) / 200 = 44%.
     assert row.margin_kind == "cpppm" and row.margin == Decimal("44.0")
     keys = {line.key for line in history(db, amc, consolidated=True).lines}
     assert "cpppm" in keys and "ebitda_margin" not in keys and "nim" not in keys
@@ -178,7 +167,6 @@ def test_operating_leverage_is_revenue_growth_less_expense_growth(db, store):
     amc, _ = _amc(db, store)
     h = history(db, amc, consolidated=True)
     line = next(line for line in h.lines if line.key == "oplev")
-    # Revenue 160 -> 200 (+25%); operating expenses 100 - 5 - 3 = 92 -> 112 (+21.74%): +3.26 points.
     assert line.values[h.quarter_ends.index(SEP)] == Decimal("3.3")
     assert line.values[0] is None  # no year-ago quarter for the first one
 
@@ -201,11 +189,7 @@ def test_every_bank_and_nbfc_has_a_nim_kind_even_where_it_cannot_be_worked_out(d
             values_instant={"Loans": 500 * CRORE},
         ),
     )
-    row = next(
-        r
-        for r in desk(db, quarter_end=SEP, sector="Banking Services").rows
-        if r.symbol == "LESSORX"
-    )
+    row = next(r for r in desk(db, quarter_end=SEP, sector="Banking Services").rows if r.symbol == "LESSORX")
     assert row.margin_kind == "nim" and row.margin is None
 
 
@@ -238,9 +222,7 @@ def test_exchanges_keep_ebitda_and_holding_companies_show_operating_income(db, s
         db.add(c)
         db.flush()
         mine = q | {"FinanceCosts": (2 + n) * CRORE}  # files with the same bytes are stored once
-        data = build_instance(
-            q_start=date(2026, 7, 1), q_end=SEP, ytd_start=date(2026, 7, 1), values_q=mine
-        )
+        data = build_instance(q_start=date(2026, 7, 1), q_end=SEP, ytd_start=date(2026, 7, 1), values_q=mine)
         ingest_results_xbrl(db, store, c, data)
         keys[symbol] = {line.key for line in history(db, c, consolidated=True).lines}
     assert "ebitda_margin" in keys["IEX"] and "opinc" not in keys["IEX"]

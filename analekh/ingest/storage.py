@@ -40,9 +40,7 @@ def unpack(data: bytes) -> bytes:
 
 
 class ObjectStore(Protocol):
-    def put(
-        self, key: str, data: bytes, content_type: str = "application/octet-stream"
-    ) -> None: ...
+    def put(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None: ...
 
     def get(self, key: str) -> bytes: ...
 
@@ -79,8 +77,6 @@ class S3Store:
         self.bucket = s.minio_bucket
         self.endpoint = s.minio_endpoint
         scheme = "https" if s.minio_secure else "http"
-        # Fail in seconds, not minutes, when storage is down: botocore's defaults (60 s connect
-        # timeout, several retries) leave API requests hanging.
         config = Config(
             connect_timeout=2,
             read_timeout=30,

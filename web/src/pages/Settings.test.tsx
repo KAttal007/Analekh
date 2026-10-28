@@ -59,9 +59,7 @@ test("sign out everywhere asks first, then posts once", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Sign out everywhere" }));
   const buttons = screen.getAllByRole("button", { name: "Sign out everywhere" });
   fireEvent.click(buttons[buttons.length - 1]);
-  await waitFor(() =>
-    expect(calls.filter((c) => c.url === "/api/auth/logout-everywhere")).toHaveLength(1),
-  );
+  await waitFor(() => expect(calls.filter((c) => c.url === "/api/auth/logout-everywhere")).toHaveLength(1));
   expect(calls.some((c) => c.url === "/api/auth/logout")).toBe(false);
 });
 
@@ -69,9 +67,7 @@ test("a token can be revoked", async () => {
   const calls = mockApi({ ...base(), "DELETE /api/auth/tokens/7": () => ({ status: 204 }) });
   renderAt(<Settings />);
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Office laptop" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.method === "DELETE" && c.url === "/api/auth/tokens/7")).toBe(true),
-  );
+  await waitFor(() => expect(calls.some((c) => c.method === "DELETE" && c.url === "/api/auth/tokens/7")).toBe(true));
 });
 
 test("with sign-in off (development) both sign-out buttons are disabled", async () => {
@@ -81,11 +77,7 @@ test("with sign-in off (development) both sign-out buttons are disabled", async 
   });
   renderAt(<Settings />);
   await screen.findByText("Office laptop");
-  await waitFor(() =>
-    expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    ),
-  );
+  await waitFor(() => expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(true));
   const everywhere = screen.getByRole("button", { name: "Sign out everywhere" });
   expect((everywhere as HTMLButtonElement).disabled).toBe(true);
   expect(everywhere.getAttribute("title")).toBe("Sign-in is off in development");
@@ -98,12 +90,8 @@ test("with sign-in on, the sign-out buttons are enabled", async () => {
   });
   renderAt(<Settings />);
   await screen.findByText("Office laptop");
-  expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(
-    false,
-  );
-  expect(
-    (screen.getByRole("button", { name: "Sign out everywhere" }) as HTMLButtonElement).disabled,
-  ).toBe(false);
+  expect((screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole("button", { name: "Sign out everywhere" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 test("the free-model chime is on by default, and turning it off is kept after a reload", async () => {
@@ -111,8 +99,7 @@ test("the free-model chime is on by default, and turning it off is kept after a 
   mockApi(base());
   const first = renderAt(<Settings />);
   const chime = () => within(screen.getByRole("tablist", { name: "Chime" }));
-  const selected = (name: string) =>
-    chime().getByRole("tab", { name }).getAttribute("aria-selected");
+  const selected = (name: string) => chime().getByRole("tab", { name }).getAttribute("aria-selected");
   expect(selected("On")).toBe("true");
   fireEvent.click(chime().getByRole("tab", { name: "Off" }));
   expect(selected("Off")).toBe("true");

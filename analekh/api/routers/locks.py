@@ -57,11 +57,7 @@ def release_lock(model_id: int, db: DB, current: CurrentUser) -> Response:
 @router.get("/me/locks", response_model=list[LockOut])
 def my_locks(db: DB, current: CurrentUser) -> list[LockOut]:
     """The locks the caller holds, oldest first."""
-    locks = db.scalars(
-        select(ModelLock)
-        .where(ModelLock.user_id == current.id)
-        .order_by(ModelLock.taken_at, ModelLock.model_id)
-    )
+    locks = db.scalars(select(ModelLock).where(ModelLock.user_id == current.id).order_by(ModelLock.taken_at, ModelLock.model_id))
     return [_out(lock, current.name, current.id) for lock in locks]
 
 

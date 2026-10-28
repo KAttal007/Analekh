@@ -7,13 +7,11 @@ import { Alerts, DataStatus } from "./statusPanels";
 
 const MB = 1024 * 1024;
 
-/** Whole megabytes where exact, else one decimal: 25 -> "25", 26.2 -> "26.2". */
 const mb = (bytes: number) => {
   const v = bytes / MB;
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 };
 
-/** The largest file anyone can upload. Applies to new uploads only; stored files stay. */
 function UploadLimitCard() {
   const qc = useQueryClient();
   const limit = useQuery({ queryKey: ["upload-limit"], queryFn: api.uploadLimit });
@@ -56,18 +54,11 @@ function UploadLimitCard() {
           <Skeleton height={80} />
         ) : (
           <form onSubmit={submit} noValidate>
-            <p className="muted">
-              The largest file anyone can upload: templates, models and anything added later. A
-              change applies to new uploads only; files already stored stay.
-            </p>
+            <p className="muted">The largest file anyone can upload: templates, models and anything added later. A change applies to new uploads only; files already stored stay.</p>
             <div className="admin-limit-row">
               <label className="field">
                 Maximum file size
-                <input
-                  inputMode="decimal"
-                  value={shown}
-                  onChange={(e) => setDraft(e.target.value)}
-                />
+                <input inputMode="decimal" value={shown} onChange={(e) => setDraft(e.target.value)} />
               </label>
               <span className="muted">MB</span>
               <button type="submit" className="btn btn-primary" disabled={save.isPending}>
@@ -86,8 +77,7 @@ function UploadLimitCard() {
               </button>
             </div>
             <p className="muted">
-              Allowed range: {mb(l.min_bytes)} to {mb(l.ceiling_bytes)} MB. The server ceiling is{" "}
-              {mb(l.ceiling_bytes)} MB.
+              Allowed range: {mb(l.min_bytes)} to {mb(l.ceiling_bytes)} MB. The server ceiling is {mb(l.ceiling_bytes)} MB.
             </p>
             {problem && (
               <p className="alert alert-error" role="alert">
@@ -114,10 +104,7 @@ function UploadLimitCard() {
 export function AdminSettings() {
   return (
     <div className="page settings">
-      <PageHeader
-        title="Settings"
-        subtitle="The upload limit, what the scheduled jobs last did, and where alerts go."
-      />
+      <PageHeader title="Settings" subtitle="The upload limit, what the scheduled jobs last did, and where alerts go." />
       <UploadLimitCard />
       <DataStatus />
       <Alerts />

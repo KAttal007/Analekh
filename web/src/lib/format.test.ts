@@ -1,22 +1,7 @@
 import { expect, test } from "vitest";
-import {
-  IN_CRORE,
-  IN_LAKH,
-  IN_MILLION,
-  changeTitle,
-  crore,
-  figure,
-  money,
-  plain,
-  price,
-  scaleFor,
-  shortDate,
-  signedBps,
-  signedPct,
-} from "./format";
+import { IN_CRORE, IN_LAKH, IN_MILLION, changeTitle, crore, figure, money, plain, price, scaleFor, shortDate, signedBps, signedPct } from "./format";
 
 test("companies under ₹10 crore are shown in lakhs, larger ones in crore", () => {
-  // Agri-Tech's quarters: ₹3.4 to ₹20.5 lakh of revenue.
   expect(scaleFor(["342000", "2050000", "460000"])).toBe(IN_LAKH);
   expect(scaleFor(["99999999"])).toBe(IN_LAKH); // just under 1,000 lakh
   expect(scaleFor(["100000000"])).toBe(IN_CRORE); // ₹10 crore
@@ -33,7 +18,6 @@ test("money keeps the unit, one decimal in lakhs and small crore, and a leading 
 });
 
 test("changes from a tiny base are capped, with the exact figure for the tooltip", () => {
-  // Agri-Tech, Q2 FY27: EBITDA margin -58,307 bps QoQ, profit -1,345.6% YoY.
   expect(signedBps("-58307")).toBe("n.m.");
   expect(changeTitle("-58307", "bps")).toBe("-58,307 bps: from a very small base");
   expect(signedPct("-1345.6")).toBe("<−999%");
@@ -57,16 +41,7 @@ test("a trading day drops the year only when it is this year's", () => {
 });
 
 test("crore() is money() in crore or millions, whatever the amount", () => {
-  // crore() used to carry its own copy of money()'s rounding; the two must keep agreeing.
-  for (const raw of [
-    "0",
-    "460000",
-    "-3002000",
-    "2314065000",
-    "10556573000",
-    "16391169600000",
-    "-512000000",
-  ]) {
+  for (const raw of ["0", "460000", "-3002000", "2314065000", "10556573000", "16391169600000", "-512000000"]) {
     expect(crore(raw, "crore")).toBe(money(raw, IN_CRORE));
     expect(crore(raw, "auto")).toBe(money(raw, IN_CRORE));
     expect(crore(raw, "million")).toBe(money(raw, IN_MILLION));

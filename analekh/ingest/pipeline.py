@@ -66,17 +66,7 @@ def check_pdf(data: bytes) -> None:
     head = data[:1024].lstrip(b" \t\r\n\f\x00")
     if head.startswith(b"%PDF-"):
         return
-    kind = (
-        "empty"
-        if not head
-        else "xml"
-        if head.startswith(b"<?xml")
-        else "html"
-        if head.startswith(b"<")
-        else "zip"
-        if head.startswith(b"PK\x03\x04")
-        else "unknown"
-    )
+    kind = "empty" if not head else "xml" if head.startswith(b"<?xml") else "html" if head.startswith(b"<") else "zip" if head.startswith(b"PK\x03\x04") else "unknown"
     raise NotAPdf(f"not a PDF ({kind}, {len(data)} bytes)")
 
 
@@ -97,9 +87,7 @@ def load_history(session: Session, company_id: int, consolidated: bool) -> list[
             Fact.value.is_not(None),
         )
     ).all()
-    return [
-        HistoryFact(r.element, r.period_start, r.period_end, r.value, r.filing_id) for r in rows
-    ]
+    return [HistoryFact(r.element, r.period_start, r.period_end, r.value, r.filing_id) for r in rows]
 
 
 def scale_meta(report: ValidationReport) -> dict | None:
@@ -132,16 +120,12 @@ def ingest_results_xbrl(
         return IngestResult(existing, skipped=True)
 
     parsed = parse_instance(data)
-    undefined = [
-        w for w in parsed.warnings if any(w.endswith(f"unknown context {c}") for c in MAIN_CONTEXTS)
-    ]
+    undefined = [w for w in parsed.warnings if any(w.endswith(f"unknown context {c}") for c in MAIN_CONTEXTS)]
     if undefined and not parsed.meta:
         raise IncompleteXbrl(f"{len(undefined)} values point to undefined periods ({undefined[0]})")
     key = storage_key("results_xbrl", digest, "xml", filed_at)
     store.put(key, data, "application/xml")
 
-    # The filing's own line items are the strongest signal of a bank or an insurer: they correct
-    # a guess from the sector or from an earlier, less telling filing.
     detected = detect_taxonomy({f.element for f in parsed.facts})
     if detected or company.results_taxonomy is None:
         company.results_taxonomy = detected or parsed.taxonomy()
@@ -160,11 +144,7 @@ def ingest_results_xbrl(
 
     period_end = ctx.period_end
     period_start = parsed.declared_start or next(
-        (
-            f.period_start
-            for f in parsed.facts
-            if f.period_end == period_end and period_type(f.period_start, f.period_end) == "Q"
-        ),
+        (f.period_start for f in parsed.facts if f.period_end == period_end and period_type(f.period_start, f.period_end) == "Q"),
         None,
     )
     filing = Filing(
@@ -187,7 +167,6 @@ def ingest_results_xbrl(
             "parser_warnings": parsed.warnings,
             "validation": report.as_dict(),
             "blocks_auto_apply": report.blocks_auto_apply,
-            # NSE's own flag from the integrated-filing list: "Original" or "Revision".
             **({"revision": revision} if revision else {}),
             **({"scale": scale} if scale else {}),
         },
@@ -197,8 +176,6 @@ def ingest_results_xbrl(
             session.add(filing)
             session.flush()
     except IntegrityError:
-        # Another run (the scheduled worker and a manual run, say) stored this same file between
-        # our check above and this insert. The file hash is unique, so theirs stands: skip ours.
         existing = session.scalar(select(Filing).where(Filing.file_sha256 == digest))
         if existing is None:
             raise
@@ -228,9 +205,6 @@ def ingest_results_xbrl(
     return IngestResult(filing, skipped=False, report=report)
 
 
-# Per line of each period (element, dates, basis, dimensions), value in use = one from most recently
-# FILED filing; undated filing counts oldest. Two steps, so no moment has two values in use for a
-# line.
 _LATEST_SQL = """
 WITH ranked AS (
     SELECT f.id,
@@ -266,9 +240,7 @@ def classify_announcement(title: str | None, description: str | None = None) -> 
 SKIPPED_ZIP = "Skipped: zip not supported"
 
 
-def process_feed_item(
-    session: Session, store: ObjectStore, client: PoliteClient, item: FeedItem
-) -> Filing | None:
+def process_feed_item(session: Session, store: ObjectStore, client: PoliteClient, item: FeedItem) -> Filing | None:
     """Fetch the file an RSS item links to and route it. Unlinked items wait for review."""
     if item.company_id is None:
         return None
@@ -280,24 +252,15 @@ def process_feed_item(
         return None
     if item.feed == "corporate_action":
         # Ex-date notices link to an NSE web page that rule 1 does not allow, and they are not
-        # filings: close without a request.
         item.processed_at = datetime.now().astimezone()
         return None
     if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".xml"):
-        # Intimation XMLs on the other feeds are never PDFs, so storing them always fails, and
-        # nothing reads them (the calendar and alerts use the feed text). Close without a request.
         item.processed_at = datetime.now().astimezone()
         return None
     if item.feed != "financial_results" and urlparse(item.link).path.lower().endswith(".zip"):
-        # NSE document bundles (KMP, public-announcement files, up to tens of MB). Only PDFs stored,
-        # so downloading one always ends in NotAPdf. Close without request, keep reason in `error`
-        # (prefix "Skipped:", so not mistaken for failure): shows what we skip, and finds these
-        # again if unzip support is added.
         item.processed_at = datetime.now().astimezone()
         item.error = SKIPPED_ZIP
         return None
-    # The same file can sit in several feeds or repeat within one: no second request to NSE for a
-    # link already stored, or already given up on.
     stored = session.scalar(select(Filing).where(Filing.source_url == item.link).limit(1))
     failed = None
     if stored is None:
@@ -343,7 +306,6 @@ def process_feed_item(
     return filing
 
 
-# A feed item whose file fails this many times is given up on (processed_at set, error kept).
 MAX_ATTEMPTS = 3
 
 
@@ -357,14 +319,7 @@ class QueueRun:
 def pending_feed_items(session: Session, limit: int) -> list[FeedItem]:
     """Linked items not processed yet, oldest first; items that failed before go last, so a few
     bad ones can't fill every batch."""
-    return list(
-        session.scalars(
-            select(FeedItem)
-            .where(FeedItem.processed_at.is_(None), FeedItem.company_id.is_not(None))
-            .order_by(FeedItem.attempts, FeedItem.pub_date, FeedItem.id)
-            .limit(limit)
-        )
-    )
+    return list(session.scalars(select(FeedItem).where(FeedItem.processed_at.is_(None), FeedItem.company_id.is_not(None)).order_by(FeedItem.attempts, FeedItem.pub_date, FeedItem.id).limit(limit)))
 
 
 def _gone(exc: BaseException) -> bool:
@@ -374,9 +329,7 @@ def _gone(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (404, 410)
 
 
-def process_feed_items(
-    session: Session, store: ObjectStore, client: PoliteClient, items: list[FeedItem]
-) -> QueueRun:
+def process_feed_items(session: Session, store: ObjectStore, client: PoliteClient, items: list[FeedItem]) -> QueueRun:
     """Each item in its own savepoint: a failure is recorded on the item and the run goes on.
     A sign that NSE is refusing us stops the run without counting against the item."""
     run = QueueRun()
@@ -454,18 +407,12 @@ def rewrite_amounts(session: Session, filing: Filing, parsed: ParsedFiling, fact
     from analekh.validate.rules import scaled_decimals
 
     multiplier = Decimal(factor) if factor is not None else Decimal(1)
-    filed = {
-        _fact_key(f.element, f.period_start, f.period_end, f.dims_hash, f.context_ref): f
-        for f in parsed.facts
-        if f.unit in MONETARY_UNITS
-    }
+    filed = {_fact_key(f.element, f.period_start, f.period_end, f.dims_hash, f.context_ref): f for f in parsed.facts if f.unit in MONETARY_UNITS}
     changed = 0
     for row in session.scalars(select(Fact).where(Fact.filing_id == filing.id)):
         if row.unit not in MONETARY_UNITS:
             continue
-        raw = filed.get(
-            _fact_key(row.element, row.period_start, row.period_end, row.dims_hash, row.context_ref)
-        )
+        raw = filed.get(_fact_key(row.element, row.period_start, row.period_end, row.dims_hash, row.context_ref))
         if raw is None:
             continue
         value = raw.value * multiplier
@@ -480,27 +427,15 @@ def revalidate_company(session: Session, store: ObjectStore, company: Company) -
     """Re-run detection and V1-V11 on a company's stored results files, after the rules or the
     element tables change. Reads the stored files; downloads nothing. A V11 correction that
     appears, changes or goes away rewrites the filing's amounts from the file."""
-    filings = list(
-        session.scalars(
-            select(Filing)
-            .where(Filing.company_id == company.id, Filing.kind == "results_xbrl")
-            .order_by(Filing.period_end)
-        )
-    )
+    filings = list(session.scalars(select(Filing).where(Filing.company_id == company.id, Filing.kind == "results_xbrl").order_by(Filing.period_end)))
     parsed = {f.id: parse_instance(store.get(f.storage_key)) for f in filings if f.storage_key}
-    detected = next(
-        (t for p in parsed.values() if (t := detect_taxonomy({x.element for x in p.facts}))), None
-    )
+    detected = next((t for p in parsed.values() if (t := detect_taxonomy({x.element for x in p.facts}))), None)
     if detected:
         company.results_taxonomy = detected
     for filing in filings:
         if filing.id not in parsed:
             continue
-        history = [
-            h
-            for h in load_history(session, company.id, bool(filing.consolidated))
-            if h.filing_id != filing.id
-        ]
+        history = [h for h in load_history(session, company.id, bool(filing.consolidated)) if h.filing_id != filing.id]
         filed = filing.filed_at.astimezone(IST).date() if filing.filed_at else None
         report = validate(
             ValidationContext(

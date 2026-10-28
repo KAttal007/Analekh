@@ -58,13 +58,9 @@ test("disable and enable send a PATCH", async () => {
   renderAt(<Users />);
   await screen.findByText("Kaushal Attal");
   fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Disable" }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/users/u1")?.body).toEqual({ is_active: false }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.url === "/api/users/u1")?.body).toEqual({ is_active: false }));
   fireEvent.click(within(rowOf("Vikram Patel")).getByRole("button", { name: "Enable" }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/users/u3")?.body).toEqual({ is_active: true }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.url === "/api/users/u3")?.body).toEqual({ is_active: true }));
 });
 
 test("the server's refusal to remove the last admin is shown as it is", async () => {
@@ -78,9 +74,7 @@ test("the server's refusal to remove the last admin is shown as it is", async ()
   renderAt(<Users />);
   await screen.findByText("Rhea Mehta");
   fireEvent.click(within(rowOf("Rhea Mehta")).getByRole("button", { name: "Disable" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "There must be at least one active admin.",
-  );
+  expect((await screen.findByRole("alert")).textContent).toContain("There must be at least one active admin.");
 });
 
 test("a role can be changed from the row", async () => {
@@ -91,9 +85,7 @@ test("a role can be changed from the row", async () => {
   renderAt(<Users />);
   await screen.findByText("Kaushal Attal");
   fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Make admin" }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/users/u1")?.body).toEqual({ role: "admin" }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.url === "/api/users/u1")?.body).toEqual({ role: "admin" }));
 });
 
 test("has no password box in Add user", async () => {
@@ -101,14 +93,9 @@ test("has no password box in Add user", async () => {
   renderAt(<Users />);
   fireEvent.click(await screen.findByRole("button", { name: "Add user" }));
   expect(screen.queryByLabelText(/password/i)).toBeNull();
-  expect(
-    screen.getByText(
-      "We email them a first password. They choose their own the first time they sign in.",
-    ),
-  ).toBeTruthy();
+  expect(screen.getByText("We email them a first password. They choose their own the first time they sign in.")).toBeTruthy();
 });
 
-// After Add user the email goes in the background: the list says "sending", then how it went.
 const added = (final: "sent" | "failed") => {
   let listed = false;
   let mail: string = "sending";
@@ -156,13 +143,7 @@ test("adding a user posts name, email and role, then says the email went", async
   fireEvent.click(screen.getByRole("radio", { name: "Admin" }));
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add user" }));
   expect(await screen.findByText(/emailing a first password to meera@firm.in/i)).toBeTruthy();
-  expect(
-    await screen.findByText(
-      /first password has been emailed to meera@firm.in/i,
-      {},
-      { timeout: 4000 },
-    ),
-  ).toBeTruthy();
+  expect(await screen.findByText(/first password has been emailed to meera@firm.in/i, {}, { timeout: 4000 })).toBeTruthy();
   expect(calls.find((c) => c.method === "POST" && c.url === "/api/users")?.body).toEqual({
     name: "Meera Kapoor",
     email: "meera@firm.in",
@@ -187,14 +168,10 @@ test("shows the not-sent warning and Send again", async () => {
   });
   await addMeera();
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add user" }));
-  expect((await screen.findByRole("alert", {}, { timeout: 4000 })).textContent).toContain(
-    "The welcome email was not sent.",
-  );
+  expect((await screen.findByRole("alert", {}, { timeout: 4000 })).textContent).toContain("The welcome email was not sent.");
   expect(within(rowOf("Meera Kapoor")).getByText("Email not sent")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Send again" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.url === "/api/users/n1/send-first-password")).toBe(true),
-  );
+  await waitFor(() => expect(calls.some((c) => c.url === "/api/users/n1/send-first-password")).toBe(true));
 });
 
 test("add user shows the server reason (duplicate, email not set up)", async () => {
@@ -227,9 +204,7 @@ test("an active user gets Reset password, and it posts on confirm", async () => 
   expect(within(dialog).getByText(/current password stops working/i)).toBeTruthy();
   expect(calls.some((c) => c.url === "/api/users/u1/send-first-password")).toBe(false);
   fireEvent.click(within(dialog).getByRole("button", { name: "Reset password" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.url === "/api/users/u1/send-first-password")).toBe(true),
-  );
+  await waitFor(() => expect(calls.some((c) => c.url === "/api/users/u1/send-first-password")).toBe(true));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
 
@@ -244,9 +219,7 @@ test("sending a first password says so when email is not set up", async () => {
   renderAt(<Users />);
   await screen.findByText("Kaushal Attal");
   fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Reset password" }));
-  fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", { name: "Reset password" }),
-  );
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Reset password" }));
   expect((await screen.findByRole("alert")).textContent).toContain("Email is not set up");
 });
 
@@ -260,12 +233,8 @@ test("a user waiting for the first sign-in gets Send first password", async () =
   });
   renderAt(<Users />);
   await screen.findByText("Waiting Now");
-  fireEvent.click(
-    within(rowOf("Waiting Now")).getByRole("button", { name: "Send first password" }),
-  );
-  expect(
-    within(screen.getByRole("dialog")).getByText("Send Waiting Now a new first password?"),
-  ).toBeTruthy();
+  fireEvent.click(within(rowOf("Waiting Now")).getByRole("button", { name: "Send first password" }));
+  expect(within(screen.getByRole("dialog")).getByText("Send Waiting Now a new first password?")).toBeTruthy();
 });
 
 test("an account still on its first password is tagged", async () => {
@@ -273,10 +242,7 @@ test("an account still on its first password is tagged", async () => {
     ...base(),
     "GET /api/users": () => ({
       status: 200,
-      body: [
-        row({ id: "w1", name: "Waiting Now", must_change_password: true }),
-        row({ id: "w2", name: "Settled Down", must_change_password: false }),
-      ],
+      body: [row({ id: "w1", name: "Waiting Now", must_change_password: true }), row({ id: "w2", name: "Settled Down", must_change_password: false })],
     }),
   });
   renderAt(<Users />);
@@ -290,10 +256,7 @@ test("shows when each user was last seen, and a current pause", async () => {
     ...base(),
     "GET /api/users": () => ({
       status: 200,
-      body: [
-        row({ id: "s1", name: "Seen Once", last_seen_at: "2026-10-22T04:12:00Z" }),
-        row({ id: "p1", name: "Paused Now", paused_until: "2026-10-22T05:00:00Z" }),
-      ],
+      body: [row({ id: "s1", name: "Seen Once", last_seen_at: "2026-10-22T04:12:00Z" }), row({ id: "p1", name: "Paused Now", paused_until: "2026-10-22T05:00:00Z" })],
     }),
   });
   renderAt(<Users />);

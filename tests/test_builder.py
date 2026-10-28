@@ -96,11 +96,7 @@ def test_start_coverage_to_built_model_to_quarterly_update(db, store, company, b
         finalize_build(db, store, started.model)
     for a in db.scalars(select(Assumption).where(Assumption.model_id == started.model.id)):
         a.decision, a.final_value = "accepted", a.proposed_value
-    tax = db.scalar(
-        select(Assumption).where(
-            Assumption.model_id == started.model.id, Assumption.driver == "tax_rate"
-        )
-    )
+    tax = db.scalar(select(Assumption).where(Assumption.model_id == started.model.id, Assumption.driver == "tax_rate"))
     tax.decision, tax.final_value = "edited", Decimal("0.252")
 
     done = finalize_build(db, store, started.model)
@@ -118,7 +114,6 @@ def test_start_coverage_to_built_model_to_quarterly_update(db, store, company, b
     assert wb["Drivers"]["J7"].value == pytest.approx(0.252)  # edited tax rate
     assert wb["Sources"].max_row > 30
 
-    # Next results arrive: the built model hands off to the quarterly update with no setup.
     ingest_results_xbrl(db, store, company, quarter_instance(date(2026, 12, 31), **history(8)))
     proposal = build_change_set(
         wb,
@@ -133,7 +128,6 @@ def test_start_coverage_to_built_model_to_quarterly_update(db, store, company, b
 
 
 def test_template_onboarding_from_existing_model(db, store, company):
-    # An analyst's filled model for another company, uploaded as a template.
     data, _ = build_builtin(NBFC, date(2026, 9, 30))
     wb = load_workbook(io.BytesIO(data))
     for col in "BCDEFGHI":
@@ -158,9 +152,7 @@ def test_template_onboarding_from_existing_model(db, store, company):
     with pytest.raises(TemplateError):
         activate(db, tmpl)
     confirmed = suggested.model_dump()
-    confirmed["checks"] = [
-        {"sheet": "Checks", "cell_label": "All checks pass", "expect": 1, "tolerance": 0}
-    ]
+    confirmed["checks"] = [{"sheet": "Checks", "cell_label": "All checks pass", "expect": 1, "tolerance": 0}]
     confirm_mapping(db, tmpl, confirmed)
     test = run_test_build(db, store, tmpl, company)
     assert test.result == "pass", test.issues

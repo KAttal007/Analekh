@@ -7,42 +7,27 @@ import { Loading } from "./components/ui";
 import { loadCompanyPage } from "./lib/preload";
 import { useMe } from "./lib/auth";
 import { hasWelcomed } from "./lib/welcome";
+import { Disclosures } from "./pages/Disclosures";
 import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
 import { SearchPage } from "./pages/SearchPage";
 import { Welcome } from "./pages/Welcome";
 
-// Heavy screens (AG Grid, ECharts) load on demand.
 const Watchlist = lazy(() => import("./pages/Watchlist").then((m) => ({ default: m.Watchlist })));
 const CompanyPage = lazy(() => loadCompanyPage().then((m) => ({ default: m.CompanyPage })));
-const ChangeSetReview = lazy(() =>
-  import("./pages/ChangeSetReview").then((m) => ({ default: m.ChangeSetReview })),
-);
-const AssumptionReview = lazy(() =>
-  import("./pages/AssumptionReview").then((m) => ({ default: m.AssumptionReview })),
-);
+const ChangeSetReview = lazy(() => import("./pages/ChangeSetReview").then((m) => ({ default: m.ChangeSetReview })));
+const AssumptionReview = lazy(() => import("./pages/AssumptionReview").then((m) => ({ default: m.AssumptionReview })));
 const Models = lazy(() => import("./pages/Models").then((m) => ({ default: m.Models })));
-const Templates = lazy(() =>
-  import("./pages/admin/Templates").then((m) => ({ default: m.Templates })),
-);
+const Templates = lazy(() => import("./pages/admin/Templates").then((m) => ({ default: m.Templates })));
 const Users = lazy(() => import("./pages/admin/Users").then((m) => ({ default: m.Users })));
-const ModelLocks = lazy(() =>
-  import("./pages/admin/ModelLocks").then((m) => ({ default: m.ModelLocks })),
-);
-const AdminSettings = lazy(() =>
-  import("./pages/admin/AdminSettings").then((m) => ({ default: m.AdminSettings })),
-);
+const ModelLocks = lazy(() => import("./pages/admin/ModelLocks").then((m) => ({ default: m.ModelLocks })));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings").then((m) => ({ default: m.AdminSettings })));
 const Comps = lazy(() => import("./pages/Comps").then((m) => ({ default: m.Comps })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
-// Opening Analekh at its home address lands on the welcome page first, unless a session is
-// already live (a new tab, or a reload after a quiet spell): then it opens the Results desk
-// directly. Signed out, the welcome page comes first (checked before sign-in, so the visitor is
-// not sent straight to /login). A link to anything else (a company, a change set) goes straight
-// there.
 function Landing() {
   const { pathname } = useLocation();
   const me = useMe();
@@ -55,6 +40,7 @@ function Landing() {
 export const routes: RouteObject[] = [
   { path: "/welcome", element: <Welcome /> },
   { path: "/login", element: <Login /> },
+  { path: "/disclosures", element: <Disclosures /> },
   {
     path: "/",
     element: <Landing />,

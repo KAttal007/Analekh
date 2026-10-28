@@ -24,9 +24,7 @@ def _cron(expr: str) -> crontab:
     )
 
 
-app = Celery(
-    "analekh", broker=settings.redis_url, backend=settings.redis_url, include=["analekh.jobs.tasks"]
-)
+app = Celery("analekh", broker=settings.redis_url, backend=settings.redis_url, include=["analekh.jobs.tasks"])
 app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
@@ -36,11 +34,7 @@ app.conf.update(
         **{
             f"poll-{name}": {
                 "task": "analekh.jobs.tasks.poll_feed",
-                "schedule": float(
-                    settings.feed_poll_seconds
-                    if cls == "fast"
-                    else settings.event_feed_poll_seconds
-                ),
+                "schedule": float(settings.feed_poll_seconds if cls == "fast" else settings.event_feed_poll_seconds),
                 "args": (name,),
             }
             for name, (_, cls) in FEEDS.items()

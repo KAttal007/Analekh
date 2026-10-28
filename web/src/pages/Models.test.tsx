@@ -26,7 +26,6 @@ const SETTINGS = {
   updated_at: null,
   lock_poll_seconds: 20,
 };
-// Today at 10:42 on the viewer's clock, so the banner reads "10:42" in any time zone.
 const at1042 = () => {
   const d = new Date();
   d.setHours(10, 42, 0, 0);
@@ -55,11 +54,9 @@ function routes(lock: Handler, me = ANALYST, extra: Record<string, Handler> = {}
     ...extra,
   };
 }
-const mockLock = (over: Record<string, unknown> | null, me = ANALYST) =>
-  mockApi(routes(() => ({ status: 200, body: over === null ? null : lockOf(over) }), me));
+const mockLock = (over: Record<string, unknown> | null, me = ANALYST) => mockApi(routes(() => ({ status: 200, body: over === null ? null : lockOf(over) }), me));
 
-const disabled = (name: RegExp) =>
-  (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
+const disabled = (name: RegExp) => (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
 
 it("disables update, build and report when another person holds the lock", async () => {
   mockLock({ holder_name: "Kaushal", mine: false });
@@ -112,7 +109,6 @@ it("an admin sees the banner and Release lock, not the actions", async () => {
   const release = calls.findIndex((c) => c.url === "/api/admin/locks/1/release");
   expect(release).toBeGreaterThan(-1);
   expect(calls[release].method).toBe("POST");
-  // The lock is asked for again after the release, and the actions come back.
   expect(calls.slice(release + 1).some((c) => c.url === "/api/models/1/lock")).toBe(true);
   expect(disabled(/update/i)).toBe(false);
 });
@@ -174,9 +170,7 @@ it("Update queues a sync on the newest filing", async () => {
   renderAt(<Models />);
   await screen.findByText("TCS model");
   fireEvent.click(screen.getByRole("button", { name: /update/i }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/models/1/sync")?.body).toEqual({ filing_id: 9 }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.url === "/api/models/1/sync")?.body).toEqual({ filing_id: 9 }));
 });
 
 it("Update refuses when the newest results are blocked, and drafts nothing", async () => {
@@ -215,7 +209,6 @@ it("Update refuses when the newest results are blocked, and drafts nothing", asy
   expect(calls.some((c) => c.url === "/api/models/1/lock/release")).toBe(false);
   fireEvent.click(ok);
   expect(screen.queryByRole("alertdialog")).toBeNull();
-  // Escape closes it too.
   fireEvent.click(screen.getByRole("button", { name: /update/i }));
   const again = await screen.findByRole("alertdialog");
   fireEvent.keyDown(again, { key: "Escape" });
@@ -274,7 +267,6 @@ it("a click on the pop-up's backdrop keeps focus inside, so Escape still closes 
   const ok = screen.getByRole("button", { name: "OK" });
   await waitFor(() => expect(document.activeElement).toBe(ok));
   const backdrop = dialog.parentElement as HTMLElement;
-  // A browser moves focus on mousedown unless the default is prevented.
   const moved = fireEvent.mouseDown(backdrop);
   if (moved) (document.activeElement as HTMLElement).blur();
   expect(document.activeElement).toBe(ok);
@@ -312,9 +304,7 @@ it("Update reads results filings only", async () => {
   renderAt(<Models />);
   await screen.findByText("TCS model");
   fireEvent.click(screen.getByRole("button", { name: /update/i }));
-  await waitFor(() =>
-    expect(calls.find((c) => c.url === "/api/models/1/sync")?.body).toEqual({ filing_id: 9 }),
-  );
+  await waitFor(() => expect(calls.find((c) => c.url === "/api/models/1/sync")?.body).toEqual({ filing_id: 9 }));
 });
 
 it("Build opens the build review", async () => {

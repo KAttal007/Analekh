@@ -17,14 +17,7 @@ from analekh.workbook.mapping import Mapping, RowMap, apply_transform
 def files_consolidated(session: Session, company_id: int) -> bool:
     """Default basis for a company's figures: consolidated when it files consolidated results,
     else standalone (many companies file standalone only, e.g. Tata Elxsi)."""
-    # is_latest lets Postgres use ix_facts_latest (company first); without it planner bets on a scan
-    # of whole table (~1 s), and scans all of it for a standalone-only company. Same answer: every
-    # consolidated line has a latest row.
-    found = session.scalar(
-        select(Fact.id)
-        .where(Fact.company_id == company_id, Fact.is_latest, Fact.consolidated)
-        .limit(1)
-    )
+    found = session.scalar(select(Fact.id).where(Fact.company_id == company_id, Fact.is_latest, Fact.consolidated).limit(1))
     return found is not None
 
 
@@ -39,9 +32,7 @@ class SourceValue:
 
 
 class ValueSource(Protocol):
-    def xbrl(
-        self, element: str, period_start: date | None, period_end: date, consolidated: bool
-    ) -> SourceValue | None: ...
+    def xbrl(self, element: str, period_start: date | None, period_end: date, consolidated: bool) -> SourceValue | None: ...
 
     def kpi(self, name: str, period_end: date) -> SourceValue | None: ...
 
@@ -63,23 +54,15 @@ class Resolved:
     parts: list[SourceValue]
 
 
-def resolve_row(
-    source: ValueSource, row: RowMap, mapping: Mapping, period_end: date
-) -> Resolved | None:
+def resolve_row(source: ValueSource, row: RowMap, mapping: Mapping, period_end: date) -> Resolved | None:
     """Value for one mapped row and quarter, transformed for display; None if any term missing."""
     p_start = quarter_start(period_end)
     total, fact_id, descs, parts = Decimal(0), None, [], []
     for term in row.terms():
-        sv = (
-            source.xbrl(term.key, p_start, period_end, mapping.consolidated)
-            if term.kind == "xbrl"
-            else source.kpi(term.key, period_end)
-        )
+        sv = source.xbrl(term.key, p_start, period_end, mapping.consolidated) if term.kind == "xbrl" else source.kpi(term.key, period_end)
         if sv is None:
             return None
-        transform = row.transform or (
-            mapping.units.default_transform if term.kind == "xbrl" else "none"
-        )
+        transform = row.transform or (mapping.units.default_transform if term.kind == "xbrl" else "none")
         total += apply_transform(sv.value, transform, term.sign)
         fact_id = fact_id or sv.fact_id
         descs.append(sv.description)
@@ -93,9 +76,7 @@ class DbValueSource:
     def __init__(self, session: Session, company_id: int) -> None:
         self.session, self.company_id = session, company_id
 
-    def xbrl(
-        self, element: str, period_start: date | None, period_end: date, consolidated: bool
-    ) -> SourceValue | None:
+    def xbrl(self, element: str, period_start: date | None, period_end: date, consolidated: bool) -> SourceValue | None:
         row = self.session.execute(
             select(Fact, Filing.source_url)
             .join(Filing, Fact.filing_id == Filing.id)
@@ -114,26 +95,14 @@ class DbValueSource:
         fact, url = row
         if fact.value is None:
             return None
-        span = (
-            f"{fact.period_start} to {fact.period_end}"
-            if fact.period_start
-            else f"at {fact.period_end}"
-        )
+        span = f"{fact.period_start} to {fact.period_end}" if fact.period_start else f"at {fact.period_end}"
         return SourceValue(fact.value, fact.id, f"{element}, {span}", fact.filing_id, url)
 
     def kpi(self, name: str, period_end: date) -> SourceValue | None:
-        kpi = self.session.scalar(
-            select(Kpi)
-            .where(
-                Kpi.company_id == self.company_id, Kpi.name == name, Kpi.period_end == period_end
-            )
-            .order_by(Kpi.verified.desc())
-        )
+        kpi = self.session.scalar(select(Kpi).where(Kpi.company_id == self.company_id, Kpi.name == name, Kpi.period_end == period_end).order_by(Kpi.verified.desc()))
         if kpi is None or kpi.value is None:
             return None
-        return SourceValue(
-            kpi.value, None, f"KPI {name}, page {kpi.page}", kpi.filing_id, None, kpi.page
-        )
+        return SourceValue(kpi.value, None, f"KPI {name}, page {kpi.page}", kpi.filing_id, None, kpi.page)
 
     def elements(self, period_end: date, consolidated: bool = True) -> set[str]:
         """Every element the company reported for a quarter (unmapped-facts report)."""

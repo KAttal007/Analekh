@@ -74,9 +74,7 @@ class GoldenReport:
         return asdict(self) | {"accuracy": self.accuracy, "passed": self.passed}
 
 
-def resolve(
-    filing: ParsedFiling, line: str, taxonomy: str, start: date | None, end: date
-) -> ParsedFact | None:
+def resolve(filing: ParsedFiling, line: str, taxonomy: str, start: date | None, end: date) -> ParsedFact | None:
     """A logical line's fact for a period, through the taxonomy's element table."""
     for name in candidates(line, taxonomy):
         fact = filing.get(name, end=end, start=start, instant=None if start else True)
@@ -103,15 +101,8 @@ def run(folder: Path = DEFAULT_DIR) -> GoldenReport:
         for exp in entry.get("expect", []):
             report.checked += 1
             end = date.fromisoformat(str(exp["period_end"]))
-            start = (
-                date.fromisoformat(str(exp["period_start"])) if exp.get("period_start") else None
-            )
-            if exp.get("line"):
-                fact = resolve(filing, exp["line"], taxonomy, start, end)
-            else:
-                fact = filing.get(
-                    exp["element"], end=end, start=start, instant=None if start else True
-                )
+            start = date.fromisoformat(str(exp["period_start"])) if exp.get("period_start") else None
+            fact = resolve(filing, exp["line"], taxonomy, start, end) if exp.get("line") else filing.get(exp["element"], end=end, start=start, instant=None if start else True)
             expected = Decimal(str(exp["value"]))
             if fact is not None and fact.value == expected:
                 report.matched += 1
@@ -147,10 +138,6 @@ def _pick(symbol: str, end: str, statement: str, fmt: str) -> Pick:
     return Pick(symbol, date.fromisoformat(end), statement == "C", fmt)
 
 
-# Twenty filings across every results format, established large caps only. Recent ones picked from
-# those NSE gave a results PDF link for; four from September 2023 cover pre-integrated schemas
-# (Ind-AS 2020, in-bse-fin, RBI entry point), PDFs on company's site. Quarter ends vary so year to
-# date is half year, nine months or full year.
 PICKS: tuple[Pick, ...] = (
     _pick("BHARTIARTL", "2025-06-30", "C", "Ind-AS"),
     _pick("M&M", "2025-09-30", "C", "Ind-AS"),
@@ -174,8 +161,6 @@ PICKS: tuple[Pick, ...] = (
     _pick("HDFCLIFE", "2026-06-30", "S", "Life insurer"),
 )
 
-# Lines checked per quarter, by results format, as PDF names them. Revenue and profit also checked
-# for year to date (results XBRL tags only current period and YTD, not last year's columns): dates,
 # not context ids, pick the column (rule 5).
 LINES: dict[str, tuple[tuple[str, str], ...]] = {
     "indas": (
@@ -234,8 +219,6 @@ LINES: dict[str, tuple[tuple[str, str], ...]] = {
 }
 COMPARED = ("revenue", "pat")
 
-# What a PDF states its figures in; the worksheet guesses from the XBRL precision and the analyst
-# corrects it from the PDF's header ("₹ in crore").
 UNITS: dict[str, int] = {
     "₹": 1,
     "₹ thousand": 10**3,
@@ -296,9 +279,7 @@ def sheet_lines(filing: ParsedFiling, taxonomy: str) -> list[SheetLine]:
         return []
     table = LINES.get(taxonomy, LINES["indas"])
     compared = tuple(row for row in table if row[0] in COMPARED)
-    periods: list[tuple[str, date, date, tuple[tuple[str, str], ...]]] = [
-        (fy_label(start, end), start, end, table)
-    ]
+    periods: list[tuple[str, date, date, tuple[tuple[str, str], ...]]] = [(fy_label(start, end), start, end, table)]
     fy_start = date(end.year if end.month > 3 else end.year - 1, 4, 1)
     if fy_start < start:
         periods.append((fy_label(fy_start, end), fy_start, end, compared))
@@ -306,8 +287,6 @@ def sheet_lines(filing: ParsedFiling, taxonomy: str) -> list[SheetLine]:
     for period, p_start, p_end, rows in periods:
         for line, label in rows:
             fact = resolve(filing, line, taxonomy, p_start, p_end)
-            # Quarter line Analekh cannot find stays on sheet so the gap is recorded; not for
-            # exceptional items (often untagged when nil) or year to date (older files tag none).
             quarter_gap = p_start == start and line != "exceptional_items"
             if fact is not None or quarter_gap:
                 out.append(SheetLine(line, label, period, p_start, p_end, fact))
@@ -335,9 +314,7 @@ def file_name(symbol: str, quarter: str, consolidated: bool) -> str:
     return f"{slug}_{quarter.replace(' ', '').lower()}_{'c' if consolidated else 's'}.xml"
 
 
-def sheet_filing(
-    xml: bytes, pick: Pick, company: str, pdf_url: str | None, filing_id: int | None = None
-) -> SheetFiling:
+def sheet_filing(xml: bytes, pick: Pick, company: str, pdf_url: str | None, filing_id: int | None = None) -> SheetFiling:
     parsed = parse_instance(xml)
     taxonomy = parsed.taxonomy()
     lines = sheet_lines(parsed, taxonomy)
@@ -402,7 +379,6 @@ def build_sheet(
     return out, built, missing
 
 
-# Values sheet columns; those after "Notes" are hidden and read back by the import.
 VALUE_COLUMNS = (
     ("#", 5),
     ("Symbol", 13),
@@ -441,19 +417,15 @@ FILING_COLUMNS = (
 HOW_TO = (
     "Golden set: hand-check of Analekh's values against the published results PDF",
     "",
-    "1. Filings sheet: open a filing's results PDF. Read the unit in the table header (₹ in crore,"
-    " lakh, million) and set PDF unit if the guess is wrong; Analekh's values convert.",
-    "2. Statement: S is standalone, C consolidated. Integrated filings carry both tables; read"
-    " the right one.",
-    "3. Values sheet: for each line, compare Analekh's value with the PDF's figure for that"
-    " period (the quarter, or the year to date: H1, 9M or FY).",
+    "1. Filings sheet: open a filing's results PDF. Read the unit in the table header (₹ in crore, lakh, million) and set PDF unit if the guess is wrong; Analekh's values convert.",
+    "2. Statement: S is standalone, C consolidated. Integrated filings carry both tables; read the right one.",
+    "3. Values sheet: for each line, compare Analekh's value with the PDF's figure for that period (the quarter, or the year to date: H1, 9M or FY).",
     "   Yes: they agree to the PDF's last digit (the PDF is rounded).",
     "   No: type the PDF's figure, in the PDF's unit, under 'PDF shows'.",
     "   Not in PDF: the PDF does not show this line.",
     "4. Notes: anything odd (a restated comparative, a line named differently).",
     "",
-    "Basic EPS is not annualised for a quarter. NPAs are amounts, not percentages. Ratios are"
-    " shown as tagged (1.85 can mean 185%).",
+    "Basic EPS is not annualised for a quarter. NPAs are amounts, not percentages. Ratios are shown as tagged (1.85 can mean 185%).",
     "",
     "When done: save, close Excel, then run",
     "   uv run analekh golden-import",
@@ -509,16 +481,10 @@ def write_workbook(path: Path, filings: list[SheetFiling]) -> None:
     for r, f in enumerate(filings, start=2):
         statement = "C" if f.consolidated else "S"
         audited = "" if f.audited is None else ("Yes" if f.audited else "No")
-        for c, value in enumerate(
-            (f.file, f.company, f.symbol, f.format, statement, f.quarter, audited), start=1
-        ):
+        for c, value in enumerate((f.file, f.company, f.symbol, f.format, statement, f.quarter, audited), start=1):
             fs.cell(r, c, value)
-        # No PDF link from NSE: a web search for the results, which the company's site carries.
         link = fs.cell(r, 8, "Open PDF" if f.pdf_url else "Search")
-        link.hyperlink = f.pdf_url or (
-            "https://www.google.com/search?q="
-            + quote_plus(f"{f.company} {f.quarter} financial results pdf")
-        )
+        link.hyperlink = f.pdf_url or ("https://www.google.com/search?q=" + quote_plus(f"{f.company} {f.quarter} financial results pdf"))
         link.style = "Hyperlink"
         unit = fs.cell(r, 9, f.unit)
         unit.fill = entry_fill
@@ -528,9 +494,7 @@ def write_workbook(path: Path, filings: list[SheetFiling]) -> None:
         fs.cell(r, 12, f.filing_id)
     fs.auto_filter.ref = f"A1:L{len(filings) + 1}"
 
-    answer_dv = DataValidation(
-        type="list", formula1=f"Lists!$D$1:$D${len(ANSWERS)}", allow_blank=True
-    )
+    answer_dv = DataValidation(type="list", formula1=f"Lists!$D$1:$D${len(ANSWERS)}", allow_blank=True)
     vs.add_data_validation(answer_dv)
     r = 1
     for f in filings:
@@ -545,8 +509,7 @@ def write_workbook(path: Path, filings: list[SheetFiling]) -> None:
                 f.quarter,
                 line.label,
                 line.period,
-                f'=IF(Q{r}="","not found",'
-                f'IF(R{r}="money",Q{r}/VLOOKUP({unit_of},{factor_table},2,FALSE),Q{r}))',
+                f'=IF(Q{r}="","not found",IF(R{r}="money",Q{r}/VLOOKUP({unit_of},{factor_table},2,FALSE),Q{r}))',
                 f'=IF(R{r}="money",{unit_of},IF(R{r}="per_share","₹ per share","as tagged"))',
                 None,
                 None,
@@ -596,11 +559,7 @@ def import_sheet(folder: Path = DEFAULT_DIR) -> ImportSummary:
     from openpyxl import load_workbook
 
     wb = load_workbook(folder / WORKSHEET)
-    units = {
-        row[0]: row[8]
-        for row in wb["Filings"].iter_rows(min_row=2, values_only=True)
-        if row and row[0]
-    }
+    units = {row[0]: row[8] for row in wb["Filings"].iter_rows(min_row=2, values_only=True) if row and row[0]}
     summary = ImportSummary()
     entries: dict[str, dict[str, Any]] = {}
     parsed: dict[str, ParsedFiling] = {}
@@ -628,9 +587,7 @@ def import_sheet(folder: Path = DEFAULT_DIR) -> ImportSummary:
         expect["period_end"] = p_end
         if answer == "Yes":
             if fact is None:
-                summary.problems.append(
-                    f"{where}: Analekh has no value here; mark No and type the PDF's figure"
-                )
+                summary.problems.append(f"{where}: Analekh has no value here; mark No and type the PDF's figure")
                 continue
             expect["value"] = _plain(fact.value)
             expect["checked"] = "confirmed"
@@ -644,9 +601,7 @@ def import_sheet(folder: Path = DEFAULT_DIR) -> ImportSummary:
             factor = UNITS.get(str(units.get(file)), 1) if kind == "money" else 1
             value = shown * factor
             if fact is not None and abs(fact.value - value) <= Decimal(factor) / 200:
-                summary.problems.append(
-                    f"{where}: marked No, but the PDF's figure agrees to two places; check again"
-                )
+                summary.problems.append(f"{where}: marked No, but the PDF's figure agrees to two places; check again")
             expect["value"] = _plain(value)
             expect["checked"] = "corrected"
             expect["analekh"] = _plain(fact.value) if fact else None
@@ -659,8 +614,7 @@ def import_sheet(folder: Path = DEFAULT_DIR) -> ImportSummary:
         entry = entries.setdefault(file, {"file": file, "taxonomy": taxonomy, "expect": []})
         entry["expect"].append(expect)
     (folder / "manifest.yaml").write_text(
-        "# Written by `analekh golden-import` from golden-worksheet.xlsx; edit the worksheet.\n"
-        + yaml.safe_dump({"filings": list(entries.values())}, sort_keys=False, allow_unicode=True),
+        "# Written by `analekh golden-import` from golden-worksheet.xlsx; edit the worksheet.\n" + yaml.safe_dump({"filings": list(entries.values())}, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
     return summary

@@ -44,11 +44,7 @@ def _season(quarter_end: date) -> Season:
 
 
 def _seasons_around(day: date) -> list[Season]:
-    return [
-        _season(date(year, month, last))
-        for year in (day.year - 1, day.year, day.year + 1)
-        for month, last in QUARTER_ENDS
-    ]
+    return [_season(date(year, month, last)) for year in (day.year - 1, day.year, day.year + 1) for month, last in QUARTER_ENDS]
 
 
 def season_for(day: date) -> Season | None:
@@ -79,8 +75,6 @@ def watch_due(now: datetime | None = None) -> tuple[bool, str]:
     return False, f"off season: one run a day at 21:00 IST until {upcoming.opens}"
 
 
-# The hours the watcher is started (results_watch_cron, "0 9-23 * * *", IST); each start either
-# asks NSE or records a skip, as watch_due decides.
 RUN_HOURS = tuple(range(9, 24))
 
 

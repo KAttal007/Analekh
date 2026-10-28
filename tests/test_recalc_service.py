@@ -38,9 +38,7 @@ def start():
     servers: list = []
 
     def _start(convert, *, token="tok", max_bytes=1000, timeout=0.5, concurrency=2) -> int:
-        handler = server_module.make_handler(
-            token, max_bytes, timeout, threading.BoundedSemaphore(concurrency), convert
-        )
+        handler = server_module.make_handler(token, max_bytes, timeout, threading.BoundedSemaphore(concurrency), convert)
         httpd = server_module.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)

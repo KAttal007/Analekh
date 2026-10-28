@@ -28,10 +28,7 @@ def list_client(rows: list[dict], total: int | None, files: dict[str, bytes] | N
             return httpx.Response(200, json=body)
         return httpx.Response(200, content=(files or {}).get(str(request.url), q2_instance()))
 
-    # No real waiting between mock requests (the production rate is 1 per second).
-    client = PoliteClient(
-        transport=httpx.MockTransport(handler), backoff_base=0, rate_per_second=100_000
-    )
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0, rate_per_second=100_000)
     return client, sizes
 
 
@@ -45,9 +42,6 @@ def company(db):
     db.add(c)
     db.flush()
     return c
-
-
-# --- detecting a truncated page --------------------------------------------------------------
 
 
 def test_truncated_page_is_detected_from_nses_total_count(db, store, company):
@@ -107,9 +101,6 @@ def test_truncated_run_still_stores_the_rows_it_received(db, store, company):
     assert db.scalar(select(Filing).where(Filing.source_url == rows[0]["xbrl"])) is not None
 
 
-# --- the size for the next run ---------------------------------------------------------------
-
-
 def test_first_run_asks_for_the_default_size():
     from analekh.ingest.integrated import next_page_size
 
@@ -150,9 +141,6 @@ def test_a_damaged_summary_falls_back_to_the_default():
     assert next_page_size({"truncated": True}) == default * 2  # no size kept: start from default
     assert next_page_size({"page_size": "lots", "truncated": True}) == default * 2
     assert next_page_size({"page_size": -5, "truncated": False}) == default
-
-
-# --- at the cap -----------------------------------------------------------------------------
 
 
 def test_truncated_at_the_cap_is_flagged_for_a_bulk_run(db, store, company):

@@ -23,18 +23,14 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("activity", sa.Text(), nullable=False),
         sa.Column("job_id", sa.Text(), nullable=True),
-        sa.Column(
-            "taken_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
-        ),
+        sa.Column("taken_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column(
             "last_seen_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.CheckConstraint(
-            "activity IN ('update','build','report')", name="ck_model_locks_activity"
-        ),
+        sa.CheckConstraint("activity IN ('update','build','report')", name="ck_model_locks_activity"),
         sa.ForeignKeyConstraint(["model_id"], ["models.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("model_id"),

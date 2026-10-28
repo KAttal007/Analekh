@@ -83,9 +83,5 @@ def test_past_days_show_results_filed_and_replace_the_announcement(db, store):
     _item(db, c, "Financial Results |Meeting Date: 19-Oct-2026", 1, "kf1")
     db.flush()
 
-    found = [
-        e
-        for e in events(db, date(2026, 10, 15), date(2026, 10, 25), now=NOW)
-        if e.symbol == "CALFIL"
-    ]
+    found = [e for e in events(db, date(2026, 10, 15), date(2026, 10, 25), now=NOW) if e.symbol == "CALFIL"]
     assert [(e.date, e.status) for e in found] == [(date(2026, 10, 19), "filed")]

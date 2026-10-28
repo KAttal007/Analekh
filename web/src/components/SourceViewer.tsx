@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 // Side-by-side source viewer (design doc 19.1): renders the cited PDF page next to a value so a
-// reviewer can check it. PDF.js loads lazily to keep the main bundle small.
 export function SourceViewer({ url, page }: { url: string; page: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +29,5 @@ export function SourceViewer({ url, page }: { url: string; page: number }) {
     };
   }, [url, page]);
 
-  return error ? (
-    <p className="error">{error}</p>
-  ) : (
-    <canvas ref={canvas} aria-label={`Page ${page}`} />
-  );
+  return error ? <p className="error">{error}</p> : <canvas ref={canvas} aria-label={`Page ${page}`} />;
 }

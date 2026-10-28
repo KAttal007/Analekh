@@ -31,18 +31,11 @@ class LockHeld(Exception):
 
 def _held(session: Session, model_id: int) -> tuple[ModelLock, str] | None:
     """The current lock on a model and its holder's name, read fresh from the database."""
-    row = session.execute(
-        select(ModelLock, User.name)
-        .join(User, User.id == ModelLock.user_id)
-        .where(ModelLock.model_id == model_id)
-        .execution_options(populate_existing=True)
-    ).one_or_none()
+    row = session.execute(select(ModelLock, User.name).join(User, User.id == ModelLock.user_id).where(ModelLock.model_id == model_id).execution_options(populate_existing=True)).one_or_none()
     return None if row is None else (row[0], row[1])
 
 
-def acquire(
-    session: Session, *, model_id: int, user_id: str, activity: str, job_id: str | None = None
-) -> ModelLock:
+def acquire(session: Session, *, model_id: int, user_id: str, activity: str, job_id: str | None = None) -> ModelLock:
     """Take lock on a model, or raise `LockHeld` if someone else has it.
 
     Re-entrant for holder: existing lock returns as is (activity and job kept), `last_seen_at`
@@ -54,10 +47,7 @@ def acquire(
         # RETURNING tells whether this insert won. rowcount cannot: SQLAlchemy 2.1 with psycopg
         # reports -1 for this statement whether or not ON CONFLICT skipped the row.
         inserted = session.scalar(
-            pg_insert(ModelLock)
-            .values(model_id=model_id, user_id=user_id, activity=activity, job_id=job_id)
-            .on_conflict_do_nothing(index_elements=[ModelLock.model_id])
-            .returning(ModelLock.model_id)
+            pg_insert(ModelLock).values(model_id=model_id, user_id=user_id, activity=activity, job_id=job_id).on_conflict_do_nothing(index_elements=[ModelLock.model_id]).returning(ModelLock.model_id)
         )
         held = _held(session, model_id)
         if held is None:
@@ -68,26 +58,18 @@ def acquire(
             return lock
         if lock.user_id != user_id:
             raise LockHeld(holder_name=holder_name, activity=lock.activity, taken_at=lock.taken_at)
-        session.execute(
-            update(ModelLock)
-            .where(ModelLock.model_id == model_id)
-            .values(last_seen_at=func.clock_timestamp())
-        )
+        session.execute(update(ModelLock).where(ModelLock.model_id == model_id).values(last_seen_at=func.clock_timestamp()))
         session.refresh(lock)
         return lock
 
 
 def release(session: Session, *, model_id: int, user_id: str) -> bool:
     """Give a lock back. Only its holder can; returns whether a lock was removed."""
-    result = session.execute(
-        delete(ModelLock).where(ModelLock.model_id == model_id, ModelLock.user_id == user_id)
-    )
+    result = session.execute(delete(ModelLock).where(ModelLock.model_id == model_id, ModelLock.user_id == user_id))
     return bool(result.rowcount)  # type: ignore[attr-defined]
 
 
-def attach_job(
-    session: Session, *, model_id: int, user_id: str, job_id: str, activity: str
-) -> bool:
+def attach_job(session: Session, *, model_id: int, user_id: str, job_id: str, activity: str) -> bool:
     """Hand holder's lock to a queued job, so job gives it back when it ends.
 
     `acquire` keeps an existing lock as is, so a holder starting another job needs this to record
@@ -95,18 +77,12 @@ def attach_job(
     """
     if activity not in ACTIVITIES:
         raise ValueError(f"unknown lock activity: {activity!r}")
-    result = session.execute(
-        update(ModelLock)
-        .where(ModelLock.model_id == model_id, ModelLock.user_id == user_id)
-        .values(job_id=job_id, activity=activity, last_seen_at=func.clock_timestamp())
-    )
+    result = session.execute(update(ModelLock).where(ModelLock.model_id == model_id, ModelLock.user_id == user_id).values(job_id=job_id, activity=activity, last_seen_at=func.clock_timestamp()))
     return bool(result.rowcount)  # type: ignore[attr-defined]
 
 
 @contextmanager
-def holding(
-    session: Session, *, model_ids: Iterable[int], user_id: str, activity: str
-) -> Iterator[None]:
+def holding(session: Session, *, model_ids: Iterable[int], user_id: str, activity: str) -> Iterator[None]:
     """Hold locks on these models while inline work runs (report, build step).
 
     Locks committed before work starts, so colleagues see them while it runs. When work ends locks
@@ -147,9 +123,7 @@ def holding(
 
 def release_for_job(session: Session, *, model_id: int, job_id: str) -> bool:
     """Give back the lock a background job took; returns whether a lock was removed."""
-    result = session.execute(
-        delete(ModelLock).where(ModelLock.model_id == model_id, ModelLock.job_id == job_id)
-    )
+    result = session.execute(delete(ModelLock).where(ModelLock.model_id == model_id, ModelLock.job_id == job_id))
     return bool(result.rowcount)  # type: ignore[attr-defined]
 
 

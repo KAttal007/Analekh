@@ -7,10 +7,7 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath("/models?x=1")).toBe("/models?x=1");
   });
 
-  it.each(["//evil.com", "https://evil.com", "javascript:alert(1)", "", null, "relative/path"])(
-    "sends %j back to the home page",
-    (raw) => {
-      expect(safeReturnPath(raw)).toBe("/");
-    },
-  );
+  it.each(["//evil.com", "https://evil.com", "javascript:alert(1)", "", null, "relative/path"])("sends %j back to the home page", (raw) => {
+    expect(safeReturnPath(raw)).toBe("/");
+  });
 });

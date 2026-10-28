@@ -38,7 +38,6 @@ class Revision:
     replaces: datetime | None = None  # filing time of the filing this one replaced
     superseded_by: datetime | None = None  # filing time of the one that replaced this one
     changes: list[LineChange] = field(default_factory=list)  # headline lines that moved
-    # Set when the replaced filing had no figures for the quarter itself (a half-year filing).
     replaced_period: tuple[date, date] | None = None
 
 
@@ -55,9 +54,7 @@ def _groups(filings: list[Filing]) -> list[list[Filing]]:
     return [sorted(g, key=_when) for g in by.values()]
 
 
-def _quarter_values(
-    session: Session, filing_ids: list[int], taxonomy: str, end: date
-) -> dict[int, dict[str, Decimal]]:
+def _quarter_values(session: Session, filing_ids: list[int], taxonomy: str, end: date) -> dict[int, dict[str, Decimal]]:
     """{filing id: {logical: value}} for the quarter ending ``end``, headline lines only."""
     names = [n for n, _, _ in LINES.get(taxonomy, LINES["indas"]) if not n.startswith("=")]
     order = {n: candidates(n, taxonomy) for n in names}
@@ -131,11 +128,7 @@ def revisions(session: Session, company: Company, filings: list[Filing]) -> dict
 def infer_revision_flags(session: Session, company_id: int) -> int:
     """Label stored filings that predate NSE's flag being kept: the first filed of a quarter and
     basis is the original, later ones revisions (marked as inferred). Returns filings labelled."""
-    filings = list(
-        session.scalars(
-            select(Filing).where(Filing.company_id == company_id, Filing.kind == "results_xbrl")
-        )
-    )
+    filings = list(session.scalars(select(Filing).where(Filing.company_id == company_id, Filing.kind == "results_xbrl")))
     labelled = 0
     for group in _groups(filings):
         for i, f in enumerate(group):

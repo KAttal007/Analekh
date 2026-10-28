@@ -22,9 +22,7 @@ class Replacement:
     value: str | None  # None = no value available, left in place
 
 
-def refresh(
-    pptx: bytes, lookup: Callable[[str, str], str | None]
-) -> tuple[bytes, list[Replacement]]:
+def refresh(pptx: bytes, lookup: Callable[[str, str], str | None]) -> tuple[bytes, list[Replacement]]:
     prs = Presentation(io.BytesIO(pptx))
     log: list[Replacement] = []
     for n, slide in enumerate(prs.slides, start=1):

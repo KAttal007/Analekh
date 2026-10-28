@@ -18,8 +18,7 @@ beforeEach(() => {
         status,
         headers: { "Content-Type": "application/json" },
       });
-    if (url === "/api/auth/me")
-      return signedIn ? reply(200, ME) : reply(401, { detail: "Sign in required." });
+    if (url === "/api/auth/me") return signedIn ? reply(200, ME) : reply(401, { detail: "Sign in required." });
     if (url.startsWith("/api/public/welcome"))
       return reply(200, {
         companies_in_scope: 3,
@@ -43,9 +42,7 @@ function Where() {
 
 function renderWelcome() {
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/welcome"]}>
         <Where />
         <Routes>
@@ -69,22 +66,17 @@ test("the counts come from the public endpoint, not the protected desk", async (
 
 test("signed out, the way in reveals the sign-in screen", async () => {
   renderWelcome();
-  // wait until the session check has answered (signed out)
-  await waitFor(() =>
-    expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true),
-  );
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true));
   await new Promise((r) => setTimeout(r, 20));
   fireEvent.click(screen.getByRole("button", { name: /open the results desk/i }));
   await waitFor(() => expect(where()).toBe("/login"));
-  expect(hasWelcomed()).toBe(true); // signing in must not send the visitor back to the welcome
+  expect(hasWelcomed()).toBe(true); // sign-in must not bounce back to welcome
 });
 
 test("already signed in, the way in opens the desk directly", async () => {
   signedIn = true;
   renderWelcome();
-  await waitFor(() =>
-    expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true),
-  );
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true));
   await new Promise((r) => setTimeout(r, 20));
   fireEvent.click(screen.getByRole("button", { name: /open the results desk/i }));
   await waitFor(() => expect(where()).toBe("/"));
@@ -98,9 +90,7 @@ test("the unlock animation is tagged on the page for the transition styles", asy
 });
 
 const settled = async () => {
-  await waitFor(() =>
-    expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true),
-  );
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((c) => c[0] === "/api/auth/me")).toBe(true));
   await new Promise((r) => setTimeout(r, 20));
 };
 
@@ -127,4 +117,11 @@ test("a short mouse drag springs back; a long one opens the way in", async () =>
   expect(where()).toBe("/welcome");
   drag(800, 100);
   await waitFor(() => expect(where()).toBe("/login"));
+});
+
+test("the disclosures link opens its page without opening the app", async () => {
+  renderWelcome();
+  fireEvent.click(screen.getByRole("link", { name: /mandatory disclosures/i }));
+  await waitFor(() => expect(where()).toBe("/disclosures"));
+  expect(hasWelcomed()).toBe(false);
 });

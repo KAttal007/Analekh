@@ -33,9 +33,7 @@ function ForUser({ userId }: { userId: string }) {
   return (
     <div className="lock-reminder" role="region" aria-label="Models still open" aria-live="polite">
       <p>
-        {held.length === 1
-          ? "You still have 1 model open."
-          : `You still have ${held.length} models open.`}{" "}
+        {held.length === 1 ? "You still have 1 model open." : `You still have ${held.length} models open.`}{" "}
         {closable === 0
           ? held.length === 1
             ? "Work is still running on it; it closes itself when done."
@@ -54,13 +52,7 @@ function ForUser({ userId }: { userId: string }) {
                 // A running job's lock is not the user's to give back: the job lets go itself.
                 <span className="muted">Running</span>
               ) : (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  aria-label={`Close ${name}'s model`}
-                  disabled={release.isPending}
-                  onClick={() => release.mutate(l.model_id)}
-                >
+                <button type="button" className="btn btn-sm" aria-label={`Close ${name}'s model`} disabled={release.isPending} onClick={() => release.mutate(l.model_id)}>
                   Close
                 </button>
               )}

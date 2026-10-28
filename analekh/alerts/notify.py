@@ -45,9 +45,7 @@ def send_email(subject: str, body: str) -> bool:
     return True
 
 
-def raise_alert(
-    session: Session, kind: str, company_id: int | None, text: str, payload: dict | None = None
-) -> Alert:
+def raise_alert(session: Session, kind: str, company_id: int | None, text: str, payload: dict | None = None) -> Alert:
     channel = "telegram" if send_telegram(text) else "email" if send_email(kind, text) else "none"
     alert = Alert(
         company_id=company_id,

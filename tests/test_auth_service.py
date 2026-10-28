@@ -46,11 +46,7 @@ def test_third_failure_pauses_the_account(db):
     for _ in range(3):
         assert login(db, "kaushal@firm.in", "wrong", now=T0).reason == "bad_credentials"
     res = login(db, "kaushal@firm.in", GOOD, now=T0)
-    assert (
-        not res.ok
-        and res.reason == "paused"
-        and res.retry_after_seconds == _pause().total_seconds()
-    )
+    assert not res.ok and res.reason == "paused" and res.retry_after_seconds == _pause().total_seconds()
     assert res.token is None
     later = login(db, "kaushal@firm.in", GOOD, now=T0 + _pause() + timedelta(seconds=1))
     assert later.ok
@@ -65,7 +61,6 @@ def test_two_more_failures_after_the_pause_block_the_account(db):
     after = T0 + _pause() + timedelta(seconds=1)
     fourth = login(db, "kaushal@firm.in", "wrong", now=after)
     assert fourth.reason == "bad_credentials"
-    # no new pause after the 4th: the right password is not held back
     user = db.scalar(select(User).where(User.email == "kaushal@firm.in"))
     assert user.paused_until is not None and user.paused_until <= after
     fifth = login(db, "kaushal@firm.in", "wrong", now=after)
@@ -79,9 +74,7 @@ def test_failures_during_the_pause_do_not_count_or_extend_it(db):
     for _ in range(3):
         login(db, "kaushal@firm.in", "wrong", now=T0)
     for _ in range(10):  # hammering while paused is turned away, not counted
-        assert (
-            login(db, "kaushal@firm.in", "wrong", now=T0 + timedelta(minutes=1)).reason == "paused"
-        )
+        assert login(db, "kaushal@firm.in", "wrong", now=T0 + timedelta(minutes=1)).reason == "paused"
     user = db.scalar(select(User).where(User.email == "kaushal@firm.in"))
     assert user.failed_count == 3 and user.blocked is False
     assert login(db, "kaushal@firm.in", GOOD, now=T0 + _pause() + timedelta(seconds=1)).ok
@@ -129,7 +122,6 @@ def test_disabling_user_kills_live_session(db):
 def test_idle_9_hours_expires_session(db):
     _make(db)
     token = login(db, "kaushal@firm.in", GOOD, now=T0).token
-    # activity keeps it alive: each call moves last_seen_at forward
     assert user_for_token(db, token, now=T0 + timedelta(hours=8)) is not None
     assert user_for_token(db, token, now=T0 + timedelta(hours=16)) is not None
     assert user_for_token(db, token, now=T0 + timedelta(hours=16, minutes=1)) is not None

@@ -25,9 +25,7 @@ def compress(store: S3Store, key: str) -> tuple[str, int, int]:
         return "mismatch", len(raw), len(raw)
     store.write(key, raw, "application/xml")
     if sha256(store.get(key)) != PurePosixPath(key).stem:
-        store.client.put_object(
-            Bucket=store.bucket, Key=key, Body=raw, ContentType="application/xml"
-        )
+        store.client.put_object(Bucket=store.bucket, Key=key, Body=raw, ContentType="application/xml")
         return "restored", len(raw), len(raw)
     stored = store.client.head_object(Bucket=store.bucket, Key=key)["ContentLength"]
     return "compressed", len(raw), stored
@@ -40,9 +38,7 @@ def main() -> None:
 
     store = S3Store()
     keys = []
-    for page in store.client.get_paginator("list_objects_v2").paginate(
-        Bucket=store.bucket, Prefix=PREFIX
-    ):
+    for page in store.client.get_paginator("list_objects_v2").paginate(Bucket=store.bucket, Prefix=PREFIX):
         keys += [o["Key"] for o in page.get("Contents", [])]
     keys = keys[: args.limit]
 
@@ -50,9 +46,7 @@ def main() -> None:
     before = after = 0
     problems = []
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for n, (key, (status, size, stored)) in enumerate(
-            zip(keys, pool.map(lambda k: compress(store, k), keys), strict=True), 1
-        ):
+        for n, (key, (status, size, stored)) in enumerate(zip(keys, pool.map(lambda k: compress(store, k), keys), strict=True), 1):
             counts[status] = counts.get(status, 0) + 1
             before, after = before + size, after + stored
             if status in ("mismatch", "restored"):

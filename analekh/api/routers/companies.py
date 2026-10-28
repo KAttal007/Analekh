@@ -28,11 +28,7 @@ def company_index(db: DB, request: Request, response: Response) -> object:
     About 3,200 short rows, so the browser loads it once and searches locally on each keystroke;
     /companies/search stays the source of truth (and the typo fallback). The ETag lets the
     browser revalidate with a 304 instead of downloading the list again."""
-    rows = db.execute(
-        select(Company.id, Company.nse_symbol, Company.name, Company.isin, Company.sector)
-        .where(Company.is_active)
-        .order_by(Company.nse_symbol)
-    ).all()
+    rows = db.execute(select(Company.id, Company.nse_symbol, Company.name, Company.isin, Company.sector).where(Company.is_active).order_by(Company.nse_symbol)).all()
     digest = hashlib.sha256(json.dumps([tuple(r) for r in rows]).encode()).hexdigest()
     etag = f'"{digest[:40]}"'
     headers = {"ETag": etag, "Cache-Control": "private, max-age=300"}
@@ -43,9 +39,7 @@ def company_index(db: DB, request: Request, response: Response) -> object:
 
 
 @router.get("/companies/search", response_model=list[schemas.SearchHitOut])
-def search_companies(
-    db: DB, q: str, limit: int = DEFAULT_LIMIT, offset: int = 0
-) -> list[schemas.SearchHitOut]:
+def search_companies(db: DB, q: str, limit: int = DEFAULT_LIMIT, offset: int = 0) -> list[schemas.SearchHitOut]:
     """Type-ahead search; page through long lists with ``offset``."""
     hits = search(db, q, min(max(limit, 1), 50), offset=max(offset, 0))
     return [schemas.SearchHitOut(**h.__dict__) for h in hits]
@@ -67,8 +61,6 @@ def get_company(symbol: str, db: DB) -> schemas.CompanyDetail:
 def watch(body: schemas.WatchRequest, db: DB, user: User) -> schemas.CompanyDetail:
     c = company_or_404(db, body.symbol)
     coverage.add(db, c, user, body.settings)
-    # Committed before the reply, not when the request's session closes: the page reloads the
-    # company and the watchlist as soon as it gets the answer, and must see the change.
     db.commit()
     return get_company(c.nse_symbol, db)
 
@@ -88,7 +80,6 @@ def watchlist(db: DB, user: User) -> list[schemas.WatchlistEntryOut]:
     ids = [w.company_id for w in entries]
     prices = latest_prices(db, ids)
     suspect = suspect_filings(db, ids)
-    # One query each for the newest results filing and the open change sets, not one per company.
     newest = (
         select(Filing.company_id, Filing.period_end, Filing.meta)
         .ext(distinct_on(Filing.company_id))
@@ -205,11 +196,7 @@ def facts(
     company = company_or_404(db, symbol)
     company_id = company.id
     if logical:
-        names = [
-            e
-            for x in logical.split(",")
-            for e in candidates(x, company.results_taxonomy or "indas")
-        ]
+        names = [e for x in logical.split(",") for e in candidates(x, company.results_taxonomy or "indas")]
         elements = ",".join(names) or "-"  # nothing in this format: no facts
     if consolidated is None:
         consolidated = files_consolidated(db, company_id)
@@ -257,10 +244,7 @@ def results_desk(
         sort=sort,
     )
     data = asdict(d)
-    data["quarters"] = [
-        {"quarter_end": end, "quarter_label": quarter_label(end), "reported": n}
-        for end, n in d.quarters
-    ]
+    data["quarters"] = [{"quarter_end": end, "quarter_label": quarter_label(end), "reported": n} for end, n in d.quarters]
     return schemas.DeskOut.model_validate(data)
 
 
@@ -287,11 +271,7 @@ def results_calendar(
     unscheduled: list[schemas.UnscheduledOut] = []
     if watchlist:
         dated = {e.symbol for e in found if e.kind == "results"}
-        unscheduled = [
-            schemas.UnscheduledOut(symbol=c.nse_symbol, name=c.name, sector=c.sector)
-            for c in (w.company for w in coverage.entries(db, user))
-            if c.nse_symbol not in dated
-        ]
+        unscheduled = [schemas.UnscheduledOut(symbol=c.nse_symbol, name=c.name, sector=c.sector) for c in (w.company for w in coverage.entries(db, user)) if c.nse_symbol not in dated]
     return schemas.CalendarOut(
         start=start,
         end=end,
@@ -307,29 +287,21 @@ def company_glance(symbol: str, db: DB, consolidated: bool | None = None) -> sch
 
     from analekh.glance import glance
 
-    return schemas.GlanceOut.model_validate(
-        asdict(glance(db, company_or_404(db, symbol), consolidated))
-    )
+    return schemas.GlanceOut.model_validate(asdict(glance(db, company_or_404(db, symbol), consolidated)))
 
 
 @router.get("/companies/{symbol}/history", response_model=schemas.HistoryOut)
-def company_history(
-    symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 8
-) -> schemas.HistoryOut:
+def company_history(symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 8) -> schemas.HistoryOut:
     """Every stored quarter's P&L lines, oldest first (up to 28), on one basis."""
     from dataclasses import asdict
 
     from analekh.history import history
 
-    return schemas.HistoryOut.model_validate(
-        asdict(history(db, company_or_404(db, symbol), consolidated, quarters))
-    )
+    return schemas.HistoryOut.model_validate(asdict(history(db, company_or_404(db, symbol), consolidated, quarters)))
 
 
 @router.get("/companies/{symbol}/history.xlsx")
-def company_history_xlsx(
-    symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 12
-) -> Response:
+def company_history_xlsx(symbol: str, db: DB, consolidated: bool | None = None, quarters: int = 12) -> Response:
     """The results history as an Excel workbook, amounts in crore."""
     from analekh.history import history, to_xlsx
 
@@ -339,9 +311,7 @@ def company_history_xlsx(
     return Response(
         to_xlsx(h, c),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{c.nse_symbol}-results-{basis}.xlsx"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{c.nse_symbol}-results-{basis}.xlsx"'},
     )
 
 
@@ -371,6 +341,4 @@ def job_status(job_id: str) -> schemas.JobOut:
     res = celery.AsyncResult(job_id)
     if res is None:
         raise HTTPException(404)
-    return schemas.JobOut(
-        job_id=job_id, status=res.status, result=res.result if res.ready() else None
-    )
+    return schemas.JobOut(job_id=job_id, status=res.status, result=res.result if res.ready() else None)

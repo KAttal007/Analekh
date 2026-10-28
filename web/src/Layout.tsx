@@ -34,8 +34,6 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
 ];
-// Screens without the top search bar: those with their own company picker (Reports, Comps), and
-// those that are not about one company (Models, which gets its own search; Templates; Settings).
 const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/settings"]);
 const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders" };
 const ADMIN: NavItem = { to: "/admin/users", label: "Admin", icon: "layers" };
@@ -71,14 +69,7 @@ function ThemeSwitch() {
     <div className="theme-switch" role="group" aria-label="Theme">
       <SegmentThumb selected='[aria-pressed="true"]' />
       {THEMES.map((t) => (
-        <button
-          key={t.choice}
-          type="button"
-          title={t.label}
-          aria-label={t.label}
-          aria-pressed={choice === t.choice}
-          onClick={() => setTheme(t.choice)}
-        >
+        <button key={t.choice} type="button" title={t.label} aria-label={t.label} aria-pressed={choice === t.choice} onClick={() => setTheme(t.choice)}>
           <Icon name={t.icon} size={14} />
         </button>
       ))}
@@ -110,16 +101,10 @@ function useNavHighlight(pathname: string, collapsed: boolean) {
       mark.style.opacity = "1";
       mark.style.width = `${l.width}px`;
       mark.style.height = `${l.height}px`;
-      mark.style.transform = `translate(${l.left - s.left + side.scrollLeft}px, ${
-        l.top - s.top + side.scrollTop
-      }px)`;
+      mark.style.transform = `translate(${l.left - s.left + side.scrollLeft}px, ${l.top - s.top + side.scrollTop}px)`;
     };
-    // Glide only to a new tab; collapsing or expanding moves it with the sidebar.
     place(shownFor.current !== null && shownFor.current !== pathname);
     shownFor.current = pathname;
-    // The sidebar resizing (collapsing, the window) moves the highlight with it, without
-    // gliding. The first report comes straight after observing and is no resize: skip it, or it
-    // would cut the glide short.
     let first = true;
     const resized = new ResizeObserver(() => {
       if (first) first = false;
@@ -129,7 +114,6 @@ function useNavHighlight(pathname: string, collapsed: boolean) {
     return () => resized.disconnect();
   }, [pathname, collapsed]);
 
-  // A faint light follows the pointer across the sidebar, as on the welcome screen.
   useLayoutEffect(() => {
     const side = aside.current;
     if (!side) return;
@@ -188,16 +172,12 @@ export function Layout() {
   const isAdmin = useMe().data?.role === "admin";
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const { aside, highlight } = useNavHighlight(pathname, collapsed);
-  // Browsers keep sound off until the user clicks or types; the idle reminder chimes when nobody
-  // has for a while, so the sound is woken on the way.
   useEffect(() => unlockChimeOnGesture(), []);
   const toggle = () => {
     setCollapsed((c) => {
       try {
         localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1");
-      } catch {
-        /* storage unavailable: the choice lasts for this page only */
-      }
+      } catch { /* a failed sign-out call still ends the local session */ }
       return !c;
     });
   };

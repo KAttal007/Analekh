@@ -58,20 +58,13 @@ def universe_load(
             summary = upsert_universe(s, listed)
         else:
             summary = refresh_from_nse(s)
-    typer.echo(
-        f"inserted {len(summary.inserted)}, updated {len(summary.updated)}, "
-        f"renamed {len(summary.renamed)}, deactivated {len(summary.deactivated)}"
-    )
+    typer.echo(f"inserted {len(summary.inserted)}, updated {len(summary.updated)}, renamed {len(summary.renamed)}, deactivated {len(summary.deactivated)}")
 
 
 @universe_app.command("sectors")
 def universe_sectors(
-    stocks_file: Path | None = typer.Option(
-        None, help="Workbook converted with Excel's Stocks data type (Sector + ISIN No columns)"
-    ),
-    worksheet: Path | None = typer.Option(
-        None, help="Your confirmed sectors (Symbol, Sector, Confirmed columns); no download"
-    ),
+    stocks_file: Path | None = typer.Option(None, help="Workbook converted with Excel's Stocks data type (Sector + ISIN No columns)"),
+    worksheet: Path | None = typer.Option(None, help="Your confirmed sectors (Symbol, Sector, Confirmed columns); no download"),
 ) -> None:
     """Fill sectors: from a Stocks workbook, your worksheet, or the curated map then NSE Indices'
     lists."""
@@ -84,22 +77,12 @@ def universe_sectors(
     if worksheet:
         with _session() as s:
             r = import_sector_worksheet(s, worksheet)
-        typer.echo(
-            f"{r['rows']} rows, {r['confirmed']} confirmed, {r['updated']} sectors set"
-            + (
-                f", {r['not_an_nse_sector']} skipped (not an NSE sector)"
-                if r["not_an_nse_sector"]
-                else ""
-            )
-        )
+        typer.echo(f"{r['rows']} rows, {r['confirmed']} confirmed, {r['updated']} sectors set" + (f", {r['not_an_nse_sector']} skipped (not an NSE sector)" if r["not_an_nse_sector"] else ""))
         return
     if stocks_file:
         with _session() as s:
             w = import_stocks_workbook(s, stocks_file)
-        typer.echo(
-            f"{w['rows']} rows, {w['with_sector']} with a sector, {w['matched']} matched by ISIN, "
-            f"{w['updated']} sectors changed"
-        )
+        typer.echo(f"{w['rows']} rows, {w['with_sector']} with a sector, {w['matched']} matched by ISIN, {w['updated']} sectors changed")
         return
     with _session() as s:
         r = refresh_sectors(s)
@@ -167,12 +150,8 @@ def results_watch(
 
 @app.command("prices")
 def prices(
-    day: str | None = typer.Option(
-        None, "--date", help="Trading day (YYYY-MM-DD); default: latest close."
-    ),
-    recompute: bool = typer.Option(
-        False, help="Recompute market caps of the stored prices only (no download)."
-    ),
+    day: str | None = typer.Option(None, "--date", help="Trading day (YYYY-MM-DD); default: latest close."),
+    recompute: bool = typer.Option(False, help="Recompute market caps of the stored prices only (no download)."),
 ) -> None:
     """Closing prices for every company from NSE's bhavcopy (ONE request; skipped if stored)."""
     if recompute:
@@ -188,30 +167,16 @@ def prices(
 
 @app.command("results-backfill")
 def results_backfill(
-    symbols: str | None = typer.Option(
-        None, help="Comma-separated tickers; default: every company with a sector."
-    ),
+    symbols: str | None = typer.Option(None, help="Comma-separated tickers; default: every company with a sector."),
     limit: int | None = typer.Option(None, help="Stop after this many companies."),
     quarters: int = typer.Option(8, help="Newest N quarters per company."),
-    one_basis: bool = typer.Option(
-        False, help="One basis per quarter (consolidated when filed); default: both."
-    ),
+    one_basis: bool = typer.Option(False, help="One basis per quarter (consolidated when filed); default: both."),
     redo: bool = typer.Option(False, help="Include companies that already have results filings."),
-    interval: float | None = typer.Option(
-        None, help="Seconds between requests to NSE (default: DOWNLOAD_RATE_PER_SECOND)."
-    ),
-    start_at: str | None = typer.Option(
-        None, help="Resume at this ticker (inclusive), e.g. the one NSE stalled on."
-    ),
-    recheck_no_filings: bool = typer.Option(
-        False, help="Check again the companies no-filings.csv lists as having nothing on NSE."
-    ),
-    history: bool = typer.Option(
-        False, help="Results from before integrated filings (XBRL from 2018), for every company."
-    ),
-    sector: list[str] = typer.Option(
-        None, help='Only this sector; repeat for several (--sector "Oil & Gas" --sector ...).'
-    ),
+    interval: float | None = typer.Option(None, help="Seconds between requests to NSE (default: DOWNLOAD_RATE_PER_SECOND)."),
+    start_at: str | None = typer.Option(None, help="Resume at this ticker (inclusive), e.g. the one NSE stalled on."),
+    recheck_no_filings: bool = typer.Option(False, help="Check again the companies no-filings.csv lists as having nothing on NSE."),
+    history: bool = typer.Option(False, help="Results from before integrated filings (XBRL from 2018), for every company."),
+    sector: list[str] = typer.Option(None, help='Only this sector; repeat for several (--sector "Oil & Gas" --sector ...).'),
 ) -> None:
     """Fetch results XBRL from NSE's integrated filings for many companies (resumable)."""
     from analekh.jobs.tasks import bulk_fetch_results
@@ -288,9 +253,7 @@ def recompute_latest(
     from analekh.restatements import infer_revision_flags
 
     with _session() as s:
-        q = select(Company.id, Company.nse_symbol).where(
-            exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
-        )
+        q = select(Company.id, Company.nse_symbol).where(exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl"))
         if symbols:
             q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
         todo = list(s.execute(q.order_by(Company.nse_symbol)))
@@ -302,10 +265,7 @@ def recompute_latest(
         changed += n
         if n:
             typer.echo(f"{symbol}: {n} values switched")
-    typer.echo(
-        f"{len(todo)} companies: {changed} values switched to the newest filing, "
-        f"{labelled} filings labelled original or revision"
-    )
+    typer.echo(f"{len(todo)} companies: {changed} values switched to the newest filing, {labelled} filings labelled original or revision")
 
 
 @app.command()
@@ -320,9 +280,7 @@ def revalidate(
 
     store = _store()
     with _session() as s:
-        q = select(Company.nse_symbol).where(
-            exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
-        )
+        q = select(Company.nse_symbol).where(exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl"))
         if symbols:
             q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
         todo = list(s.scalars(q.order_by(Company.nse_symbol)))
@@ -333,9 +291,7 @@ def revalidate(
                 raise LookupError(f"unknown company {symbol}")
             filings = revalidate_company(s, store, company)
             blocked = sum(bool((f.meta or {}).get("blocks_auto_apply")) for f in filings)
-            typer.echo(
-                f"{symbol}: {company.results_taxonomy}, {len(filings)} filings, {blocked} blocked"
-            )
+            typer.echo(f"{symbol}: {company.results_taxonomy}, {len(filings)} filings, {blocked} blocked")
 
 
 @app.command()
@@ -344,10 +300,7 @@ def backfill(symbol: str | None = typer.Argument(None)) -> None:
     from analekh.jobs.tasks import backfill as do_backfill
 
     result = do_backfill(symbol)
-    typer.echo(
-        f"ingested {len(result['ingested'])}, skipped {len(result['skipped'])}, "
-        f"unknown symbols {result['unknown_symbols']}"
-    )
+    typer.echo(f"ingested {len(result['ingested'])}, skipped {len(result['skipped'])}, unknown symbols {result['unknown_symbols']}")
 
 
 @template_app.command("add")
@@ -371,10 +324,7 @@ def template_add(
             from_existing_model=from_model,
         )
         low = [r for r in (t.mapping or {}).get("rows", []) if r.get("confidence", 1) < 0.8]
-        typer.echo(
-            f"template {t.id} v{t.version} ({t.status}); "
-            f"{len((t.mapping or {}).get('rows', []))} rows mapped, {len(low)} to review"
-        )
+        typer.echo(f"template {t.id} v{t.version} ({t.status}); {len((t.mapping or {}).get('rows', []))} rows mapped, {len(low)} to review")
 
 
 @template_app.command("test")
@@ -404,9 +354,7 @@ def template_activate(template_id: int, default: bool = False) -> None:
 
 
 @app.command()
-def build(
-    symbol: str, template_id: int | None = None, accept_all: bool = False, out: Path | None = None
-) -> None:
+def build(symbol: str, template_id: int | None = None, accept_all: bool = False, out: Path | None = None) -> None:
     """Start coverage: build a model from a template with sourced history."""
     from sqlalchemy import select
 
@@ -418,18 +366,11 @@ def build(
     with _session() as s:
         company = _company(s, symbol)
         ensure_builtin_templates(s, store)
-        template = (
-            s.get(Template, template_id)
-            if template_id
-            else default_for(s, company.industry or company.sector) or default_for(s, None)
-        )
+        template = s.get(Template, template_id) if template_id else default_for(s, company.industry or company.sector) or default_for(s, None)
         if template is None:
             raise typer.BadParameter("no active template")
         res = start_coverage(s, store, company, template)
-        typer.echo(
-            f"model {res.model.id}: {len(res.fill.written)} inputs filled; "
-            f"rows not reported: {res.fill.blank_rows}"
-        )
+        typer.echo(f"model {res.model.id}: {len(res.fill.written)} inputs filled; rows not reported: {res.fill.blank_rows}")
         for p in res.proposals:
             typer.echo(f"  {p.driver}: {p.value}  {p.rationale}")
         if not accept_all:
@@ -465,10 +406,7 @@ def golden_test(
 
     result = golden.run(folder)
     golden.write(result, report)
-    typer.echo(
-        f"fixtures {result.fixtures}, checked {result.checked}, matched {result.matched}"
-        f"{' - ' + result.note if result.note else ''}"
-    )
+    typer.echo(f"fixtures {result.fixtures}, checked {result.checked}, matched {result.matched}{' - ' + result.note if result.note else ''}")
     for m in result.mismatches:
         typer.echo(f"  {m.file} {m.element} {m.period_end}: PDF {m.expected}, parsed {m.actual}")
     if result.checked and not result.passed:
@@ -500,10 +438,7 @@ def golden_import(folder: Path = typer.Option(Path("tests/fixtures/golden"))) ->
     from analekh import golden
 
     r = golden.import_sheet(folder)
-    typer.echo(
-        f"confirmed {r.confirmed}, corrected {r.corrected}, not in PDF {r.not_in_pdf}, "
-        f"still to mark {r.pending}"
-    )
+    typer.echo(f"confirmed {r.confirmed}, corrected {r.corrected}, not in PDF {r.not_in_pdf}, still to mark {r.pending}")
     for problem in r.problems:
         typer.echo(f"  {problem}")
 

@@ -38,13 +38,10 @@ def q2_file() -> bytes:
 
 def test_marked_worksheet_becomes_a_manifest_that_golden_test_runs(tmp_path):
     xml = q2_file()
-    sheet = golden.sheet_filing(
-        xml, Pick("DEMO", date(2026, 9, 30), True, "Ind-AS"), "Demo Ltd", None
-    )
+    sheet = golden.sheet_filing(xml, Pick("DEMO", date(2026, 9, 30), True, "Ind-AS"), "Demo Ltd", None)
     assert sheet.file == "demo_q2fy27_c.xml" and sheet.unit == "₹ crore"
     periods = {(x.line, x.period) for x in sheet.lines}
     assert {("revenue", "Q2 FY27"), ("revenue", "H1 FY27"), ("pat", "H1 FY27")} <= periods
-    # Untagged quarter lines stay on the sheet for the analyst; nil exceptional items do not.
     gaps = {x.line for x in sheet.lines if x.fact is None}
     assert gaps == {"finance_costs", "depreciation", "eps_basic"}
 
@@ -68,9 +65,7 @@ def test_marked_worksheet_becomes_a_manifest_that_golden_test_runs(tmp_path):
 
     report = golden.run(tmp_path)
     assert report.checked == summary.confirmed + 1
-    assert [(m.element, m.expected, m.actual) for m in report.mismatches] == [
-        ("other_income", "51000000", "50000000")
-    ]
+    assert [(m.element, m.expected, m.actual) for m in report.mismatches] == [("other_income", "51000000", "50000000")]
 
 
 def test_a_no_that_agrees_with_analekh_is_queried(tmp_path):

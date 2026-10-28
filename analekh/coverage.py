@@ -21,32 +21,16 @@ def add(
     user_id: str | None = None,
     settings: dict[str, Any] | None = None,
 ) -> None:
-    stmt = insert(Watchlist).values(
-        user_id=_user(user_id), company_id=company.id, settings=settings or {}
-    )
-    session.execute(
-        stmt.on_conflict_do_update(
-            index_elements=["user_id", "company_id"], set_={"settings": stmt.excluded.settings}
-        )
-    )
+    stmt = insert(Watchlist).values(user_id=_user(user_id), company_id=company.id, settings=settings or {})
+    session.execute(stmt.on_conflict_do_update(index_elements=["user_id", "company_id"], set_={"settings": stmt.excluded.settings}))
 
 
 def remove(session: Session, company: Company, user_id: str | None = None) -> None:
-    session.execute(
-        delete(Watchlist).where(
-            Watchlist.user_id == _user(user_id), Watchlist.company_id == company.id
-        )
-    )
+    session.execute(delete(Watchlist).where(Watchlist.user_id == _user(user_id), Watchlist.company_id == company.id))
 
 
 def entries(session: Session, user_id: str | None = None) -> list[Watchlist]:
-    return list(
-        session.scalars(
-            select(Watchlist)
-            .where(Watchlist.user_id == _user(user_id))
-            .order_by(Watchlist.added_at)
-        )
-    )
+    return list(session.scalars(select(Watchlist).where(Watchlist.user_id == _user(user_id)).order_by(Watchlist.added_at)))
 
 
 def is_watched(session: Session, company_id: int) -> bool:

@@ -36,7 +36,6 @@ from openpyxl.utils import get_column_letter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# The Stocks field holding the sector; FIELDVALUE needs the _xlfn prefix in the file format.
 SECTOR_FORMULA = '=IFERROR(_xlfn.FIELDVALUE(B{row},"Industry"),"")'
 WIDTHS = {"Sector": 30, "Issuer Name": 40, "Security Name": 34, "Company": 44, "Note": 30}
 DATE_COLUMNS = {"Date of Listing"}
@@ -126,11 +125,7 @@ def nse(out: Path, equity_csv: Path | None = None) -> None:
         from analekh.db.session import session_scope
 
         with session_scope() as s:
-            companies = s.scalars(
-                select(Company)
-                .where(Company.is_active)
-                .order_by(Company.is_sme, Company.nse_symbol)
-            ).all()
+            companies = s.scalars(select(Company).where(Company.is_active).order_by(Company.is_sme, Company.nse_symbol)).all()
             rows = [
                 [
                     f"XNSE:{c.nse_symbol}",
@@ -155,11 +150,7 @@ def remaining(out: Path) -> None:
     from analekh.db.session import session_scope
 
     with session_scope() as s:
-        left = s.scalars(
-            select(Company)
-            .where(Company.is_active, Company.sector.is_(None))
-            .order_by(Company.is_sme, Company.nse_symbol)
-        ).all()
+        left = s.scalars(select(Company).where(Company.is_active, Company.sector.is_(None)).order_by(Company.is_sme, Company.nse_symbol)).all()
         rows = [
             [
                 f"XNSE:{c.nse_symbol}",

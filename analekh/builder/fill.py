@@ -50,9 +50,7 @@ class FillReport:
         }
 
 
-def fill_history(
-    wb: Workbook, mapping: Mapping, source: ValueSource, last_actual: date
-) -> FillReport:
+def fill_history(wb: Workbook, mapping: Mapping, source: ValueSource, last_actual: date) -> FillReport:
     axis = relabel(wb, axis_for(wb, mapping), last_actual)
     report = FillReport(axis=axis)
     actual_cols = [c for c in sorted(axis.columns) if not axis.is_estimate(c)]
@@ -117,9 +115,7 @@ def write_sources(wb: Workbook, written: list[Written]) -> None:
         )
 
 
-def write_drivers(
-    wb: Workbook, mapping: Mapping, axis: PeriodAxis, values: dict[str, float]
-) -> list[str]:
+def write_drivers(wb: Workbook, mapping: Mapping, axis: PeriodAxis, values: dict[str, float]) -> list[str]:
     """Write accepted driver values into every estimate column of each driver row."""
     written = []
     by_name = {d.name: d for d in mapping.drivers}

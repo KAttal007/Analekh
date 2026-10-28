@@ -50,8 +50,7 @@ const show = () =>
     </Routes>,
     "/models/1/assumptions",
   );
-const disabled = (name: string) =>
-  (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
+const disabled = (name: string) => (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
 
 it("held by a colleague: banner, and the build steps are off", async () => {
   mockApi(routes(() => ({ status: 200, body: HELD })));
@@ -119,7 +118,6 @@ it("when the colleague is done, the rows reload before the buttons come back", a
   );
   show();
   await screen.findByText("In use by Kaushal since 10:42");
-  // The colleague edited the row and built; then the model frees.
   row = { ...ROW, decision: "edited", final_value: "10%" };
   held = false;
   await waitFor(() => expect(screen.queryByText(/In use by/)).toBeNull());

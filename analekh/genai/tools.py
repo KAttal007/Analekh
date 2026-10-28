@@ -14,9 +14,7 @@ from analekh.genai.calc import CalcError, calc
 from analekh.universe.search import get as get_company
 
 
-def _tool(
-    name: str, description: str, properties: dict[str, Any], required: list[str]
-) -> dict[str, Any]:
+def _tool(name: str, description: str, properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {
         "name": name,
         "description": description,
@@ -73,9 +71,7 @@ TOOL_DEFS: list[dict[str, Any]] = [
     ),
     _tool(
         "calc",
-        "Deterministic arithmetic: growth, margins, variances. Use for every derived "
-        "number. Example: expression='(a-b)/b*100', "
-        "inputs=[{'name': 'a', 'value': 120}, {'name': 'b', 'value': 100}].",
+        "Deterministic arithmetic: growth, margins, variances. Use for every derived number. Example: expression='(a-b)/b*100', inputs=[{'name': 'a', 'value': 120}, {'name': 'b', 'value': 100}].",
         {
             "expression": {"type": "string"},
             "inputs": {
@@ -109,11 +105,7 @@ class ModelReader:
         from analekh.db.models import ModelVersion
         from analekh.workbook.recalc import evaluate, lookup
 
-        version = self.session.scalar(
-            select(ModelVersion)
-            .where(ModelVersion.model_id == model_id)
-            .order_by(ModelVersion.version.desc())
-        )
+        version = self.session.scalar(select(ModelVersion).where(ModelVersion.model_id == model_id).order_by(ModelVersion.version.desc()))
         if version is None:
             raise ValueError(f"model {model_id} has no saved version")
         values = evaluate(self.store.get(version.storage_key))
@@ -206,18 +198,12 @@ class ToolExecutor:
     def _t_search_filings(self, company: str, query: str, k: int) -> list[dict]:
         from analekh.genai.qa import hybrid_search
 
-        return hybrid_search(
-            self.session, self._company(company).id, query, min(k, 20), self.embedder
-        )
+        return hybrid_search(self.session, self._company(company).id, query, min(k, 20), self.embedder)
 
     def _t_get_prices(self, company: str, **period: str) -> list[dict]:
         c = self._company(company)
         start, end = date.fromisoformat(period["from"]), date.fromisoformat(period["to"])
-        rows = self.session.scalars(
-            select(Price)
-            .where(Price.company_id == c.id, Price.trade_date.between(start, end))
-            .order_by(Price.trade_date)
-        )
+        rows = self.session.scalars(select(Price).where(Price.company_id == c.id, Price.trade_date.between(start, end)).order_by(Price.trade_date))
         return [
             {
                 "date": str(p.trade_date),

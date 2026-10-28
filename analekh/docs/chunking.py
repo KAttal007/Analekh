@@ -16,9 +16,7 @@ class TextChunk:
     text: str
 
 
-def chunk_pages(
-    pages: list[PageText], target: int = TARGET_CHARS, overlap: int = OVERLAP_CHARS
-) -> list[TextChunk]:
+def chunk_pages(pages: list[PageText], target: int = TARGET_CHARS, overlap: int = OVERLAP_CHARS) -> list[TextChunk]:
     chunks: list[TextChunk] = []
     for page in pages:
         paragraphs = [p.strip() for p in page.text.split("\n\n") if p.strip()]

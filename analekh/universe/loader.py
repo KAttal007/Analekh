@@ -74,8 +74,6 @@ def parse_equity_list(data: bytes, is_sme: bool = False) -> list[ListedCompany]:
     for raw in csv.DictReader(io.StringIO(text)):
         row = {_norm_header(k): (v or "").strip() for k, v in raw.items() if k}
         symbol = row.get("SYMBOL", "").upper()
-        # Rights entitlements trade for a few weeks as SYMBOL-RE (NATCO-RE, October 2026): the
-        # right to buy shares in a rights issue, not a company.
         if not symbol or RIGHTS_ENTITLEMENT.search(symbol):
             continue
         rows.append(
@@ -92,9 +90,7 @@ def parse_equity_list(data: bytes, is_sme: bool = False) -> list[ListedCompany]:
     return rows
 
 
-def upsert_universe(
-    session: Session, listed: list[ListedCompany], full_refresh: bool = True
-) -> LoadSummary:
+def upsert_universe(session: Session, listed: list[ListedCompany], full_refresh: bool = True) -> LoadSummary:
     """Upsert by ISIN (falling back to symbol); deactivate companies absent from a full refresh."""
     summary = LoadSummary()
     now = datetime.now(UTC)

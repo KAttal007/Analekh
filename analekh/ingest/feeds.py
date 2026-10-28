@@ -21,7 +21,6 @@ from analekh.ingest.linking import CompanyIndex
 
 RSS_BASE = "https://nsearchives.nseindia.com/content/RSS/"
 
-# feed name -> (file, poll class). "fast" polls at the published 5-minute TTL.
 FEEDS: dict[str, tuple[str, str]] = {
     "financial_results": ("Financial_Results.xml", "fast"),
     "announcements": ("Online_announcements.xml", "fast"),
@@ -32,7 +31,6 @@ FEEDS: dict[str, tuple[str, str]] = {
 }
 
 # NSE's feeds write pubDate as "24-Aug-2026 17:39:16" (seen in Phase 0): not RFC 822, so
-# feedparser gives up on it. No offset is given; the time is IST, which has no daylight saving.
 NSE_PUB_DATE_FORMAT = "%d-%b-%Y %H:%M:%S"
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -78,16 +76,12 @@ def parse_pub_date(raw: str | None, struct: struct_time | None = None) -> dateti
     if not raw:
         return None
     try:
-        return (
-            datetime.strptime(raw.strip(), NSE_PUB_DATE_FORMAT).replace(tzinfo=IST).astimezone(UTC)
-        )
+        return datetime.strptime(raw.strip(), NSE_PUB_DATE_FORMAT).replace(tzinfo=IST).astimezone(UTC)
     except ValueError:
         return None
 
 
-def store_items(
-    session: Session, feed: str, items: list[RssItem], index: CompanyIndex | None = None
-) -> int:
+def store_items(session: Session, feed: str, items: list[RssItem], index: CompanyIndex | None = None) -> int:
     """Insert new items and link them to universe companies; returns how many were new."""
     if not items:
         return 0
@@ -105,16 +99,10 @@ def store_items(
                 "description": it.description,
                 "pub_date": it.pub_date,
                 "company_id": company.id if company else None,
-                # No link, no file to fetch: stored closed, whether or not a company matched.
                 "processed_at": None if it.link else now,
             }
         )
-    stmt = (
-        insert(FeedItem)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=["feed", "item_key"])
-        .returning(FeedItem.id)
-    )
+    stmt = insert(FeedItem).values(rows).on_conflict_do_nothing(index_elements=["feed", "item_key"]).returning(FeedItem.id)
     return len(session.execute(stmt).all())
 
 
@@ -132,6 +120,5 @@ class FeedWatcher:
         if result.not_modified:
             return 0
         new = store_items(session, feed, parse_rss(result.content))
-        # Only once stored: had storing failed, a 304 on the next poll would lose these items.
         self.validators[feed] = (result.etag, result.last_modified)
         return new

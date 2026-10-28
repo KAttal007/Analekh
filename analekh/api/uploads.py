@@ -41,8 +41,6 @@ def read_limited(db: Session, upload: UploadFile) -> bytes:
         total += len(chunk)
         if total > limit:
             size = upload.size if upload.size is not None else total
-            raise HTTPException(
-                413, f"This file is {mb(size)} MB; the limit is {mb(limit)} MB. Ask your admin."
-            )
+            raise HTTPException(413, f"This file is {mb(size)} MB; the limit is {mb(limit)} MB. Ask your admin.")
         parts.append(chunk)
     return b"".join(parts)

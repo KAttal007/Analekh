@@ -38,7 +38,6 @@ def test_multiples_and_not_meaningful():
     assert row.ev_sales == Decimal("2.8") and row.ev_ebitda is None
     loss = compute(comp("BBB", 5_000, -100))
     assert loss.pe is None  # negative earnings: n.m., not a negative multiple
-    # Without debt and cash there is no EV: market cap is never passed off as EV.
     unsourced = compute(comp("CCC", 10_000, 500, revenue=4_000))
     assert unsourced.ev is None and unsourced.ev_sales is None
 
@@ -130,7 +129,6 @@ def test_gather_prefers_consolidated_and_can_be_fixed(db, store):
 
 
 def test_gather_uses_standalone_when_consolidated_is_short(db, store):
-    # Like ABB: consolidated for only the latest two quarters, standalone for all four.
     switch = _company(db, "SWITCHCO")
     _file_quarters(db, store, switch, "Consolidated", 120, QUARTER_ENDS[2:])
     _file_quarters(db, store, switch, "Standalone", 100)
@@ -198,8 +196,6 @@ def test_comps_row_has_margins_growth_book_value_and_no_ebitda_for_lenders(db, s
 
 
 def test_gather_finds_a_company_however_the_symbol_is_typed(db, store):
-    # A symbol typed by hand ("soloco", " SOLOCO ") reaches the same company as the canonical one;
-    # an unknown symbol still raises LookupError.
     solo = _company(db, "SOLOCO")
     _file_quarters(db, store, solo, "Standalone", 100)
     assert gather(db, "soloco").name == gather(db, " SOLOCO ").name == solo.name

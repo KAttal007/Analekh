@@ -57,7 +57,6 @@ _FMTID = "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
 
 
 def _parse(data: bytes) -> ET.Element:
-    # Package parts never carry a DTD; refusing one rules out entity-expansion tricks.
     head = data[:4096].upper()
     if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
         raise ValueError("unexpected DTD in workbook part")
@@ -92,9 +91,7 @@ def _content_types(data: bytes) -> bytes:
     ET.register_namespace("", _NS_CT)
     root = _parse(data)
     if not any(o.get("PartName") == "/" + _CUSTOM for o in root):
-        ET.SubElement(
-            root, f"{{{_NS_CT}}}Override", {"PartName": "/" + _CUSTOM, "ContentType": _CT_TYPE}
-        )
+        ET.SubElement(root, f"{{{_NS_CT}}}Override", {"PartName": "/" + _CUSTOM, "ContentType": _CT_TYPE})
     return _dump(root)
 
 

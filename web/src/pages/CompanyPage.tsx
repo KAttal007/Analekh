@@ -6,15 +6,7 @@ import { api, type CompanyDetail, type HistoryLine, type WatchlistEntry } from "
 import { Icon } from "../components/Icon";
 import { QuarterRail } from "../components/QuarterRail";
 import { ResultsHistory } from "../components/ResultsHistory";
-import {
-  Avatar,
-  Badge,
-  EmptyState,
-  ErrorNote,
-  Loading,
-  PageHeader,
-  Segmented,
-} from "../components/ui";
+import { Avatar, Badge, EmptyState, ErrorNote, Loading, PageHeader, Segmented } from "../components/ui";
 import { companyQuery } from "../lib/preload";
 import { crore, money, price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
 import { usePrefs } from "../lib/prefs";
@@ -22,18 +14,13 @@ import { useTheme } from "../lib/theme";
 import { ReadOnlyBanner } from "../lock/ReadOnlyBanner";
 import { lockedDetail } from "../lock/useModelLock";
 
-// "revenue" is resolved per results format on the server; these name what each format calls it.
 const TOP_LINE: Record<string, { short: string; full: string }> = {
   banking: { short: "Interest earned", full: "interest earned" },
   insurance: { short: "Premium earned", full: "premium earned" },
   life_insurance: { short: "Net premium", full: "net premium income" },
 };
-const topLine = (taxonomy?: string | null) =>
-  TOP_LINE[taxonomy ?? ""] ?? { short: "Revenue", full: "revenue from operations" };
+const topLine = (taxonomy?: string | null) => TOP_LINE[taxonomy ?? ""] ?? { short: "Revenue", full: "revenue from operations" };
 
-// What the chart can show: the top line, profit, then the first margin the company's format has
-// (a lender's net interest margin instead, since EBITDA means nothing for a lender), and for
-// lenders their interest ratios: yield, cost of borrowing and the spread between them.
 const CHART_KEYS = ["revenue", "pat", "ebitda_margin", "cpppm", "nim", "net_margin", "oplev"];
 const CHART_LABEL: Record<string, string> = {
   pat: "Net profit",
@@ -45,7 +32,6 @@ const CHART_LABEL: Record<string, string> = {
 };
 const INTEREST = "interest"; // the stacked yield / cost of borrowing / spread view
 const INTEREST_LABEL = "Interest ratios";
-// Ratios worked out to 0.01% (interest.py); other margins to 0.1%.
 const pctDigits = (key: string) => (key === "nim" ? 2 : 1);
 const HISTORY_QUARTERS = 12;
 
@@ -55,10 +41,8 @@ const BASES: { basis: Basis; label: string }[] = [
   { basis: "standalone", label: "Standalone" },
 ];
 
-const cssVar = (name: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-// Coverage levels (coverage.py), in plain words.
 const COVERAGE = {
   universe: {
     label: "Listed only",
@@ -84,10 +68,6 @@ export function CompanyPage() {
   const { resolved: theme } = useTheme(); // chart colours follow the theme
   const company = useQuery(companyQuery(symbol));
   const filings = useQuery({ queryKey: ["filings", symbol], queryFn: () => api.filings(symbol) });
-  // Many companies file both standalone and consolidated results: every figure on the page
-  // follows one basis at a time, consolidated first when the company files it (or standalone
-  // first, by the Company page basis preference in Settings).
-  // Kept in the URL (?basis=standalone): the view can be shared and survives leaving the page.
   const { basis: preferred } = usePrefs();
   const [params, setParams] = useSearchParams();
   const asked = params.get("basis");
@@ -99,15 +79,12 @@ export function CompanyPage() {
   };
   const wanted: Basis = chosen ?? preferred;
   const basis: Basis = filed[wanted] ? wanted : filed.consolidated ? "consolidated" : "standalone";
-  // The chart, the tiles and the history table share one request: the same quarters, lines and
-  // exclusions as the latest-quarter column.
   const history = useQuery({
     queryKey: ["history", symbol, basis],
     queryFn: () => api.history(symbol, basis === "consolidated", HISTORY_QUARTERS),
     enabled: filings.isSuccess,
   });
   const [metric, setMetric] = useState("revenue");
-  // Analyse queues a background job: say so up front when the queue isn't running.
   const jobs = useQuery({
     queryKey: ["jobs-available"],
     queryFn: api.jobsAvailable,
@@ -124,22 +101,11 @@ export function CompanyPage() {
       return api.watch(symbol); // the company as it now stands: watched, deep coverage
     },
     onSuccess: (updated) => {
-      // The button flips as soon as the server answers: with the company as it now stands after
-      // a watch, or (an unwatch returns nothing) by marking it unwatched here, so removing never
-      // waits for a second request.
       if (updated) qc.setQueryData(["company", symbol], updated);
       else {
-        qc.setQueryData<CompanyDetail>(["company", symbol], (old) =>
-          old ? { ...old, watched: false } : old,
-        );
-        qc.setQueryData<WatchlistEntry[]>(["watchlist"], (old) =>
-          old?.filter((w) => w.symbol !== symbol),
-        );
+        qc.setQueryData<CompanyDetail>(["company", symbol], (old) => (old ? { ...old, watched: false } : old));
+        qc.setQueryData<WatchlistEntry[]>(["watchlist"], (old) => old?.filter((w) => w.symbol !== symbol));
       }
-      // Everything that shows the watchlist, which the browser otherwise keeps for 5 minutes:
-      // the company itself (its coverage level), the Watchlist page and the desk's "Watchlist
-      // only" view. The Watchlist is fetched now, not on the next visit, so opening it never
-      // shows the list from before the change.
       qc.invalidateQueries({ queryKey: ["company", symbol] });
       qc.invalidateQueries({ queryKey: ["watchlist"], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["desk"] });
@@ -150,7 +116,6 @@ export function CompanyPage() {
     mutationFn: () => api.startCoverage(symbol),
     onSuccess: (b) => navigate(`/models/${b.model.id}/assumptions`),
   });
-  // A colleague is updating, building or reporting on one of the company's models (423).
   const startLocked = lockedDetail(start.error);
 
   if (company.isError) return <ErrorNote error={company.error} />;
@@ -164,20 +129,10 @@ export function CompanyPage() {
   while (lastAt >= 0 && topValues[lastAt] == null) lastAt -= 1;
   const latest = lastAt >= 0 ? { value: topValues[lastAt], label: labels[lastAt] } : undefined;
   const previous = lastAt > 0 ? topValues[lastAt - 1] : undefined;
-  // One unit for the chart, the tiles and the table, from the largest quarter shown.
   const scale = scaleFor(topValues);
-  const chartLines = CHART_KEYS.map((k) => byKey.get(k)).filter(
-    (l): l is HistoryLine => l !== undefined,
-  );
-  // Operating leverage (fee finance) is a tab of its own beside the company's margin.
-  const margins = chartLines.filter(
-    (l) => l.key !== "revenue" && l.key !== "pat" && l.key !== "oplev",
-  );
-  const choices = [
-    ...chartLines.filter((l) => l.key === "revenue" || l.key === "pat"),
-    ...margins.slice(0, 1),
-    ...chartLines.filter((l) => l.key === "oplev"),
-  ];
+  const chartLines = CHART_KEYS.map((k) => byKey.get(k)).filter((l): l is HistoryLine => l !== undefined);
+  const margins = chartLines.filter((l) => l.key !== "revenue" && l.key !== "pat" && l.key !== "oplev");
+  const choices = [...chartLines.filter((l) => l.key === "revenue" || l.key === "pat"), ...margins.slice(0, 1), ...chartLines.filter((l) => l.key === "oplev")];
   const ratios = {
     yield: byKey.get("yield"),
     cob: byKey.get("cob"),
@@ -188,35 +143,15 @@ export function CompanyPage() {
   const shown = interestShown ? undefined : (choices.find((l) => l.key === metric) ?? choices[0]);
   const isPct = interestShown || shown?.kind === "pct";
   const digits = shown ? pctDigits(shown.key) : 2;
-  const points = (shown?.values ?? []).map((v) =>
-    v == null
-      ? null
-      : isPct
-        ? Number(v)
-        : Number((Number(v) / scale.divisor).toFixed(scale.digits)),
-  );
-  const shownLabel = (l: HistoryLine) =>
-    l.key === "revenue" ? topLine(c.results_taxonomy).short : (CHART_LABEL[l.key] ?? l.label);
-  const chartTitle = interestShown
-    ? INTEREST_LABEL
-    : shown
-      ? shownLabel(shown)
-      : topLine(c.results_taxonomy).short;
-  const chartOptions = [
-    ...choices.map((l) => ({ value: l.key, label: shownLabel(l) })),
-    ...(hasRatios ? [{ value: INTEREST, label: INTEREST_LABEL }] : []),
-  ];
+  const points = (shown?.values ?? []).map((v) => (v == null ? null : isPct ? Number(v) : Number((Number(v) / scale.divisor).toFixed(scale.digits))));
+  const shownLabel = (l: HistoryLine) => (l.key === "revenue" ? topLine(c.results_taxonomy).short : (CHART_LABEL[l.key] ?? l.label));
+  const chartTitle = interestShown ? INTEREST_LABEL : shown ? shownLabel(shown) : topLine(c.results_taxonomy).short;
+  const chartOptions = [...choices.map((l) => ({ value: l.key, label: shownLabel(l) })), ...(hasRatios ? [{ value: INTEREST, label: INTEREST_LABEL }] : [])];
   const rows = allFilings.filter((f) => (basis === "consolidated") === (f.consolidated !== false));
   const coverage = COVERAGE[c.coverage_level as keyof typeof COVERAGE] ?? COVERAGE.universe;
-  const qoq =
-    latest?.value != null && previous != null && Number(previous)
-      ? (Number(latest.value) / Number(previous) - 1) * 100
-      : null;
+  const qoq = latest?.value != null && previous != null && Number(previous) ? (Number(latest.value) / Number(previous) - 1) * 100 : null;
 
   return (
-    // Wide screens: everything in a main column, the latest quarter in a column on the right that
-    // starts at the top of the page, so it fills the window exactly. Narrow screens: the main
-    // column dissolves (display: contents) and the quarter slots in after the figure tiles.
     <div className="company-page">
       <div className="company-main">
         <PageHeader
@@ -237,9 +172,7 @@ export function CompanyPage() {
               {c.sector ? (
                 <span>{c.industry ? `${c.sector} · ${c.industry}` : c.sector}</span>
               ) : (
-                <span title="Sectors come from NSE Indices' published lists (about 750 companies) or your own sector map.">
-                  Sector not mapped yet
-                </span>
+                <span title="Sectors come from NSE Indices' published lists (about 750 companies) or your own sector map.">Sector not mapped yet</span>
               )}
               <span>·</span>
               <Badge tone={coverage.tone} title={coverage.hint}>
@@ -252,33 +185,20 @@ export function CompanyPage() {
           }
           actions={
             <>
-              <button
-                className={c.watched ? "btn-on" : undefined}
-                aria-pressed={c.watched}
-                onClick={() => watch.mutate()}
-                disabled={watch.isPending}
-              >
+              <button className={c.watched ? "btn-on" : undefined} aria-pressed={c.watched} onClick={() => watch.mutate()} disabled={watch.isPending}>
                 <Icon name="star" />
                 {c.watched ? "Watching" : "Watch"}
               </button>
               <button
                 onClick={() => analyse.mutate()}
                 disabled={analyse.isPending || jobsDown}
-                title={
-                  jobsDown
-                    ? (jobs.data?.detail ?? undefined)
-                    : "Collect history and read the documents in the background"
-                }
+                title={jobsDown ? (jobs.data?.detail ?? undefined) : "Collect history and read the documents in the background"}
                 aria-describedby={jobsDown ? "analyse-note" : undefined}
               >
                 <Icon name="play" />
                 Analyse
               </button>
-              <button
-                className="btn-primary"
-                onClick={() => start.mutate()}
-                disabled={start.isPending}
-              >
+              <button className="btn-primary" onClick={() => start.mutate()} disabled={start.isPending}>
                 Start coverage
               </button>
             </>
@@ -286,8 +206,7 @@ export function CompanyPage() {
         />
         {jobsDown && (
           <p id="analyse-note" className="muted action-note">
-            Analyse runs as a background job, and the job queue isn't running on this machine yet
-            (it comes with hosting). Watch and Start coverage work now.
+            Analyse runs as a background job, and the job queue isn't running on this machine yet (it comes with hosting). Watch and Start coverage work now.
           </p>
         )}
         {analyse.data && (
@@ -297,22 +216,13 @@ export function CompanyPage() {
           </div>
         )}
         {analyse.isError && <ErrorNote error={analyse.error} />}
-        {startLocked ? (
-          <ReadOnlyBanner holderName={startLocked.holder_name} takenAt={startLocked.taken_at} />
-        ) : (
-          start.isError && <ErrorNote error={start.error} />
-        )}
+        {startLocked ? <ReadOnlyBanner holderName={startLocked.holder_name} takenAt={startLocked.taken_at} /> : start.isError && <ErrorNote error={start.error} />}
 
         {allFilings.length > 0 && (
           <div className="basis-bar">
             <span className="muted">Figures</span>
             {filed.consolidated && filed.standalone ? (
-              <Segmented
-                label="Basis of figures"
-                options={BASES.map((b) => ({ value: b.basis, label: b.label }))}
-                value={basis}
-                onChange={(b) => setParams({ basis: b }, { replace: true })}
-              />
+              <Segmented label="Basis of figures" options={BASES.map((b) => ({ value: b.basis, label: b.label }))} value={basis} onChange={(b) => setParams({ basis: b }, { replace: true })} />
             ) : (
               <Badge>{basis === "consolidated" ? "Consolidated only" : "Standalone only"}</Badge>
             )}
@@ -336,16 +246,9 @@ export function CompanyPage() {
             </span>
             <div>
               <div className="stat-label">Quarter on quarter</div>
-              <div
-                className={
-                  qoq === null ? "stat-value" : `stat-value ${qoq < 0 ? "delta-down" : "delta-up"}`
-                }
-              >
-                {signedPct(qoq, false)}
-              </div>
+              <div className={qoq === null ? "stat-value" : `stat-value ${qoq < 0 ? "delta-down" : "delta-up"}`}>{signedPct(qoq, false)}</div>
               <div className="stat-note">
-                {basis === "standalone" ? "Standalone" : "Consolidated"}{" "}
-                {topLine(c.results_taxonomy).full}
+                {basis === "standalone" ? "Standalone" : "Consolidated"} {topLine(c.results_taxonomy).full}
               </div>
             </div>
           </div>
@@ -358,18 +261,10 @@ export function CompanyPage() {
               <div className="stat-label">Share price</div>
               <div className="stat-value">
                 {quote.data ? price(quote.data.close) : "–"}
-                {quote.data?.change_pct != null && (
-                  <span className={`stat-delta ${tone(quote.data.change_pct)}`}>
-                    {signedPct(quote.data.change_pct)}
-                  </span>
-                )}
+                {quote.data?.change_pct != null && <span className={`stat-delta ${tone(quote.data.change_pct)}`}>{signedPct(quote.data.change_pct)}</span>}
               </div>
               <div className="stat-note">
-                {quote.data
-                  ? `${shortDate(quote.data.trade_date)} close`
-                  : quote.isSuccess
-                    ? "No closing price loaded yet"
-                    : ""}
+                {quote.data ? `${shortDate(quote.data.trade_date)} close` : quote.isSuccess ? "No closing price loaded yet" : ""}
                 {c.face_value ? ` · FV ₹${Number(c.face_value)}` : ""}
               </div>
             </div>
@@ -381,15 +276,8 @@ export function CompanyPage() {
             <div>
               <div className="stat-label">Market cap</div>
               <div className="stat-value">{crore(quote.data?.market_cap)}</div>
-              <div
-                className="stat-note"
-                title="Closing price × shares in issue (paid-up equity capital ÷ face value, from the latest results filing)"
-              >
-                {quote.data?.market_cap != null
-                  ? `At the ${shortDate(quote.data.trade_date)} close`
-                  : quote.data
-                    ? "No share count in its results filings yet"
-                    : ""}
+              <div className="stat-note" title="Closing price × shares in issue (paid-up equity capital ÷ face value, from the latest results filing)">
+                {quote.data?.market_cap != null ? `At the ${shortDate(quote.data.trade_date)} close` : quote.data ? "No share count in its results filings yet" : ""}
               </div>
             </div>
           </div>
@@ -399,14 +287,7 @@ export function CompanyPage() {
           <div className="card-header">
             <h2>{chartTitle} by quarter</h2>
             <div className="actions">
-              {chartOptions.length > 1 && (
-                <Segmented
-                  label="Chart shows"
-                  options={chartOptions}
-                  value={interestShown ? INTEREST : shown?.key}
-                  onChange={setMetric}
-                />
-              )}
+              {chartOptions.length > 1 && <Segmented label="Chart shows" options={chartOptions} value={interestShown ? INTEREST : shown?.key} onChange={setMetric} />}
               <span className="muted">
                 {isPct ? "%" : `₹ ${scale.long}`} · {basis}
               </span>
@@ -418,19 +299,10 @@ export function CompanyPage() {
                 role="img"
                 aria-label={`${INTEREST_LABEL} by quarter, ${labels[0]} to ${labels.at(-1)}: cost of borrowing with the spread stacked on it up to the yield; the same figures are in the results history table below`}
               >
-                <InterestChart
-                  key={theme}
-                  labels={labels}
-                  yieldLine={ratios.yield!}
-                  cobLine={ratios.cob!}
-                  spreadLine={ratios.spread!}
-                />
+                <InterestChart key={theme} labels={labels} yieldLine={ratios.yield!} cobLine={ratios.cob!} spreadLine={ratios.spread!} />
               </div>
             ) : labels.length > 1 && shown ? (
-              <div
-                role="img"
-                aria-label={`${shownLabel(shown)} by quarter, ${labels[0]} to ${labels.at(-1)}; the same figures are in the results history table below`}
-              >
+              <div role="img" aria-label={`${shownLabel(shown)} by quarter, ${labels[0]} to ${labels.at(-1)}; the same figures are in the results history table below`}>
                 <ReactECharts
                   key={`${theme}-${shown.key}`}
                   style={{ height: 320 }}
@@ -443,12 +315,7 @@ export function CompanyPage() {
                       backgroundColor: cssVar("--surface"),
                       borderColor: cssVar("--border"),
                       textStyle: { color: cssVar("--text") },
-                      formatter: (p: { name: string; value: number }) =>
-                        `${p.name}<br/><b>${
-                          isPct
-                            ? `${p.value.toFixed(digits)}%`
-                            : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`
-                        }</b>`,
+                      formatter: (p: { name: string; value: number }) => `${p.name}<br/><b>${isPct ? `${p.value.toFixed(digits)}%` : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`}</b>`,
                     },
                     animationDuration: 600,
                     animationEasing: "cubicOut",
@@ -474,7 +341,6 @@ export function CompanyPage() {
                         barMaxWidth: 36,
                         cursor: "default",
                         // The value on each bar, as design doc 19.1 asks; on a narrow screen the
-                        // labels that would collide are dropped (the tooltip still has them).
                         labelLayout: { hideOverlap: true },
                         label: {
                           show: true,
@@ -515,8 +381,7 @@ export function CompanyPage() {
               <div className="chart-placeholder" />
             ) : (
               <EmptyState icon="bars" title="No quarterly figures yet">
-                The chart fills in once two or more quarterly results have been collected for this
-                company.
+                The chart fills in once two or more quarterly results have been collected for this company.
               </EmptyState>
             )}
           </div>
@@ -524,54 +389,25 @@ export function CompanyPage() {
 
         {/* The filings live in the history table now: each quarter's heading links to its
             filing, and filings without a column are listed under it. */}
-        {h && (h.lines.length > 0 || rows.length > 0) && (
-          <ResultsHistory
-            history={h}
-            filings={rows}
-            scale={scale}
-            excelUrl={api.historyXlsxUrl(symbol, basis === "consolidated", HISTORY_QUARTERS)}
-          />
-        )}
+        {h && (h.lines.length > 0 || rows.length > 0) && <ResultsHistory history={h} filings={rows} scale={scale} excelUrl={api.historyXlsxUrl(symbol, basis === "consolidated", HISTORY_QUARTERS)} />}
       </div>
 
-      <QuarterRail
-        symbol={symbol}
-        consolidated={basis === "consolidated"}
-        ready={filings.isSuccess}
-      />
+      <QuarterRail symbol={symbol} consolidated={basis === "consolidated"} ready={filings.isSuccess} />
     </div>
   );
 }
 
-// Interest ratios as one bar per quarter: cost of borrowing at the bottom, the spread stacked on
-// it, so the bar's top is the yield (the backend rounds the spread as yield - cost, so they meet
-// exactly). A negative spread can't stack: the bar is the cost alone, the yield's marker sits
-// below its top, and the tooltip shows the spread in red. A quarter whose balance sheets aren't
-// both filed yet (June, December) has no bar.
-function InterestChart({
-  labels,
-  yieldLine,
-  cobLine,
-  spreadLine,
-}: {
-  labels: string[];
-  yieldLine: HistoryLine;
-  cobLine: HistoryLine;
-  spreadLine: HistoryLine;
-}) {
+function InterestChart({ labels, yieldLine, cobLine, spreadLine }: { labels: string[]; yieldLine: HistoryLine; cobLine: HistoryLine; spreadLine: HistoryLine }) {
   const num = (v: string | null | undefined) => (v == null ? null : Number(v));
   const yields = yieldLine.values.map(num);
   const costs = cobLine.values.map(num);
   const spreads = spreadLine.values.map(num);
   const pct = (v: number | null) => (v == null ? "–" : `${v.toFixed(2)}%`);
-  const tooltipRow = (label: string, v: number | null, color?: string) =>
-    `${label}: <b${color ? ` style="color:${color}"` : ""}>${pct(v)}</b>`;
+  const tooltipRow = (label: string, v: number | null, color?: string) => `${label}: <b${color ? ` style="color:${color}"` : ""}>${pct(v)}</b>`;
   return (
     <ReactECharts
       style={{ height: 320 }}
       option={{
-        // On a phone the 12 bars are ~20px wide: drop the in-bar figures (the tooltip has them),
-        // shrink the yield tick and its label so neighbours don't run into each other.
         media: [
           {
             query: { maxWidth: 520 },
@@ -584,8 +420,7 @@ function InterestChart({
                   symbolSize: [14, 2],
                   label: {
                     fontSize: 9,
-                    formatter: (p: { value: number | null }) =>
-                      p.value == null ? "" : p.value.toFixed(1),
+                    formatter: (p: { value: number | null }) => (p.value == null ? "" : p.value.toFixed(1)),
                   },
                 },
               ],
@@ -608,14 +443,10 @@ function InterestChart({
           formatter: (ps: { dataIndex: number; name: string }[]) => {
             const i = ps[0]?.dataIndex ?? 0;
             const s = spreads[i];
-            if (yields[i] == null && costs[i] == null)
-              return `${ps[0]?.name}<br/>Not yet: needs the next half-year's balance sheet`;
-            return [
-              ps[0]?.name,
-              tooltipRow("Yield", yields[i]),
-              tooltipRow("Cost of borrowing", costs[i]),
-              tooltipRow("Spread", s, s != null && s < 0 ? cssVar("--negative") : undefined),
-            ].join("<br/>");
+            if (yields[i] == null && costs[i] == null) return `${ps[0]?.name}<br/>Not yet: needs the next half-year's balance sheet`;
+            return [ps[0]?.name, tooltipRow("Yield", yields[i]), tooltipRow("Cost of borrowing", costs[i]), tooltipRow("Spread", s, s != null && s < 0 ? cssVar("--negative") : undefined)].join(
+              "<br/>",
+            );
           },
         },
         animationDuration: 600,
@@ -645,8 +476,7 @@ function InterestChart({
               position: "inside",
               fontSize: 10,
               color: cssVar("--text"),
-              formatter: (p: { value: number | null }) =>
-                p.value == null ? "" : p.value.toFixed(2),
+              formatter: (p: { value: number | null }) => (p.value == null ? "" : p.value.toFixed(2)),
             },
             data: costs,
           },
@@ -662,13 +492,11 @@ function InterestChart({
               position: "inside",
               fontSize: 10,
               color: cssVar("--on-accent"),
-              formatter: (p: { value: number | null }) =>
-                p.value == null ? "" : p.value.toFixed(2),
+              formatter: (p: { value: number | null }) => (p.value == null ? "" : p.value.toFixed(2)),
             },
             data: spreads.map((s) => (s != null && s >= 0 ? s : null)),
           },
           {
-            // The yield: a tick at the top of each bar, with its value above.
             name: "Yield",
             type: "scatter",
             symbol: "rect",
@@ -680,8 +508,7 @@ function InterestChart({
               position: "top",
               fontSize: 10,
               color: cssVar("--text-2"),
-              formatter: (p: { value: number | null }) =>
-                p.value == null ? "" : `${p.value.toFixed(2)}%`,
+              formatter: (p: { value: number | null }) => (p.value == null ? "" : `${p.value.toFixed(2)}%`),
             },
             labelLayout: { hideOverlap: true },
             data: yields,

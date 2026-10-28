@@ -34,12 +34,7 @@ def latest_prices(session: Session, company_ids: list[int]) -> dict[int, LastClo
     """Each company's most recent stored trading day."""
     if not company_ids:
         return {}
-    newest = (
-        select(Price.company_id, func.max(Price.trade_date).label("day"))
-        .where(Price.company_id.in_(company_ids))
-        .group_by(Price.company_id)
-        .subquery()
-    )
+    newest = select(Price.company_id, func.max(Price.trade_date).label("day")).where(Price.company_id.in_(company_ids)).group_by(Price.company_id).subquery()
     rows = session.scalars(
         select(Price).join(
             newest,

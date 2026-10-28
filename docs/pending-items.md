@@ -73,6 +73,20 @@ Remaining:
 
 Suggested order: the sign-in client-address check (security), SSH limited to the owner's address, the off-box backup bucket, then the domain with Cloudflare and the scanning decision.
 
+## Disclosures and legal (draft in `docs/legal/disclosures-draft.md`)
+
+No lawyer yet; revisit when one is found. Nothing here goes live before then.
+
+- [ ] Counsel review of the whole draft before any firm sees it
+- [ ] Terms and conditions: fees, term and termination, data return, liability cap, indemnity, governing law and city
+- [ ] DPDP Act 2023 and its rules: each firm's role as data fiduciary and Analekh's as processor; phased compliance dates
+- [ ] Retention and deletion periods for uploads, model versions and recordings; how a firm asks for deletion
+- [ ] Appoint and name a grievance officer (name, email, phone)
+- [ ] Confirm Anthropic's current data-retention and no-training terms for the four Claude jobs, until they move to local models
+- [ ] Cookie line: read the code and confirm the sign-in cookie is the only one
+- [ ] Security paragraph: confirm encryption and backup details against what is deployed
+- [ ] Update the AI section as each Claude job moves to a local model (report drafts, Q&A, label matching, PDF KPI extraction)
+
 ## Status unknown (confirm)
 
 - [ ] Whether any of the items above were finished outside this session

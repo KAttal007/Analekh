@@ -34,9 +34,7 @@ def _model_and_user(db: Session) -> tuple[Model, User]:
 def test_model_lock_table_exists(db):
     from analekh.db.models import ModelLock
 
-    assert {"model_id", "user_id", "activity", "job_id", "taken_at", "last_seen_at"} <= set(
-        ModelLock.__table__.columns.keys()
-    )
+    assert {"model_id", "user_id", "activity", "job_id", "taken_at", "last_seen_at"} <= set(ModelLock.__table__.columns.keys())
 
 
 def test_lock_defaults_times_and_allows_no_job(db):
@@ -251,10 +249,7 @@ def committed_model(db_session_factory):
         s.add(company)
         s.flush()
         workbook = Model(company_id=company.id, name="Race model", origin="built")
-        users = [
-            User(id=f"u-race-{tag}-{n}", email=f"race-{tag}-{n}@x.test", name=f"R{n}")
-            for n in (1, 2)
-        ]
+        users = [User(id=f"u-race-{tag}-{n}", email=f"race-{tag}-{n}@x.test", name=f"R{n}") for n in (1, 2)]
         s.add_all([workbook, *users])
         s.commit()
         ids = (workbook.id, company.id, [u.id for u in users])

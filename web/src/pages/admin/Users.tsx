@@ -24,18 +24,13 @@ function Status({ u }: { u: AdminUserRow }) {
 
 type MailState = AdminUserRow["first_password_mail"];
 
-// The email goes after the reply (the mail server takes seconds): while any row is still
-// sending, the list is asked again this often until it says sent or failed.
 const MAIL_CHECK_MS = 1500;
 
-/** After a send: on its way, the email went, or it did not and the admin can try again. */
 function MailNote({ email, state, again }: { email: string; state: MailState; again: () => void }) {
   if (state !== "failed")
     return (
       <p className="muted" role="status">
-        {state === "sent"
-          ? `A first password has been emailed to ${email}. It works for 24 hours.`
-          : `Emailing a first password to ${email}…`}
+        {state === "sent" ? `A first password has been emailed to ${email}. It works for 24 hours.` : `Emailing a first password to ${email}…`}
       </p>
     );
   return (
@@ -62,12 +57,8 @@ function AddUser({ onClose }: { onClose: () => void }) {
     mutationFn: () => api.sendFirstPassword(add.data!.id),
     onSuccess: refresh,
   });
-  // How the email is going: the list (asked again while sending) knows best, then the replies.
   const listed = useQuery({ queryKey: ["users"], queryFn: api.users, enabled: false }).data;
-  const state: MailState =
-    listed?.find((u) => u.id === add.data?.id)?.first_password_mail ??
-    again.data?.first_password_mail ??
-    add.data?.first_password_mail;
+  const state: MailState = listed?.find((u) => u.id === add.data?.id)?.first_password_mail ?? again.data?.first_password_mail ?? add.data?.first_password_mail;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     add.mutate();
@@ -95,9 +86,7 @@ function AddUser({ onClose }: { onClose: () => void }) {
     <aside className="admin-panel" role="dialog" aria-label="Add user">
       <form onSubmit={submit}>
         <h2>Add user</h2>
-        <p className="muted">
-          We email them a first password. They choose their own the first time they sign in.
-        </p>
+        <p className="muted">We email them a first password. They choose their own the first time they sign in.</p>
         {add.isError && (
           <p className="error" role="alert">
             {add.error.message}
@@ -109,25 +98,13 @@ function AddUser({ onClose }: { onClose: () => void }) {
         </label>
         <label className="field">
           Work email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            maxLength={254}
-            required
-          />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} required />
         </label>
         <fieldset className="admin-roles">
           <legend>Role</legend>
           {(["analyst", "admin"] as Role[]).map((r) => (
             <label key={r} className="field-inline">
-              <input
-                type="radio"
-                name="role"
-                checked={role === r}
-                onChange={() => setRole(r)}
-                aria-label={r === "admin" ? "Admin" : "Analyst"}
-              />
+              <input type="radio" name="role" checked={role === r} onChange={() => setRole(r)} aria-label={r === "admin" ? "Admin" : "Analyst"} />
               {r === "admin" ? "Admin" : "Analyst"}
             </label>
           ))}
@@ -145,7 +122,6 @@ function AddUser({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Waiting for the first sign-in: the welcome password goes again. Otherwise it is an admin reset.
 function sendLabel(u: AdminUserRow) {
   return u.must_change_password ? "Send first password" : "Reset password";
 }
@@ -155,7 +131,6 @@ function SendFirstPassword({ user, onClose }: { user: AdminUserRow; onClose: () 
   const send = useMutation({
     mutationFn: () => api.sendFirstPassword(user.id),
     onSuccess: () => {
-      // The email goes after the reply; the row shows how it went.
       void qc.invalidateQueries({ queryKey: ["users"] });
       onClose();
     },
@@ -163,15 +138,9 @@ function SendFirstPassword({ user, onClose }: { user: AdminUserRow; onClose: () 
   const label = sendLabel(user);
   return (
     <aside className="admin-panel" role="dialog" aria-label={label}>
-      <h2>
-        {user.must_change_password
-          ? `Send ${user.name} a new first password?`
-          : `Reset ${user.name}'s password?`}
-      </h2>
+      <h2>{user.must_change_password ? `Send ${user.name} a new first password?` : `Reset ${user.name}'s password?`}</h2>
       <p className="muted">
-        Their current password stops working, they are signed out everywhere and any block is
-        cleared. They get an email with a new first password and choose their own when they next
-        sign in.
+        Their current password stops working, they are signed out everywhere and any block is cleared. They get an email with a new first password and choose their own when they next sign in.
       </p>
       {send.isError && (
         <p className="error" role="alert">
@@ -182,12 +151,7 @@ function SendFirstPassword({ user, onClose }: { user: AdminUserRow; onClose: () 
         <button type="button" className="btn" onClick={onClose}>
           Cancel
         </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={send.isPending}
-          onClick={() => send.mutate()}
-        >
+        <button type="button" className="btn btn-primary" disabled={send.isPending} onClick={() => send.mutate()}>
           {label}
         </button>
       </div>
@@ -201,8 +165,7 @@ export function Users() {
   const users = useQuery({
     queryKey: ["users"],
     queryFn: api.users,
-    refetchInterval: (q) =>
-      q.state.data?.some((u) => u.first_password_mail === "sending") ? MAIL_CHECK_MS : false,
+    refetchInterval: (q) => (q.state.data?.some((u) => u.first_password_mail === "sending") ? MAIL_CHECK_MS : false),
   });
   const [find, setFind] = useState("");
   const [adding, setAdding] = useState(false);
@@ -215,24 +178,14 @@ export function Users() {
   const unblock = useMutation({ mutationFn: (id: string) => api.unblockUser(id), onSuccess: done });
 
   const q = find.trim().toLowerCase();
-  const rows = (users.data ?? []).filter(
-    (u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
-  );
+  const rows = (users.data ?? []).filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
   const failure = change.error ?? unblock.error;
 
   return (
     <div className="page">
-      <PageHeader
-        title="Users"
-        subtitle="Who can sign in to Analekh, and what they can do. Only admins reach this area."
-      />
+      <PageHeader title="Users" subtitle="Who can sign in to Analekh, and what they can do. Only admins reach this area." />
       <div className="admin-bar">
-        <input
-          placeholder="Search name or email"
-          aria-label="Search users"
-          value={find}
-          onChange={(e) => setFind(e.target.value)}
-        />
+        <input placeholder="Search name or email" aria-label="Search users" value={find} onChange={(e) => setFind(e.target.value)} />
         <span className="admin-spacer" />
         <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
           Add user
@@ -276,39 +229,25 @@ export function Users() {
                       </div>
                     </td>
                     <td>
-                      <Badge tone={u.role === "admin" ? "accent" : "neutral"}>
-                        {u.role === "admin" ? "Admin" : "Analyst"}
-                      </Badge>
+                      <Badge tone={u.role === "admin" ? "accent" : "neutral"}>{u.role === "admin" ? "Admin" : "Analyst"}</Badge>
                     </td>
                     <td>{u.auth_kind === "password" ? "Password" : "Microsoft"}</td>
                     <td className="muted">{u.last_seen_at ? filedAt(u.last_seen_at) : "Never"}</td>
                     <td>
                       <Status u={u} />
-                      {u.is_active && u.must_change_password && (
-                        <Badge tone="warn">Waiting for first sign-in</Badge>
-                      )}
+                      {u.is_active && u.must_change_password && <Badge tone="warn">Waiting for first sign-in</Badge>}
                       {u.first_password_mail === "sending" && <Badge>Emailing…</Badge>}
-                      {u.first_password_mail === "failed" && (
-                        <Badge tone="error">Email not sent</Badge>
-                      )}
+                      {u.first_password_mail === "failed" && <Badge tone="error">Email not sent</Badge>}
                     </td>
                     <td>
                       <div className="admin-actions">
                         {u.is_active && u.blocked && (
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => unblock.mutate(u.id)}
-                          >
+                          <button type="button" className="btn btn-sm" onClick={() => unblock.mutate(u.id)}>
                             Unblock
                           </button>
                         )}
                         {u.is_active && u.auth_kind === "password" && (
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setSending(u)}
-                          >
+                          <button type="button" className="btn btn-sm" onClick={() => setSending(u)}>
                             {sendLabel(u)}
                           </button>
                         )}
@@ -326,13 +265,7 @@ export function Users() {
                             {u.role === "admin" ? "Make analyst" : "Make admin"}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() =>
-                            change.mutate({ id: u.id, body: { is_active: !u.is_active } })
-                          }
-                        >
+                        <button type="button" className="btn btn-sm" onClick={() => change.mutate({ id: u.id, body: { is_active: !u.is_active } })}>
                           {u.is_active ? "Disable" : "Enable"}
                         </button>
                       </div>

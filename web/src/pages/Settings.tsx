@@ -8,21 +8,8 @@ import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
 import { setTheme, type ThemeChoice, useTheme } from "../lib/theme";
 
 // Settings (design doc 19.1): display preferences and your own bridge token. What the scheduled
-// jobs did, alerts, users, templates and the upload limit are in the admin area.
 
-function Choice<T extends string>({
-  label,
-  hint,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  hint: ReactNode;
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) {
+function Choice<T extends string>({ label, hint, value, options, onChange }: { label: string; hint: ReactNode; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
   return (
     <li className="settings-row">
       <div className="settings-row-text">
@@ -63,12 +50,7 @@ function Display() {
         />
         <Choice
           label="Amounts"
-          hint={
-            <>
-              Auto shows small companies in lakh and the rest in crore. Example:{" "}
-              {crore(SAMPLE_CAP, prefs.units)}.
-            </>
-          }
+          hint={<>Auto shows small companies in lakh and the rest in crore. Example: {crore(SAMPLE_CAP, prefs.units)}.</>}
           value={prefs.units}
           options={[
             { value: "auto", label: "Auto" },
@@ -112,7 +94,6 @@ function Display() {
   );
 }
 
-/** Tokens for the Excel bridge and the Office add-in: made here, shown once, revocable. */
 function BridgeTokens() {
   const qc = useQueryClient();
   const tokens = useQuery({ queryKey: ["tokens"], queryFn: api.tokens });
@@ -137,10 +118,7 @@ function BridgeTokens() {
         <span className="muted">For the bridge on your computer and the Excel add-in</span>
       </div>
       <div className="card-body settings-tokens">
-        <p className="muted">
-          A token lets the bridge act as you without your password. It is shown once, when you
-          create it. Revoke it here at any time.
-        </p>
+        <p className="muted">A token lets the bridge act as you without your password. It is shown once, when you create it. Revoke it here at any time.</p>
         <form
           className="settings-token-form"
           onSubmit={(e) => {
@@ -150,12 +128,7 @@ function BridgeTokens() {
         >
           <label className="field">
             Token name
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={80}
-              placeholder="Office laptop"
-            />
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Office laptop" />
           </label>
           <button type="submit" className="btn" disabled={!name.trim() || create.isPending}>
             Create token
@@ -173,11 +146,7 @@ function BridgeTokens() {
             </p>
             <code className="token-value">{fresh.token}</code>
             <div className="token-actions">
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => void navigator.clipboard?.writeText(fresh.token)}
-              >
+              <button type="button" className="btn btn-sm" onClick={() => void navigator.clipboard?.writeText(fresh.token)}>
                 Copy
               </button>
               <button type="button" className="btn btn-sm" onClick={() => setFresh(null)}>
@@ -198,13 +167,7 @@ function BridgeTokens() {
                   <strong>{t.name}</strong>
                   <p className="muted">Created {filedAt(t.created_at)}</p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  aria-label={`Revoke ${t.name}`}
-                  disabled={revoke.isPending}
-                  onClick={() => revoke.mutate(t.id)}
-                >
+                <button type="button" className="btn btn-sm" aria-label={`Revoke ${t.name}`} disabled={revoke.isPending} onClick={() => revoke.mutate(t.id)}>
                   Revoke
                 </button>
               </li>
@@ -242,13 +205,7 @@ function Account() {
             {me.email} · {me.role === "admin" ? "Admin" : "Analyst"}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm"
-          disabled={signInOff}
-          title={offHint}
-          onClick={() => run(false)}
-        >
+        <button type="button" className="btn btn-sm" disabled={signInOff} title={offHint} onClick={() => run(false)}>
           Sign out
         </button>
       </div>
@@ -276,13 +233,7 @@ function Account() {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={signInOff}
-            title={offHint}
-            onClick={() => setConfirming(true)}
-          >
+          <button type="button" className="btn btn-sm" disabled={signInOff} title={offHint} onClick={() => setConfirming(true)}>
             Sign out everywhere
           </button>
         )}
@@ -294,10 +245,7 @@ function Account() {
 export function Settings() {
   return (
     <div className="page settings">
-      <PageHeader
-        title="Settings"
-        subtitle="How figures are shown, and the token your Excel bridge uses to sign in."
-      />
+      <PageHeader title="Settings" subtitle="How figures are shown, and the token your Excel bridge uses to sign in." />
       <Account />
       <Display />
       <BridgeTokens />

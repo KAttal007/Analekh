@@ -68,7 +68,6 @@ class Proposal:
         }
 
 
-# (driver, actual, current estimate) -> (suggested value, one-line rationale) or None
 Suggester = Callable[[Driver, Decimal, Decimal], tuple[Decimal, str] | None]
 
 
@@ -84,23 +83,15 @@ def build_change_set(
 ) -> Proposal:
     proposal = Proposal(period_label=fiscal_label(period_end))
     if last_fingerprint and fingerprint(wb) != last_fingerprint:
-        proposal.warnings.append(
-            "Workbook changed outside Analekh since the last sync; structure and dependencies "
-            "were rescanned before planning"
-        )
+        proposal.warnings.append("Workbook changed outside Analekh since the last sync; structure and dependencies were rescanned before planning")
     axis = axis_for(wb, mapping)
     col = axis.column_for(period_end)
     if col is None:
-        proposal.warnings.append(
-            f"No column labelled {proposal.period_label} on {mapping.period_axis.sheet}; "
-            "extend the model's period axis first"
-        )
+        proposal.warnings.append(f"No column labelled {proposal.period_label} on {mapping.period_axis.sheet}; extend the model's period axis first")
         return proposal
 
     written: list[tuple[str, str]] = []
 
-    # 1. Actual writes into input cells. A formula in an estimate column is replaced by the
-    #    actual only through an explicit item the analyst approves (formula_before records it).
     for row in mapping.rows:
         ws = wb[row.sheet]
         r = find_row(ws, row.row_label, mapping.period_axis.label_column)
@@ -109,16 +100,11 @@ def build_change_set(
             continue
         resolved = resolve_row(source, row, mapping, period_end)
         if resolved is None:
-            proposal.warnings.append(
-                f"No value for {row.row_label!r} ({row.source}) in {proposal.period_label}"
-            )
+            proposal.warnings.append(f"No value for {row.row_label!r} ({row.source}) in {proposal.period_label}")
             continue
         new = resolved.value
         if row.confidence < 0.8:
-            proposal.warnings.append(
-                f"Low-confidence mapping for {row.row_label!r} ({row.confidence:.2f}): check the "
-                "source side by side"
-            )
+            proposal.warnings.append(f"Low-confidence mapping for {row.row_label!r} ({row.confidence:.2f}): check the source side by side")
         cell = ws.cell(row=r, column=col)
         old = cell.value
         if isinstance(old, int | float | Decimal) and Decimal(str(old)) == new:
@@ -138,7 +124,6 @@ def build_change_set(
         )
         written.append((row.sheet, cell.coordinate))
 
-    # 2. Roll-forward: flip E -> A, extend the forecast horizon by one column.
     if axis.is_estimate(col) and axis.flag_row:
         proposal.items.append(
             ProposedItem(
@@ -155,16 +140,12 @@ def build_change_set(
         _propose_horizon_extension(wb, axis, max(estimates), proposal)
         _list_adjacent_hardcodes(wb, mapping, axis, col, proposal)
 
-    # 3. Assumption suggestions, one per driver, grounded in actual vs estimate.
     if suggester and driver_actuals:
         for driver in mapping.drivers:
             _propose_assumption(wb, mapping, axis, col, driver, driver_actuals, suggester, proposal)
 
     impact = DependencyGraph(wb).impact(written)
-    counts = {
-        k: sum(1 for i in proposal.items if i.kind == k)
-        for k in ("actual_write", "roll_forward", "assumption_suggestion", "label_shift")
-    }
+    counts = {k: sum(1 for i in proposal.items if i.kind == k) for k in ("actual_write", "roll_forward", "assumption_suggestion", "label_shift")}
     proposal.summary = {
         "writes": counts["actual_write"],
         "roll_forwards": counts["roll_forward"],
@@ -177,9 +158,7 @@ def build_change_set(
     return proposal
 
 
-def _propose_horizon_extension(
-    wb: Workbook, axis: PeriodAxis, last_col: int, proposal: Proposal
-) -> None:
+def _propose_horizon_extension(wb: Workbook, axis: PeriodAxis, last_col: int, proposal: Proposal) -> None:
     """Copy the last forecast column's formulas one column right (relative refs shift)."""
     ws = wb[axis.sheet]
     next_col = last_col + 1
@@ -221,9 +200,7 @@ def _propose_horizon_extension(
         )
 
 
-def _list_adjacent_hardcodes(
-    wb: Workbook, mapping: Mapping, axis: PeriodAxis, col: int, proposal: Proposal
-) -> None:
+def _list_adjacent_hardcodes(wb: Workbook, mapping: Mapping, axis: PeriodAxis, col: int, proposal: Proposal) -> None:
     for row in mapping.rows:
         ws = wb[row.sheet]
         r = find_row(ws, row.row_label, mapping.period_axis.label_column)
@@ -231,10 +208,7 @@ def _list_adjacent_hardcodes(
             continue
         nxt = ws.cell(row=r, column=col + 1)
         if isinstance(nxt.value, int | float) and axis.is_estimate(col + 1):
-            proposal.warnings.append(
-                f"Hardcoded estimate next to new actual: {row.sheet}!{nxt.coordinate} "
-                f"({row.row_label}) - review"
-            )
+            proposal.warnings.append(f"Hardcoded estimate next to new actual: {row.sheet}!{nxt.coordinate} ({row.row_label}) - review")
 
 
 def _propose_assumption(
@@ -279,15 +253,12 @@ def _next_label(label: str) -> str:
     return f"{label}+1"
 
 
-def save_proposal(
-    session: Session, model_id: int, base_version: int, filing_id: int | None, proposal: Proposal
-) -> ChangeSet:
+def save_proposal(session: Session, model_id: int, base_version: int, filing_id: int | None, proposal: Proposal) -> ChangeSet:
     cs = ChangeSet(
         model_id=model_id,
         base_version=base_version,
         filing_id=filing_id,
-        summary=proposal.summary
-        | {"warnings_detail": proposal.warnings, "period": proposal.period_label},
+        summary=proposal.summary | {"warnings_detail": proposal.warnings, "period": proposal.period_label},
     )
     session.add(cs)
     session.flush()

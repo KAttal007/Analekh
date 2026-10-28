@@ -54,9 +54,7 @@ class History:
     lines: list[HistoryLine] = field(default_factory=list)
 
 
-def history(
-    session: Session, company: Company, consolidated: bool | None = None, quarters: int = 8
-) -> History:
+def history(session: Session, company: Company, consolidated: bool | None = None, quarters: int = 8) -> History:
     basis = files_consolidated(session, company.id) if consolidated is None else consolidated
     taxonomy = company.results_taxonomy or "indas"
     out = History(consolidated=basis, taxonomy=taxonomy)
@@ -85,14 +83,10 @@ def history(
     return out
 
 
-def _interest_lines(
-    session: Session, company: Company, basis: bool, q: dict, ends: list[date]
-) -> list[HistoryLine]:
+def _interest_lines(session: Session, company: Company, basis: bool, q: dict, ends: list[date]) -> list[HistoryLine]:
     """NIM, yield, cost of borrowing and spread per quarter (interest.py); lines with no value in
     any quarter are left out."""
-    parts = balances(session, [company.id], suspect_filings(session, [company.id])).get(
-        (company.id, basis), {}
-    )
+    parts = balances(session, [company.id], suspect_filings(session, [company.id])).get((company.id, basis), {})
     per_quarter = []
     for e in ends:
         hit = q.get("interest_income", {}).get(e) or q.get("interest_expense", {}).get(e)
@@ -123,9 +117,7 @@ def to_xlsx(h: History, company: Company) -> bytes:
     pct = wb.add_format({"num_format": '0.0"%"'})
     eps = wb.add_format({"num_format": "0.00"})
     basis = "Consolidated" if h.consolidated else "Standalone"
-    ws.write(
-        0, 0, f"{company.name} ({company.nse_symbol})", wb.add_format({"bold": True, "size": 13})
-    )
+    ws.write(0, 0, f"{company.name} ({company.nse_symbol})", wb.add_format({"bold": True, "size": 13}))
     ws.write(1, 0, f"{basis} quarterly results from the filed XBRL; amounts in INR crore")
     ws.write(3, 0, "Line", wb.add_format({"bold": True, "bottom": 1}))
     for c, label in enumerate(h.quarter_labels, start=1):

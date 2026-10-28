@@ -69,10 +69,6 @@ def run_checks(data: bytes, mapping: Mapping, wb: Workbook | None = None) -> Che
             if not ok:
                 failures[c.coordinate] = v
         results.append(CheckResult(check.cell_label, not failures, failures))
-    broken = {
-        f"{s}!{c}": str(v)
-        for (s, c), v in values.items()
-        if isinstance(v, str) and v.strip() in ERRORS
-    }
+    broken = {f"{s}!{c}": str(v) for (s, c), v in values.items() if isinstance(v, str) and v.strip() in ERRORS}
     broken |= {f"{s}!{c}": str(v) for (s, c), v in values.items() if type(v).__name__ == "XlError"}
     return CheckRun(results, broken)

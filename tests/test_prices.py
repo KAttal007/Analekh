@@ -31,10 +31,7 @@ HEADER = (
 
 
 def _row(isin: str, symbol: str, series: str, close: str, volume: str = "1000") -> str:
-    return (
-        f"2020-01-03,2020-01-03,CM,NSE,STK,1,{isin},{symbol},{series},,,,,{symbol} LTD,"
-        f"100.00,110.00,95.00,{close},{close},99.00,,{close},,,{volume},100000,10,F1,1,,,,,\n"
-    )
+    return f"2020-01-03,2020-01-03,CM,NSE,STK,1,{isin},{symbol},{series},,,,,{symbol} LTD,100.00,110.00,95.00,{close},{close},99.00,,{close},,,{volume},100000,10,F1,1,,,,,\n"
 
 
 def _zip(rows: list[str]) -> bytes:
@@ -67,12 +64,9 @@ def test_store_matches_by_isin_and_works_out_market_cap(db, store):
     pricey = Company(nse_symbol="PRICEY", name="Pricey Ltd", isin="INE000P01011")
     db.add(pricey)
     db.flush()
-    # Paid-up equity capital Rs 362 crore at face value Rs 1: 3.62 billion shares (as TCS files).
     q = pnl(1_000_000_000, 0, 800_000_000, 50_000_000)
     q |= {"PaidUpValueOfEquityShareCapital": 3_620_000_000, "FaceValueOfEquityShareCapital": 1}
-    data = build_instance(
-        q_start=date(2026, 7, 1), q_end=date(2026, 9, 30), ytd_start=date(2026, 4, 1), values_q=q
-    )
+    data = build_instance(q_start=date(2026, 7, 1), q_end=date(2026, 9, 30), ytd_start=date(2026, 4, 1), values_q=q)
     ingest_results_xbrl(db, store, pricey, data)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -81,8 +75,6 @@ def test_store_matches_by_isin_and_works_out_market_cap(db, store):
         return httpx.Response(404)  # holiday, or not published yet
 
     client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
-    # Tests share the local database: start this (rolled-back) transaction with no prices, then
-    # a stale close from the day before, which the new file must replace.
     db.execute(delete(Price))
     db.add(Price(company_id=pricey.id, trade_date=date(2020, 1, 2), close=Decimal(1)))
     db.flush()
@@ -92,9 +84,7 @@ def test_store_matches_by_isin_and_works_out_market_cap(db, store):
     price = db.scalar(select(Price).where(Price.company_id == pricey.id))
     assert price.close == Decimal("2465.0000") and price.prev_close == Decimal("99.0000")
     assert price.market_cap == Decimal("8923300000000.00")  # 2,465 x 3.62 bn
-    # A stored day is never fetched again; a day with no file says so.
     assert load_day(db, client, date(2020, 1, 3))["skipped"] == "already stored"
-    # An older day never replaces a newer one, and isn't even fetched.
     assert load_day(db, client, date(2020, 1, 1))["skipped"].startswith("a later close")
     assert fetch(client, date(2020, 1, 6)) is None
 
@@ -105,21 +95,16 @@ CR = 10_000_000  # one crore rupees
 def test_paid_up_capital_survives_the_tagging_errors_seen_in_filings():
     jun, mar, dec = date(2026, 6, 30), date(2026, 3, 31), date(2025, 12, 31)
     assets = Decimal(460 * CR)
-    # Steelcast: June tagged 1,00,000 times too large; March filed twice (1.01 and 10.12 crore).
     steelcast = [
         (jun, Decimal(1_012_000 * CR)),
         (mar, Decimal(1_010_000)),
         (mar, Decimal(101_200_000)),
     ]
     assert paid_up_capital(steelcast, assets) == Decimal(101_200_000)
-    # Taurian: the latest quarter is right and the one before is the error.
     taurian = [(mar, Decimal("8.88") * CR), (dec, Decimal(88_832 * CR))]
     assert paid_up_capital(taurian, None) == Decimal("8.88") * CR
-    # A genuine change (a bonus issue doubles the capital) is taken as filed.
     assert paid_up_capital([(jun, Decimal(20 * CR)), (mar, Decimal(10 * CR))], assets) == 20 * CR
-    # Every quarter wrong: out of all proportion to total assets, so no capital at all...
     assert paid_up_capital([(jun, Decimal(1_000_000 * CR))], Decimal(113 * CR)) is None
-    # ...while a loss-making company's capital may exceed its assets (TTML: about 16 times).
     assert paid_up_capital([(jun, Decimal(19_549 * CR))], Decimal(1_200 * CR)) == 19_549 * CR
 
 
@@ -131,7 +116,6 @@ def test_market_cap_uses_the_listed_face_value_and_is_recomputed_without_a_downl
     db.add(Price(company_id=airtel.id, trade_date=date(2020, 1, 3), close=Decimal(1905)))
     db.flush()
     assert recompute_market_caps(db)["with_market_cap"] == 0  # no results filing yet
-    # As Bharti Airtel files: face value tagged as 19,13,672 instead of 5.
     q = pnl(1_000_000_000, 0, 800_000_000, 50_000_000)
     q |= {"PaidUpValueOfEquityShareCapital": 3_000 * CR, "FaceValueOfEquityShareCapital": 1913672}
     ingest_results_xbrl(

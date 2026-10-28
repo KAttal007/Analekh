@@ -19,7 +19,6 @@ const INDEX = [
   },
 ];
 
-// Answers /companies/index with INDEX and /companies/search with `searchHits`.
 function mockApi(searchHits: unknown[] = []) {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = String(input);
@@ -45,9 +44,7 @@ function renderSearch() {
 test("search suggests companies from the in-browser index", async () => {
   const fetch = mockApi();
   const input = renderSearch();
-  await vi.waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()),
-  );
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()));
   fireEvent.change(input, { target: { value: "demo" } });
   expect(await screen.findByText("DEMOFIN")).toBeTruthy();
   expect(fetch.mock.calls.some(([u]) => String(u).includes("/companies/search"))).toBe(false);
@@ -66,26 +63,17 @@ test("falls back to the server's fuzzy search when nothing matches locally", asy
     },
   ]);
   const input = renderSearch();
-  await vi.waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()),
-  );
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()));
   fireEvent.change(input, { target: { value: "relianse" } });
   expect(await screen.findByText("RELIANCE")).toBeTruthy();
-  expect(fetch).toHaveBeenCalledWith(
-    "/api/companies/search?q=relianse&limit=20&offset=0",
-    expect.anything(),
-  );
+  expect(fetch).toHaveBeenCalledWith("/api/companies/search?q=relianse&limit=20&offset=0", expect.anything());
 });
 
 test("prefetches the highlighted company so its page opens with data", async () => {
   const fetch = mockApi();
   const input = renderSearch();
-  await vi.waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()),
-  );
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/companies/index", expect.anything()));
   fireEvent.change(input, { target: { value: "demo" } });
   expect(await screen.findByText("DEMOFIN")).toBeTruthy();
-  await vi.waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith("/api/companies/DEMOFIN", expect.anything()),
-  );
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/companies/DEMOFIN", expect.anything()));
 });

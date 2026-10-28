@@ -19,9 +19,6 @@ class UploadLimitOut(BaseModel):
     min_bytes: int
     updated_by: str | None
     updated_at: datetime | None
-    # Not part of upload limit: the one settings reply every signed-in user reads, so web's lock
-    # polling interval and idle-reminder wait ride along (settings.lock_poll_seconds,
-    # idle_reminder_minutes).
     lock_poll_seconds: int
     idle_reminder_minutes: int
 
@@ -55,8 +52,7 @@ def set_upload_limit(body: UploadLimitIn, db: DB, admin: AdminUser) -> UploadLim
     if not cfg.min_upload_bytes <= body.bytes <= cfg.max_upload_ceiling_bytes:
         raise HTTPException(
             422,
-            f"The limit must be between {mb(cfg.min_upload_bytes)} MB and "
-            f"{mb(cfg.max_upload_ceiling_bytes)} MB.",
+            f"The limit must be between {mb(cfg.min_upload_bytes)} MB and {mb(cfg.max_upload_ceiling_bytes)} MB.",
         )
     before = get_max_upload_bytes(db)
     row = db.get(AppSetting, KEY)

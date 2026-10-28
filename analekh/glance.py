@@ -25,8 +25,6 @@ if TYPE_CHECKING:  # restatements imports this module
 Kind = Literal["inr", "eps", "pct"]
 HUNDRED = Decimal(100)
 
-# (logical name, label, kind) in display order, per results format. Logical names starting with
-# "=" are derived below; the rest come straight from the filing.
 LINES: dict[str, list[tuple[str, str, Kind]]] = {
     "indas": [
         ("revenue", "Revenue", "inr"),  # from operations; other income is its own line
@@ -79,28 +77,19 @@ LINES: dict[str, list[tuple[str, str, Kind]]] = {
         ("expense_ratio", "Expenses of management", "pct"),
     ],
 }
-# Ratios the filing tags as fractions (life insurers: solvency 1.8041), shown as percentages.
 AS_FRACTION = {"solvency_ratio", "persistency_13m", "persistency_61m", "expense_ratio"}
 NOTES = {
     "=ebitda": "PBT + finance costs + D&A - other income, before exceptionals",
     "=nii": "Interest earned - interest expended",
-    "=opinc": "Revenue from operations - operating expenses (total expenses less finance costs and "
-    "impairment)",
-    "=oplev": "Revenue growth less operating-expense growth on the same quarter a year earlier, in "
-    "percentage points; positive when costs grow slower than revenue",
-    "=cpppm": "(Revenue from operations - operating expenses) / revenue from operations; operating "
-    "expenses are total expenses less finance costs and impairment (credit-loss provisions)",
-    # The filing's own EPS: a bonus issue or split between the two quarters moves it (HDFC Bank's
-    # 2025 1:1 bonus halved it) without any change in profit.
+    "=opinc": "Revenue from operations - operating expenses (total expenses less finance costs and impairment)",
+    "=oplev": "Revenue growth less operating-expense growth on the same quarter a year earlier, in percentage points; positive when costs grow slower than revenue",
+    "=cpppm": "(Revenue from operations - operating expenses) / revenue from operations; operating expenses are total expenses less finance costs and impairment (credit-loss provisions)",
     "eps_basic": "As filed; not bonus- or split-adjusted",
     "solvency_ratio": "Available over required solvency margin; IRDAI's minimum is 150%",
     "persistency_13m": "Policies still paying premiums 13 months after issue",
     "persistency_61m": "Policies still paying premiums 61 months after issue",
     "expense_ratio": "Commission + operating expenses, as a share of gross premium",
 }
-# EBITDA adds back finance costs, which for a lender are cost of doing business (NBFC "EBITDA
-# margin" ~90%), so left out for these sectors. LSEG's "Banking Services" also holds NBFCs; fintech
-# and exchanges keep EBITDA.
 FINANCIAL_SECTORS = {
     "Banking Services",
     "Insurance",
@@ -108,8 +97,6 @@ FINANCIAL_SECTORS = {
     "Holding Companies",
 }
 NOT_FOR_FINANCIALS = {"=ebitda", "=ebitda_margin"}
-# Asset managers and brokers: EBITDA means little (their costs are people, platforms and
-# marketing), so they show the core pre-provision profit margin instead; nobody else does.
 ONLY_FOR_FEE_FINANCE = {"=cpppm", "=oplev"}
 
 
@@ -135,7 +122,6 @@ def is_financial(company: Company) -> bool:
     return company.sector in FINANCIAL_SECTORS or company.sector_lseg in FINANCIAL_SECTORS
 
 
-# Shown only when non-zero this quarter: a row of zeros is noise.
 ONLY_WHEN_NONZERO = {"exceptional_items"}
 
 
@@ -159,7 +145,6 @@ class Glance:
     quarter_label: str | None = None  # e.g. "Q1 FY27" (Indian financial year, April-March)
     previous_end: date | None = None
     year_ago_end: date | None = None
-    # Why QoQ / YoY are blank throughout, when the comparison quarter has no figures at all.
     previous_note: str | None = None
     year_ago_note: str | None = None
     revision: "Revision | None" = None  # the quarter's figures come from a refiled filing
@@ -180,10 +165,7 @@ def _missing_note(consolidated: bool, end: date, covering: Any) -> str:
     label = quarter_label(end)
     basis = "consolidated" if consolidated else "standalone"
     if covering is not None and covering.period_type != "Q" and covering.period_start:
-        return (
-            f"{label} wasn't filed as a quarter: the {basis} results for {_day(end)} cover "
-            f"{_day(covering.period_start)} to {_day(end)} only"
-        )
+        return f"{label} wasn't filed as a quarter: the {basis} results for {_day(end)} cover {_day(covering.period_start)} to {_day(end)} only"
     return f"No {basis} results for {label} on record"
 
 
@@ -191,23 +173,17 @@ def missing_quarter_note(session: Session, company_id: int, consolidated: bool, 
     """Why a comparison quarter has no figures, for the tooltip on its dash. A company's first
     results after listing can cover a half-year only (Canara Robeco AMC, September 2025), and
     the quarter inside it is then never filed on its own."""
-    return missing_quarter_notes(session, [(company_id, consolidated)], end)[
-        (company_id, consolidated)
-    ]
+    return missing_quarter_notes(session, [(company_id, consolidated)], end)[(company_id, consolidated)]
 
 
-def missing_quarter_notes(
-    session: Session, keys: list[tuple[int, bool]], end: date
-) -> dict[tuple[int, bool], str]:
+def missing_quarter_notes(session: Session, keys: list[tuple[int, bool]], end: date) -> dict[tuple[int, bool], str]:
     """`missing_quarter_note` for many (company id, consolidated) pairs in one query."""
     if not keys:
         return {}
     wanted = set(keys)
     covering: dict[tuple[int, bool], Any] = {}
     for row in session.execute(
-        select(
-            Filing.company_id, Filing.consolidated, Filing.period_start, Filing.period_type
-        ).where(
+        select(Filing.company_id, Filing.consolidated, Filing.period_start, Filing.period_type).where(
             Filing.company_id.in_({cid for cid, _ in wanted}),
             Filing.kind == "results_xbrl",
             Filing.period_end == end,
@@ -219,9 +195,7 @@ def missing_quarter_notes(
     return {k: _missing_note(k[1], end, covering.get(k)) for k in keys}
 
 
-def _latest_revision(
-    session: Session, company: Company, consolidated: bool, end: date
-) -> "Revision | None":
+def _latest_revision(session: Session, company: Company, consolidated: bool, end: date) -> "Revision | None":
     """The revision status of the filing in use for the quarter, when it was filed more than
     once; None otherwise."""
     from analekh.restatements import revisions
@@ -250,9 +224,6 @@ def suspect_filings(session: Session, company_ids: list[int]) -> set[int]:
     """
     if not company_ids:
         return set()
-    # Written as partial index ix_filings_scale_suspect spells it, or Postgres can't use the index
-    # (ORM's meta['scale'] subscript renders differently). Whole set is a few dozen rows, so no need
-    # to narrow by company.
     q = select(Filing.id).where(text("(filings.meta -> 'scale') ->> 'status' = 'suspect'"))
     return set(session.scalars(q))
 
@@ -267,7 +238,6 @@ def _quarters(
     """{logical: {period_end: (period_start, value)}} for quarter-length, undimensioned facts,
     leaving out filings V11 suspects of the wrong unit."""
     wanted = {name for lines in LINES.values() for name, _, _ in lines if not name.startswith("=")}
-    # interest.py's ratios and the core pre-provision margin need these as well
     wanted |= {
         "pat_continuing",
         "interest_income",
@@ -413,8 +383,6 @@ def glance(
                 key=name.lstrip("="),
                 label=label,
                 kind=kind,
-                # Margins are shown to 0.1%, but their change is worked out unrounded, so the
-                # bps are exact rather than multiples of 10.
                 value=cur.quantize(Decimal("0.1")) if kind == "pct" else cur,
                 qoq=change(cur, value(name, prev_end), kind),
                 yoy=change(cur, value(name, year_ago), kind),

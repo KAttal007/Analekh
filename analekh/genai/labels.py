@@ -33,10 +33,7 @@ def label_resolver(claude: Claude) -> AiResolver:
                 _schema(fields),
                 model=claude.small_model,
                 max_tokens=200,
-                system=(
-                    "You map row labels from Indian equity research spreadsheets to standard "
-                    "financial fields. Answer null when no field clearly fits."
-                ),
+                system=("You map row labels from Indian equity research spreadsheets to standard financial fields. Answer null when no field clearly fits."),
                 messages=[{"role": "user", "content": f"Row label: {label!r}"}],
             )
             conf = max(0.0, min(1.0, float(out.get("confidence", 0))))

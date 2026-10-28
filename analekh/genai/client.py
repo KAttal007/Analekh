@@ -47,9 +47,7 @@ def pdf_block(data: bytes) -> dict[str, Any]:
 
 
 class Claude:
-    def __init__(
-        self, session: Session | None = None, client: anthropic.Anthropic | None = None
-    ) -> None:
+    def __init__(self, session: Session | None = None, client: anthropic.Anthropic | None = None) -> None:
         s = get_settings()
         self.session = session
         self.model = s.claude_model

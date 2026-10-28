@@ -29,9 +29,7 @@ function open(path: string, signedIn: boolean) {
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );

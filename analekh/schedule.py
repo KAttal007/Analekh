@@ -73,9 +73,7 @@ def events(
     since = (now or datetime.now(UTC)) - timedelta(days=LOOKBACK_DAYS)
     watched: set[int] = set()
     if watchlist_user:
-        watched = set(
-            session.scalars(select(Watchlist.company_id).where(Watchlist.user_id == watchlist_user))
-        )
+        watched = set(session.scalars(select(Watchlist.company_id).where(Watchlist.user_id == watchlist_user)))
     rows = session.execute(
         select(FeedItem.description, FeedItem.link, FeedItem.pub_date, Company)
         .join(Company, Company.id == FeedItem.company_id)
@@ -108,13 +106,9 @@ def events(
         else:
             other[(company.id, when)] = ev
 
-    # Past days: who actually filed results then. Feed holds only recent intimations, so without
-    # this past days would be empty. A filing replaces that company's announced results on same day.
     filed = _filed_results(session, start, end, watched, now)
     filed_keys = {(e.symbol, e.date) for e in filed}
-    latest_results = {
-        cid: e for cid, e in latest_results.items() if (e.symbol, e.date) not in filed_keys
-    }
+    latest_results = {cid: e for cid, e in latest_results.items() if (e.symbol, e.date) not in filed_keys}
 
     taken = {(ev.symbol, ev.date) for ev in latest_results.values()} | filed_keys
     out = [
@@ -126,9 +120,7 @@ def events(
     return sorted(out, key=lambda e: (e.date, not e.watched, e.name))
 
 
-def _filed_results(
-    session: Session, start: date, end: date, watched: set[int], now: datetime | None
-) -> list[CalendarEvent]:
+def _filed_results(session: Session, start: date, end: date, watched: set[int], now: datetime | None) -> list[CalendarEvent]:
     """One event per company and day for results filings made in start..end (IST days)."""
     lo = datetime(start.year, start.month, start.day, tzinfo=IST)
     hi = datetime(end.year, end.month, end.day, tzinfo=IST) + timedelta(days=1)
@@ -147,10 +139,7 @@ def _filed_results(
         if filed_at is None:
             continue
         day = filed_at.astimezone(IST).date()
-        # The readable iXBRL page, never the raw XBRL file (None when NSE listed no iXBRL link).
         url = ((meta or {}).get("links") or {}).get("ixbrl")
-        # NSE's "Revision": restated numbers for a quarter already filed. Shown with a badge, and
-        # an original filing the same day still wins (it is the news; the revision a follow-up).
         revised = str((meta or {}).get("revision") or "").lower().startswith("revis")
         key = (company.id, day)
         event = CalendarEvent(

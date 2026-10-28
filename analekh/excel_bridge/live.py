@@ -7,7 +7,6 @@ from typing import Any
 def _same_file(book: Any, path: Path) -> bool:  # pragma: no cover - needs desktop Excel
     full = str(book.fullname)
     if full.lower().startswith(("http://", "https://")):
-        # OneDrive-synced workbooks report a web address: fall back to the file name.
         return str(book.name).lower() == path.name.lower()
     return Path(full).resolve() == path.resolve()
 

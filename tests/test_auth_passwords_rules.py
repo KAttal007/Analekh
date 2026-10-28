@@ -44,7 +44,6 @@ def _samples(n: int = 2000) -> list[str]:
     for _ in range(n):
         length = rng.choice([0, 5, 14, 15, 20, 30, 31, 40])
         out.append("".join(rng.choice(alphabet) for _ in range(length)))
-    # mostly-valid strings so both outcomes are well represented
     for _ in range(n // 2):
         base = [rng.choice(string.ascii_letters) for _ in range(rng.randint(8, 24))]
         base += [rng.choice(string.digits), rng.choice("!#$%*+-=?@^_")]
@@ -123,9 +122,7 @@ def test_sample_table_matches_spec():
 
 def test_combined_and_per_rule_agree():
     for pw in _samples():
-        assert bool(python_regex(combined_pattern()).match(pw)) == (
-            check_password_rules(pw) == []
-        ), pw
+        assert bool(python_regex(combined_pattern()).match(pw)) == (check_password_rules(pw) == []), pw
 
 
 def test_thirty_ok_thirty_one_refused():
@@ -192,9 +189,7 @@ def test_patterns_run_in_javascript(tmp_path):
         "console.log(JSON.stringify(out));",
         encoding="utf-8",
     )
-    done = subprocess.run(
-        [node, str(script), str(data)], capture_output=True, text=True, check=True, timeout=60
-    )
+    done = subprocess.run([node, str(script), str(data)], capture_output=True, text=True, check=True, timeout=60)
     got = json.loads(done.stdout)
     for s, (per_rule, combined) in zip(samples, got, strict=True):
         want = [bool(python_regex(r["pattern"]).search(s)) for r in password_rules()]

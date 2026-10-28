@@ -29,7 +29,6 @@ log = logging.getLogger(__name__)
 
 _ZIP_MAGIC = b"PK\x03\x04"  # an .xlsx or .xlsm is a zip file
 # Written into each local run's fresh profile: macros are never executed (rule 7); the VBA project
-# is loaded only so it is saved back unchanged. Same settings as deploy/recalc/server.py.
 _PROFILE_SETTINGS = """<?xml version="1.0" encoding="UTF-8"?>
 <oor:items xmlns:oor="http://openoffice.org/2001/registry" \
 xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -45,7 +44,6 @@ xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XM
 <prop oor:name="Save" oor:op="fuse"><value>true</value></prop></item>
 </oor:items>
 """
-# Tests set this to answer the service's requests with an httpx.MockTransport.
 _transport: httpx.BaseTransport | None = None
 
 _KEY = re.compile(r"^'?\[(?P<book>[^\]]+)\](?P<sheet>[^!]+?)'?!(?P<ref>[A-Z]+\d+(?::[A-Z]+\d+)?)$")
@@ -103,7 +101,6 @@ class _Retry(Exception):
 class RecalcCannotCompute(Exception):
     """LibreOffice converted workbook but couldn't compute some cells: they call a function it
     lacks, e.g. analyst's VBA (macros never run, rule 7). Saving would replace analyst's values with
-    #NAME?, so caller saves nothing. Won't pass on retry. ``cells`` are "Sheet!A1" addresses.
     """
 
     def __init__(self, cells: list[str]) -> None:
@@ -202,7 +199,6 @@ def _remote(workbook: bytes, s: Settings) -> bytes:
 
 def _post(workbook: bytes, s: Settings) -> bytes:
     url = s.recalc_url.rstrip("/") + "/recalc"
-    # The token goes in a header, never in the URL, and is never put in a message or a log line.
     headers = {"X-Recalc-Token": s.recalc_token, "Content-Type": excel_kind(workbook)[1]}
     try:
         with httpx.Client(transport=_transport, timeout=s.recalc_timeout_seconds + 15) as client:
@@ -217,7 +213,6 @@ def _post(workbook: bytes, s: Settings) -> bytes:
     code = _error_code(res)
     if res.status_code == 503:
         raise _Retry(f"busy ({code})")
-    # 401 (token), 413, 415, 500 and 504 (the same file would hang again) are not retried.
     log.error("recalc service answered HTTP %d %s", res.status_code, code)
     raise RecalcUnavailable(f"recalc service answered HTTP {res.status_code} ({code})")
 
@@ -235,14 +230,11 @@ def _local(workbook: bytes, timeout: float) -> bytes | None:
     if soffice is None:
         return None
     suffix = excel_kind(workbook)[0]
-    # The filter keeps the format: an .xlsm goes back out with its VBA project.
     convert_to = "xlsm:Calc MS Excel 2007 VBA XML" if suffix == ".xlsm" else "xlsx"
     with tempfile.TemporaryDirectory() as tmp:
         profile = Path(tmp) / "profile"
         (profile / "user").mkdir(parents=True)
-        (profile / "user" / "registrymodifications.xcu").write_text(
-            _PROFILE_SETTINGS, encoding="utf-8"
-        )
+        (profile / "user" / "registrymodifications.xcu").write_text(_PROFILE_SETTINGS, encoding="utf-8")
         src = Path(tmp) / f"in{suffix}"
         src.write_bytes(workbook)
         out_dir = Path(tmp) / "out"

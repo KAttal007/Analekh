@@ -52,7 +52,6 @@ def test_parallel_wrong_passwords_cannot_skip_the_pause(engine, committed_user):
         reasons = list(pool.map(lambda _: _attempt(engine, email, "wrong"), range(32)))
     with Session(engine) as s:
         user = s.get(User, uid)
-        # every wrong guess either counted (up to the pause) or was turned away while paused
         assert user.failed_count == pause_after
         assert user.paused_until is not None
     counts = Counter(reasons)
@@ -78,9 +77,7 @@ def test_login_flood_gets_no_server_errors(engine, committed_user):
         targets = [email, "nobody-here@firm.in"] * 20
 
         def hit(target: str) -> int:
-            return client.post(
-                "/auth/login", json={"email": target, "password": "wrong"}
-            ).status_code
+            return client.post("/auth/login", json={"email": target, "password": "wrong"}).status_code
 
         with ThreadPoolExecutor(max_workers=12) as pool:
             codes = list(pool.map(hit, targets))

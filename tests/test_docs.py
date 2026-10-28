@@ -28,7 +28,6 @@ def test_read_and_subset_pdf():
 
 
 def test_scanned_page_is_read_by_ocr():
-    # A scan: the page carries only an image of the text, no text layer.
     text_pdf = pymupdf.open()
     text_pdf.new_page().insert_text((72, 72), "Gold loan AUM 82,000 crore", fontsize=20)
     image = text_pdf[0].get_pixmap(dpi=200).tobytes("png")
@@ -44,7 +43,6 @@ def test_ocr_uses_analekhs_config():
 
     engine = ocr_engine()
     assert OCR_CONFIG.is_file()
-    # Our file, not RapidOCR's defaults: threads are capped and the bundled models are used.
     assert engine.cfg.EngineConfig.onnxruntime.intra_op_num_threads == 2
     assert engine.cfg.Det.model_type.value == "small"
     assert engine.cfg.Rec.ocr_version.value == "PP-OCRv6"
@@ -55,8 +53,7 @@ def test_classifier_selects_kpi_and_statement_pages():
         PageText(1, "Investor presentation cover"),
         PageText(
             2,
-            "Key highlights AUM 82,000 Net interest margin 11.2 % GNPA 3.4 % "
-            "Stage 3 2.9 % 1,234 5,678 9,012",
+            "Key highlights AUM 82,000 Net interest margin 11.2 % GNPA 3.4 % Stage 3 2.9 % 1,234 5,678 9,012",
         ),
         PageText(
             3,
@@ -124,9 +121,7 @@ def test_transcript_roles():
     pages = [
         PageText(
             3,
-            "Moderator: The next question is from Priya Shah from ABC Securities.\n"
-            "Priya Shah: What is the guidance on AUM growth?\n"
-            "Ravi Kumar: We expect 15% growth.\nmore detail here",
+            "Moderator: The next question is from Priya Shah from ABC Securities.\nPriya Shah: What is the guidance on AUM growth?\nRavi Kumar: We expect 15% growth.\nmore detail here",
         )
     ]
     turns = parse_turns(pages)

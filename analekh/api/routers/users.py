@@ -28,14 +28,9 @@ class UserOut(BaseModel):
     is_active: bool
     blocked: bool
     created_at: datetime | None = None
-    # Sign-ins are refused until then (after repeated wrong passwords); null when not paused.
     paused_until: datetime | None = None
-    # Latest activity in any session (to the minute); null when never signed in or purged.
     last_seen_at: datetime | None = None
-    # Still on the emailed first password: has not chosen their own yet.
     must_change_password: bool = False
-    # The last first-password email: "sending" right after Add user or a reset (it goes after
-    # the reply), then "sent" or "failed"; null when none was ever sent.
     first_password_mail: Literal["sending", "sent", "failed"] | None = None
 
 
@@ -84,12 +79,7 @@ def _audit(db: DB, actor: User, action: str, **detail: object) -> None:
 
 
 def _active_admins(db: DB) -> int:
-    return int(
-        db.scalar(
-            select(func.count()).select_from(User).where(User.role == "admin", User.is_active)
-        )
-        or 0
-    )
+    return int(db.scalar(select(func.count()).select_from(User).where(User.role == "admin", User.is_active)) or 0)
 
 
 @router.get("", response_model=list[UserOut])
@@ -99,9 +89,7 @@ def list_users(db: DB, _: AdminUser) -> list[UserOut]:
 
 
 @router.post("", response_model=UserOut, status_code=201)
-def create(
-    body: UserIn, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope
-) -> UserOut:
+def create(body: UserIn, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope) -> UserOut:
     """Add a user. The server makes the first password and emails it after the reply (the mail
     server takes seconds); `first_password_mail` tells how it went. The reply never carries the
     password. Refused before anything is written when email is not set up."""
@@ -121,9 +109,7 @@ def create(
 @router.patch("/{user_id}", response_model=UserOut)
 def update(user_id: str, body: UserPatch, db: DB, actor: AdminUser) -> UserOut:
     u = _get(db, user_id)
-    loses_admin = (
-        u.role == "admin" and u.is_active and (body.role == "analyst" or body.is_active is False)
-    )
+    loses_admin = u.role == "admin" and u.is_active and (body.role == "analyst" or body.is_active is False)
     if loses_admin and _active_admins(db) <= 1:
         raise HTTPException(400, "There must be at least one active admin.")
     if body.name is not None:
@@ -141,9 +127,7 @@ def update(user_id: str, body: UserPatch, db: DB, actor: AdminUser) -> UserOut:
 
 
 @router.post("/{user_id}/send-first-password", response_model=UserOut, status_code=202)
-def send_first_password(
-    user_id: str, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope
-) -> UserOut:
+def send_first_password(user_id: str, db: DB, actor: AdminUser, background: BackgroundTasks, scope: SessionScope) -> UserOut:
     """New first password for a user: ends their sessions, clears any pause or block, starts a
     new expiry, and emails it after the reply. Used for "Send again" and for an admin reset."""
     u = _get(db, user_id)
@@ -151,8 +135,6 @@ def send_first_password(
         raise HTTPException(400, "This account signs in with Microsoft and has no password.")
     if not get_settings().smtp_url:  # nothing changes if the mail cannot go
         raise HTTPException(503, NO_EMAIL)
-    # Still waiting for the first sign-in (flag on): the welcome wording. Someone who has already
-    # set their own password gets the "was reset" wording.
     first = u.must_change_password
     plain = first_password.issue(db, u)
     _audit(db, actor, "user.password_reset", target=u.id)

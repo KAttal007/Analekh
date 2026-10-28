@@ -10,9 +10,6 @@ class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- universe and coverage ------------------------------------------------------------------------
-
-
 class CompanyIndexEntry(BaseModel):
     """One row of the in-browser search index (GET /companies/index)."""
 
@@ -67,8 +64,6 @@ class WatchlistEntryOut(BaseModel):
     last_filing: date | None
     validation_blocked: bool
     pending_change_sets: int
-    # For watching day to day: the sector, the latest close and the latest quarter's growth, from
-    # the same figures as the company page (glance.py).
     sector: str | None = None
     taxonomy: str = "indas"
     consolidated: bool | None = None
@@ -81,9 +76,6 @@ class WatchlistEntryOut(BaseModel):
     revenue_yoy: Decimal | None = None
     pat: Decimal | None = None
     pat_yoy: Decimal | None = None
-
-
-# --- filings, facts, KPIs -------------------------------------------------------------------------
 
 
 class LineChangeOut(BaseModel):
@@ -131,9 +123,7 @@ class DeskRowOut(BaseModel):
     pat: Decimal | None
     pat_yoy: Decimal | None
     margin: Decimal | None  # %: EBITDA margin (Ind-AS outside finance) or NIM (lenders)
-    margin_kind: (
-        Literal["ebitda", "nim", "cpppm"] | None
-    )  # None for insurers and others with neither
+    margin_kind: Literal["ebitda", "nim", "cpppm"] | None  # None for insurers and others with neither
     margin_yoy: Decimal | None  # basis points
     blocked: bool  # a validation check blocks this filing
     yoy_note: str | None = None  # why the YoY columns are blank, for the dash's tooltip
@@ -179,7 +169,6 @@ class CalendarOut(BaseModel):
     start: date
     end: date
     events: list[CalendarEventOut]
-    # Watchlist companies with no results date announced in the window (a gap, not a mistake).
     unscheduled: list[UnscheduledOut]
 
 
@@ -273,9 +262,6 @@ class JobOut(BaseModel):
     result: Any = None
 
 
-# --- templates, coverage, models ------------------------------------------------------------------
-
-
 class TemplateOut(ORM):
     id: int
     owner: str
@@ -366,9 +352,6 @@ class LinkRequest(BaseModel):
     mapping: dict[str, Any] | None = None
 
 
-# --- change sets ----------------------------------------------------------------------------------
-
-
 class ChangeItemOut(ORM):
     id: int
     kind: str
@@ -409,9 +392,6 @@ class SyncRequest(BaseModel):
     filing_id: int
 
 
-# --- outputs --------------------------------------------------------------------------------------
-
-
 class ReportRequest(BaseModel):
     symbol: str
     kind: Literal["flash", "digest", "red_flags", "note", "initiation"]
@@ -427,8 +407,6 @@ class QaRequest(BaseModel):
 class CompsRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list)
     peer_list: str | None = None
-    # One basis for every company; None picks per company (consolidated when it has four
-    # consolidated quarters, else standalone) and the export's Basis column shows which.
     consolidated: bool | None = None
 
 
@@ -496,9 +474,6 @@ class CompsTableOut(BaseModel):
     as_of: date | None  # the latest close in the table
 
 
-# --- system: data status and alerts (Settings) --------------------------------------------------
-
-
 class JobRunOut(BaseModel):
     last_run_at: datetime | None = None
     last_status: str | None = None  # ok, skipped, error
@@ -521,7 +496,6 @@ class WatcherStatusOut(BaseModel):
     next_season: SeasonOut | None  # outside a season: when the next one opens
     schedule: str
     next_ask_at: datetime
-    # No run recorded since the last scheduled start: the scheduler is off or the machine slept.
     missed_start_at: datetime | None
 
 
@@ -574,9 +548,6 @@ class AlertOut(BaseModel):
     text: str | None
     channel: str | None  # telegram, email, or none (not delivered)
     sent_at: datetime | None
-
-
-# --- results history and the job queue ------------------------------------------------------------
 
 
 class HistoryLineOut(BaseModel):

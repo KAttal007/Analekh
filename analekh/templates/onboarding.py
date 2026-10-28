@@ -66,9 +66,7 @@ def _save(wb: Workbook) -> bytes:
 
 
 def _next_version(session: Session, owner: str, name: str) -> int:
-    current = session.scalar(
-        select(func.max(Template.version)).where(Template.owner == owner, Template.name == name)
-    )
+    current = session.scalar(select(func.max(Template.version)).where(Template.owner == owner, Template.name == name))
     return (current or 0) + 1
 
 
@@ -88,10 +86,7 @@ def upload(
     wb = load(data)
     sm = read_structure(wb, ai)
     if sm.axis is None:
-        raise TemplateError(
-            "no period axis found: historical periods must run across columns "
-            "with labels in one column (section 14.4)"
-        )
+        raise TemplateError("no period axis found: historical periods must run across columns with labels in one column (section 14.4)")
     cleared = clear_historical_inputs(wb, sm) if from_existing_model else ClearReport()
     if cleared.cleared:
         data = _save(wb)
@@ -108,10 +103,7 @@ def upload(
         storage_key=key,
         structure=sm.to_dict() | {"cleared": cleared.cleared, "uncertain": cleared.uncertain},
         mapping=mapping.model_dump(),
-        driver_cells={
-            d.name: {"sheet": d.forecast_sheet, "row_label": d.forecast_row_label, "kind": "ratio"}
-            for d in mapping.drivers
-        },
+        driver_cells={d.name: {"sheet": d.forecast_sheet, "row_label": d.forecast_row_label, "kind": "ratio"} for d in mapping.drivers},
         check_cells={c.cell_label: {"sheet": c.sheet} for c in mapping.checks},
         status="draft",
     )
@@ -130,38 +122,25 @@ def confirm_mapping(session: Session, template: Template, mapping: dict[str, Any
 
 
 def activate(session: Session, template: Template, make_default: bool = False) -> Template:
-    last = session.scalar(
-        select(TemplateTest)
-        .where(TemplateTest.template_id == template.id)
-        .order_by(TemplateTest.id.desc())
-    )
+    last = session.scalar(select(TemplateTest).where(TemplateTest.template_id == template.id).order_by(TemplateTest.id.desc()))
     if template.owner != BUILTIN_OWNER and (last is None or last.result != "pass"):
         raise TemplateError("a passing test build is required before activation (section 14.3)")
     template.status = "active"
     if make_default:
-        session.execute(
-            update(Template)
-            .where(Template.id != template.id, Template.sectors.overlap(template.sectors))
-            .values(is_default=False)
-        )
+        session.execute(update(Template).where(Template.id != template.id, Template.sectors.overlap(template.sectors)).values(is_default=False))
         template.is_default = True
     session.flush()
     return template
 
 
-def ensure_builtin_templates(
-    session: Session, store: ObjectStore, reference: date | None = None
-) -> list[Template]:
+def ensure_builtin_templates(session: Session, store: ObjectStore, reference: date | None = None) -> list[Template]:
     """Register the built-in templates once (owner 'builtin', active, default for their sectors)."""
     reference = reference or date(2026, 9, 30)
     out = []
     for spec in BUILTIN.values():
-        existing = session.scalar(
-            select(Template).where(Template.owner == BUILTIN_OWNER, Template.name == spec.key)
-        )
+        existing = session.scalar(select(Template).where(Template.owner == BUILTIN_OWNER, Template.name == spec.key))
         if existing is not None:
             if not store.exists(existing.storage_key):
-                # The row outlived its file (storage wiped or swapped): rebuild it from the spec.
                 data, _ = build(spec, reference)
                 store.put(existing.storage_key, data, XLSX)
             out.append(existing)
@@ -177,10 +156,7 @@ def ensure_builtin_templates(
             storage_key=key,
             structure=read_structure(load(data)).to_dict(),
             mapping=mapping.model_dump(),
-            driver_cells={
-                d.name: {"sheet": "Drivers", "row_label": d.label, "kind": d.kind}
-                for d in spec.drivers
-            },
+            driver_cells={d.name: {"sheet": "Drivers", "row_label": d.label, "kind": d.kind} for d in spec.drivers},
             check_cells={c.cell_label: {"sheet": c.sheet} for c in mapping.checks},
             status="active",
             is_default=True,

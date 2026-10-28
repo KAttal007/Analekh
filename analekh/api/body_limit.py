@@ -50,8 +50,6 @@ class BodySizeLimit:
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > limit:
-                    # Answer now; the app sees the client go away (the framework would turn an
-                    # exception raised here into a 400) and whatever it sends is dropped.
                     refused = True
                     if not started:
                         await _refuse(send)

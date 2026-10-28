@@ -3,21 +3,13 @@ import { api, type DeskQuery } from "../api/client";
 import { addDays, daysFrom, iso, startOfWeek } from "./calendar";
 import { readPrefs } from "./prefs";
 
-// Code-split screens that the search box can warm up before the user picks a result.
-// The router lazy-loads the same imports, so a preloaded chunk is reused, not fetched twice.
 export const loadCompanyPage = () => import("../pages/CompanyPage");
 
-// The company header query, shared by the company page and the search box's prefetch so both
-// use the same cache entry. Prefetched data stays fresh briefly, so opening the page doesn't
-// refetch what was fetched a moment ago.
 export const companyQuery = (symbol: string) => ({
   queryKey: ["company", symbol] as const,
   queryFn: () => api.company(symbol),
   staleTime: 30_000,
 });
-
-// The home screen's queries (Results desk, its calendar strip, the search index), defined once so
-// the screens and the sign-in prefetch share cache entries.
 
 export const DESK_PAGE = 10;
 
@@ -26,7 +18,6 @@ export const deskQuery = (query: DeskQuery, page: number) => ({
   queryFn: () => api.desk({ ...query, limit: DESK_PAGE, offset: (page - 1) * DESK_PAGE }),
 });
 
-/** The desk filters as the URL and the order preference give them. */
 export const deskFilters = (params: URLSearchParams, sort: "filed" | "market_cap"): DeskQuery => ({
   quarter_end: params.get("quarter") ?? undefined,
   sector: params.get("sector") ?? undefined,
@@ -71,8 +62,5 @@ export const companyIndexQuery = {
 export function prefetchHome(client: QueryClient): Promise<unknown> {
   const strip = dayStrip(iso(new Date()));
   const desk = deskFilters(new URLSearchParams(), readPrefs().deskSort);
-  return Promise.all([
-    client.prefetchQuery(deskQuery(desk, 1)),
-    client.prefetchQuery(calendarQuery(strip[0], strip[strip.length - 1], false)),
-  ]);
+  return Promise.all([client.prefetchQuery(deskQuery(desk, 1)), client.prefetchQuery(calendarQuery(strip[0], strip[strip.length - 1], false))]);
 }

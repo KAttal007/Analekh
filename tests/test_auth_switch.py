@@ -66,7 +66,6 @@ def test_switch_off_in_dev_acts_as_the_dev_admin(raw, db, switch):
     assert me.json()["id"] == get_settings().default_user_id
     assert me.json()["role"] == "admin"
     assert raw.get("/public/auth-status").json() == {"auth_enabled": False}
-    # state-changing requests need no anti-forgery header while sign-in is off
     assert raw.post("/auth/logout").status_code == 204
 
 
@@ -74,9 +73,7 @@ def test_dev_user_is_created_once(raw, db, switch):
     switch(AUTH_ENABLED="false", ENV="dev")
     raw.get("/auth/me")
     raw.get("/auth/me")
-    count = db.scalar(
-        select(func.count()).select_from(User).where(User.id == get_settings().default_user_id)
-    )
+    count = db.scalar(select(func.count()).select_from(User).where(User.id == get_settings().default_user_id))
     assert count == 1
 
 
@@ -84,9 +81,7 @@ def test_dev_user_cannot_sign_in_with_a_password(raw, db, switch):
     switch(AUTH_ENABLED="false", ENV="dev")
     raw.get("/auth/me")  # creates the dev user
     switch(AUTH_ENABLED="true")
-    res = raw.post(
-        "/auth/login", json={"email": get_settings().dev_user_email, "password": "anything"}
-    )
+    res = raw.post("/auth/login", json={"email": get_settings().dev_user_email, "password": "anything"})
     assert res.status_code == 401
 
 

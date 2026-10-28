@@ -41,13 +41,7 @@ def user_for_api_token(db: Session, token: str) -> User | None:
 
 
 def list_api_tokens(db: Session, user: User) -> list[ApiToken]:
-    return list(
-        db.scalars(
-            select(ApiToken)
-            .where(ApiToken.user_id == user.id, ApiToken.revoked_at.is_(None))
-            .order_by(ApiToken.created_at)
-        )
-    )
+    return list(db.scalars(select(ApiToken).where(ApiToken.user_id == user.id, ApiToken.revoked_at.is_(None)).order_by(ApiToken.created_at)))
 
 
 def revoke_api_token(db: Session, user: User, token_id: int) -> bool:
@@ -62,10 +56,6 @@ def revoke_api_token(db: Session, user: User, token_id: int) -> bool:
 
 def revoke_all_api_tokens(db: Session, user_id: str) -> int:
     """Revoke every live token of one user (sign out everywhere). Returns how many."""
-    result = db.execute(
-        update(ApiToken)
-        .where(ApiToken.user_id == user_id, ApiToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(UTC))
-    )
+    result = db.execute(update(ApiToken).where(ApiToken.user_id == user_id, ApiToken.revoked_at.is_(None)).values(revoked_at=datetime.now(UTC)))
     db.flush()
     return int(result.rowcount or 0)  # type: ignore[attr-defined]

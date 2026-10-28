@@ -6,12 +6,8 @@ from analekh.xbrl.parser import parse_instance
 from tests.xbrl_factory import BS, Q2, build_instance, pnl, q2_instance
 
 Q1_HISTORY = [
-    HistoryFact(
-        "RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(900_000_000), 1
-    ),
-    HistoryFact(
-        "ProfitLossForPeriod", date(2026, 4, 1), date(2026, 6, 30), Decimal(165_000_000), 1
-    ),
+    HistoryFact("RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(900_000_000), 1),
+    HistoryFact("ProfitLossForPeriod", date(2026, 4, 1), date(2026, 6, 30), Decimal(165_000_000), 1),
 ]
 
 
@@ -20,9 +16,7 @@ def by_rule(report):
 
 
 def test_consistent_filing_passes_everything():
-    ctx = ValidationContext(
-        parse_instance(q2_instance()), filed_at=date(2026, 11, 10), history=Q1_HISTORY
-    )
+    ctx = ValidationContext(parse_instance(q2_instance()), filed_at=date(2026, 11, 10), history=Q1_HISTORY)
     report = validate(ctx)
     results = by_rule(report)
     for rule in ("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9"):
@@ -34,9 +28,7 @@ def test_consistent_filing_passes_everything():
 def test_v1_failure_blocks_auto_apply():
     values = pnl(1_000_000_000, 50_000_000, 800_000_000, 62_500_000)
     values["Income"] += 10_000_000
-    report = validate(
-        ValidationContext(parse_instance(build_instance(**Q2, values_q=values, values_instant=BS)))
-    )
+    report = validate(ValidationContext(parse_instance(build_instance(**Q2, values_q=values, values_instant=BS))))
     assert by_rule(report)["V1"].status == "fail"
     assert report.blocks_auto_apply
 
@@ -57,11 +49,7 @@ def test_v4_balance_sheet_mismatch():
 
 
 def test_untagged_elements_skip_not_fail():
-    report = validate(
-        ValidationContext(
-            parse_instance(build_instance(**Q2, values_q={"RevenueFromOperations": 100}))
-        )
-    )
+    report = validate(ValidationContext(parse_instance(build_instance(**Q2, values_q={"RevenueFromOperations": 100}))))
     results = by_rule(report)
     assert results["V1"].status == "skip"
     assert results["V4"].status == "skip"
@@ -69,14 +57,8 @@ def test_untagged_elements_skip_not_fail():
 
 
 def test_v5_detects_quarter_not_matching_ytd():
-    history = [
-        HistoryFact(
-            "RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(800_000_000), 1
-        )
-    ]
-    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))[
-        "V5"
-    ]
+    history = [HistoryFact("RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(800_000_000), 1)]
+    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))["V5"]
     assert result.status == "fail"
 
 
@@ -87,14 +69,8 @@ def test_v6_declared_period_wins():
 
 
 def test_v7_swing_highlighted():
-    history = [
-        HistoryFact(
-            "RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(500_000_000), 1
-        )
-    ]
-    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))[
-        "V7"
-    ]
+    history = [HistoryFact("RevenueFromOperations", date(2026, 4, 1), date(2026, 6, 30), Decimal(500_000_000), 1)]
+    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))["V7"]
     assert result.status == "fail" and result.action == "highlight"
 
 
@@ -108,7 +84,6 @@ def v8(instance: bytes, filed_at: date):
 
 
 def test_v8_quarter_deadline_is_45_days():
-    # Quarter ended 30 September: day 45 is 14 November; XBRL may follow the PDF a day later.
     assert v8(q2_instance(), date(2026, 11, 14)).details == {"lag_days": 45, "deadline_days": 45}
     assert v8(q2_instance(), date(2026, 11, 15)).status == "pass"
     late = v8(q2_instance(), date(2026, 11, 16))
@@ -130,14 +105,8 @@ def test_v8_year_end_deadline_is_60_days():
 
 
 def test_v9_restatement_diff():
-    history = [
-        HistoryFact(
-            "RevenueFromOperations", date(2026, 7, 1), date(2026, 9, 30), Decimal(990_000_000), 7
-        )
-    ]
-    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))[
-        "V9"
-    ]
+    history = [HistoryFact("RevenueFromOperations", date(2026, 7, 1), date(2026, 9, 30), Decimal(990_000_000), 7)]
+    result = by_rule(validate(ValidationContext(parse_instance(q2_instance()), history=history)))["V9"]
     assert result.status == "fail"
     assert result.details["diffs"][0]["old_filing_id"] == 7
 
@@ -156,7 +125,6 @@ def test_report_is_json_serialisable():
 
 
 def test_v2_adds_exceptional_items_as_tagged():
-    # Tata Elxsi, Q3 FY26 (standalone): a labour-code charge tagged as a negative exceptional item.
     q = {
         "RevenueFromOperations": 9_534_743_000,
         "OtherIncome": 460_382_000,
@@ -176,7 +144,6 @@ def test_v2_adds_exceptional_items_as_tagged():
 
 
 def test_v2_reads_exceptional_items_under_either_name():
-    # L&T, Q4 FY25 (consolidated): a Rs 474.78 crore exceptional gain tagged ExceptionalItems,
     # not ExceptionalItemsBeforeTax; V2 blocked the filing until both names were read.
     q = {
         "RevenueFromOperations": 741_000_000_000,
@@ -192,8 +159,6 @@ def test_v2_reads_exceptional_items_under_either_name():
 
 
 def test_v2_adds_extraordinary_items_for_ind_as_filers():
-    # Alletec, Q3 FY26 (standalone): exceptional items nil, extraordinary items -Rs 1.33 crore
-    # between profit before extraordinary items and PBT.
     q = {
         "RevenueFromOperations": 290_536_000,
         "OtherIncome": 28_250_000,
@@ -217,7 +182,6 @@ def _quarter(values: dict[str, int], instant: dict[str, int] | None = None) -> b
     )
 
 
-# HDFC Bank, March 2026 quarter (consolidated), in rupees.
 HDFC_BANK = {
     "InterestEarned": 871_825_000_000,
     "InterestExpended": 452_204_400_000,
@@ -235,7 +199,6 @@ HDFC_BANK = {
 }
 HDFC_BANK_BS = {"Assets": 49_080_408_400_000, "CapitalAndLiabilities": 49_080_408_400_000}
 
-# ICICI Lombard, June 2026 quarter (standalone), general insurer.
 ICICI_LOMBARD = {
     "GrossPremiumsWritten": 88_602_700_000,
     "PremiumEarned": 59_500_400_000,
@@ -253,9 +216,6 @@ ICICI_LOMBARD = {
 }
 
 
-# Canara HSBC Life, September 2026 quarter (standalone), life insurer. Policyholders' account:
-# net premium + investment income + other income + transfer from shareholders = income; income -
-# expenses = surplus. Shareholders' account: income - expenses = PBT.
 CANARA_HSBC_LIFE = {
     "GrossPremiumIncome": 25_812_500_000,
     "NetPremiumIncome": 25_531_600_000,
@@ -280,7 +240,6 @@ def test_detects_banks_and_insurers_from_their_line_items():
     assert parse_instance(_quarter(HDFC_BANK)).taxonomy() == "banking"
     assert parse_instance(_quarter(ICICI_LOMBARD)).taxonomy() == "insurance"
     assert parse_instance(_quarter(CANARA_HSBC_LIFE)).taxonomy() == "life_insurance"
-    # NBFCs tag InterestEarned inside their revenue (Bajaj Finance): still Ind-AS.
     assert detect_taxonomy({"RevenueFromOperations", "InterestEarned", "InterestExpended"}) is None
 
 
@@ -317,7 +276,6 @@ def test_life_insurer_identities_run_through_both_accounts():
     for rule in ("V1", "V2", "V3"):
         assert results[rule].status == "pass", (rule, results[rule].message)
     assert "transfer from shareholders" in results["V1"].message
-    # Policyholders' income - expenses is the surplus (-11.49 crore), not PBT (48.21 crore).
     assert "Shareholders' account" in results["V2"].message
     assert results["V4"].status == "skip"  # balance sheet not mapped yet
 

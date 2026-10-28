@@ -1,28 +1,20 @@
-# Front-end workspace: the web app and the Excel task pane share one lockfile and one install.
 packages:
   - web
   - office-addin
 
-# Dependency install scripts are denied unless listed true here. These three come from
-# office-addin-debugging (Microsoft 365 sign-in and credential storage); desktop Excel sideloading
-# does not need them. Change one to true only if `pnpm --filter analekh-excel-addin start` fails.
 allowBuilds:
   '@azure/msal-node-extensions': false
   '@microsoft/m365agentstoolkit-cli': false
   keytar: false
 
-# pnpm holds back releases younger than its minimum age; these were allowed in explicitly.
-# Remove each entry once that version is older than the window.
 minimumReleaseAgeExclude:
   - '@vitest/mocker@5.0.4'
   - '@vitest/spy@5.0.4'
   - vitest@5.0.4
 
-# adm-zip is not ours: office-addin tooling pulls several 0.5.x and 0.6.x copies. Pin one.
 overrides:
   adm-zip: 0.6.1
   # Security fixes (OSV audit, 2026-10-24). All come in through the add-in's dev tooling or jsdom,
-  # none are ours. node-forge 1.4.0 has no fixed release yet; revisit when one ships.
   body-parser@<1.20.9: 1.20.9
   body-parser@>=2.0.0 <2.4.0: 2.4.0
   fast-uri@<3.1.9: 3.1.9

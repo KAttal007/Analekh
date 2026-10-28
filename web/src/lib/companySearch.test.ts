@@ -2,8 +2,6 @@ import { expect, test } from "vitest";
 import type { CompanyIndexEntry } from "../api/client";
 import { prepareIndex, searchIndex } from "./companySearch";
 
-// Same SYNTHETIC companies and expectations as tests/test_universe.py, so the in-browser search
-// and the API rank alike.
 const rows: [string, string, string][] = [
   ["TCS", "Tazza Consultancy Services Limited", "INE000T01011"],
   ["TCIEXP", "TCI Express Limited", "INE000T01022"],

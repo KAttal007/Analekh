@@ -19,13 +19,9 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "users",
-        sa.Column(
-            "must_change_password", sa.Boolean(), server_default=sa.text("false"), nullable=False
-        ),
+        sa.Column("must_change_password", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
-    op.add_column(
-        "users", sa.Column("first_password_expires_at", sa.DateTime(timezone=True), nullable=True)
-    )
+    op.add_column("users", sa.Column("first_password_expires_at", sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade() -> None:

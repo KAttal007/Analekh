@@ -1,17 +1,6 @@
-"""Strip noise from graphify-out/graph.json, recluster, rewrite report.
+"""Strip noise from graphify-out/graph.json, merge small communities, rewrite the report.
 
-graphify's AST pass adds nodes saying nothing about Analekh's architecture:
-  * unresolved or external references (stdlib, SQLAlchemy, Path, Session, decorators),
-  * keys of config files (package.json, tsconfig.json, schema.d.ts, ...),
-  * empty __init__.py stubs.
-Every `graphify update` (or post-commit hook) puts them back, so this runs after each rebuild.
-Idempotent: nothing left to remove = exits without touching files.
-
-Run with interpreter that has graphify installed (graphify-out/.graphify_python):
-    <python> scripts/graphify_clean.py [--html] [--quiet]
-
-Also works as Claude Code PostToolUse hook: with a JSON payload on stdin, runs only if the Bash
-command was a `graphify update`/`graphify hook` rebuild.
+Runs after every graphify rebuild (hook); idempotent. By hand: <graphify python> scripts/graphify_clean.py
 """
 
 from __future__ import annotations
@@ -34,8 +23,54 @@ CONFIG_FILES = (
 )
 
 
+MIN_GROUP = 40  # smaller communities merge into a neighbour
+MAX_GROUP = 220  # merges never exceed this size
+TEST_SUFFIXES = (".test.ts", ".test.tsx", "/conftest.py")
+
+
+def is_test_file(src: str) -> bool:
+    return ("/" + src).find("/tests/") >= 0 or src.endswith(TEST_SUFFIXES)
+
+
+def merge_small(G, comms: dict[int, list]) -> dict[int, list]:  # noqa: ANN001
+    groups = {cid: list(members) for cid, members in comms.items()}
+    home = {n: cid for cid, members in groups.items() for n in members}
+    stuck: set[int] = set()
+    while True:
+        small = [c for c in groups if len(groups[c]) < MIN_GROUP and c not in stuck]
+        if not small:
+            break
+        cid = min(small, key=lambda c: len(groups[c]))
+        ties = collections.Counter(home[m] for n in groups[cid] for m in G.neighbors(n) if home[m] != cid)
+        fits = [(k, c) for c, k in ties.most_common() if len(groups[c]) + len(groups[cid]) <= MAX_GROUP]
+        if not fits:
+            stuck.add(cid)
+            continue
+        into = fits[0][1]
+        for n in groups.pop(cid):
+            home[n] = into
+            groups[into].append(n)
+    pooled: dict[str, list] = {}
+    for cid in [c for c in groups if len(groups[c]) < MIN_GROUP]:
+        members = groups.pop(cid)
+        pooled.setdefault(folder_label(G, members), []).extend(members)
+    ordered = sorted([*groups.values(), *pooled.values()], key=len, reverse=True)
+    return dict(enumerate(ordered))
+
+
+def folder_label(G, members: list) -> str:  # noqa: ANN001
+    folders: collections.Counter[str] = collections.Counter()
+    for n in members:
+        parts = str(G.nodes[n].get("source_file") or "").replace("\\", "/").split("/")[:-1]
+        if parts:
+            folders["/".join(parts[: 3 if parts[0] in ("web", "office-addin") else 2])] += 1
+    if folders:
+        return folders.most_common(1)[0][0]
+    top = max(members, key=G.degree)
+    return str(G.nodes[top].get("label", top))[:40]
+
+
 def _triggered_by_rebuild() -> bool:
-    """As a hook: run only after a graphify rebuild. By hand (a terminal): always run."""
     if sys.stdin is None or sys.stdin.isatty():
         return True
     try:
@@ -47,10 +82,7 @@ def _triggered_by_rebuild() -> bool:
 
 
 HOOK_FILES = ("post-commit", "post-checkout", "post-merge", "post-rewrite")
-HOOK_CALL = (
-    "__import__('subprocess').run([sys.executable, 'scripts/graphify_clean.py', '--quiet'], "
-    "check=False)  # analekh: strip noise nodes"
-)
+HOOK_CALL = "__import__('subprocess').run([sys.executable, 'scripts/graphify_clean.py', '--quiet'], check=False)  # analekh: strip noise nodes"
 REBUILD_CALLS = (
     "_rebuild_code(_root, changed_paths=changed, force=_force)",
     "_rebuild_code(_root, force=_force)",
@@ -58,17 +90,8 @@ REBUILD_CALLS = (
 
 
 def _graphify_python() -> str | None:
-    """Interpreter that has graphify: uv tool env, the one the skill saved, or this one.
-
-    Checks files only (no import probe): hook runs after every Bash call, must stay fast.
-    """
     candidates: list[Path] = []
-    tools = (
-        os.environ.get("UV_TOOL_DIR")
-        or subprocess.run(
-            ["uv", "tool", "dir"], capture_output=True, text=True, check=False
-        ).stdout.strip()
-    )
+    tools = os.environ.get("UV_TOOL_DIR") or subprocess.run(["uv", "tool", "dir"], capture_output=True, text=True, check=False).stdout.strip()
     if tools:
         for sub in ("Scripts/python.exe", "bin/python"):
             candidates.append(Path(tools) / "graphifyy" / sub)
@@ -86,7 +109,6 @@ def _graphify_python() -> str | None:
 
 
 def install_hooks(py: str) -> int:
-    """Install graphify's git hooks, then add the cleanup call after each rebuild (idempotent)."""
     hooks_dir = ROOT / ".git" / "hooks"
     if not hooks_dir.is_dir():
         print("no .git/hooks here")
@@ -149,40 +171,34 @@ def main() -> int:
     drop: dict[str, list[str]] = collections.defaultdict(list)
     for nid, d in G.nodes(data=True):
         src = str(d.get("source_file") or "").replace("\\", "/")
-        if d.get("file_type") == "code" and not src:
+        if not src:
             drop["external/unresolved"].append(nid)
+        elif is_test_file(src):
+            drop["test files"].append(nid)
         elif src.endswith(CONFIG_FILES):
             drop["config-file keys"].append(nid)
         elif str(d.get("label", "")).endswith("__init__.py") and G.degree(nid) <= 1:
             drop["empty __init__ stubs"].append(nid)
-    if not drop:
-        say("graphify_clean: nothing to remove")
-        return 0
+        elif G.degree(nid) == 0:
+            drop["isolated"].append(nid)
+    if not drop:  # already clean, unless small communities could still be merged
+        shown: dict[int, list] = collections.defaultdict(list)
+        for nid, d in G.nodes(data=True):
+            shown[d.get("community", -1)].append(nid)
+        if len(merge_small(G, shown)) == len(shown):
+            say("graphify_clean: nothing to do")
+            return 0
 
-    old_name = {n: G.nodes[n].get("community_name") for n in G}
     G.remove_nodes_from({n for v in drop.values() for n in v})
-    orphans = [n for n in G if G.degree(n) == 0 and G.nodes[n].get("file_type") == "code"]
+    orphans = [n for n in G if G.degree(n) == 0]  # left alone by the removals above
     G.remove_nodes_from(orphans)
-    G.graph["hyperedges"] = [
-        h for h in G.graph["hyperedges"] if sum(1 for n in h.get("nodes", []) if n in G) >= 3
-    ]
+    if orphans:
+        drop["isolated"].extend(orphans)
+    G.graph["hyperedges"] = [h for h in G.graph["hyperedges"] if sum(1 for n in h.get("nodes", []) if n in G) >= 3]
 
-    comms = cluster(G)
+    comms = merge_small(G, cluster(G))
     cohesion = score_all(G, comms)
-    labels: dict[int, str] = {}
-    for cid, members in comms.items():
-        names = collections.Counter(
-            old_name[n]
-            for n in members
-            if old_name.get(n) and not str(old_name[n]).startswith("Community ")
-        )
-        if names:
-            name, count = names.most_common(1)[0]
-            if count / len(members) >= 0.5:
-                labels[cid] = name
-                continue
-        top = max(members, key=G.degree)
-        labels[cid] = str(G.nodes[top].get("label", top))[:40]
+    labels = {cid: folder_label(G, members) for cid, members in comms.items()}
     seen = collections.Counter(labels.values())
     nth: collections.Counter[str] = collections.Counter()
     for cid in sorted(labels):
@@ -191,9 +207,7 @@ def main() -> int:
             labels[cid] = f"{labels[cid]} ({nth[labels[cid]]})"
 
     out = out_path()
-    detection = detect(
-        ROOT, extra_excludes=_read_build_excludes(out), gitignore=_read_build_gitignore(out)
-    )
+    detection = detect(ROOT, extra_excludes=_read_build_excludes(out), gitignore=_read_build_gitignore(out))
     cost_file = ROOT / "graphify-out" / "cost.json"
     cost = json.loads(cost_file.read_text(encoding="utf-8")) if cost_file.is_file() else {}
     tokens = {
@@ -209,9 +223,7 @@ def main() -> int:
         detection, tokens, ".", suggested_questions=questions,
     )  # fmt: skip
     (ROOT / "graphify-out" / "GRAPH_REPORT.md").write_text(report, encoding="utf-8")
-    (ROOT / "graphify-out" / ".graphify_labels.json").write_text(
-        json.dumps({str(k): v for k, v in labels.items()}, ensure_ascii=False), encoding="utf-8"
-    )
+    (ROOT / "graphify-out" / ".graphify_labels.json").write_text(json.dumps({str(k): v for k, v in labels.items()}, ensure_ascii=False), encoding="utf-8")
     if "--html" in sys.argv or (ROOT / "graphify-out" / "graph.html").is_file():
         subprocess.run(
             [sys.executable, "-m", "graphify", "export", "html"],
@@ -220,10 +232,7 @@ def main() -> int:
 
     removed = ", ".join(f"{len(v)} {k}" for k, v in drop.items())
     nodes, edges = G.number_of_nodes(), G.number_of_edges()
-    say(
-        f"graphify_clean: {before[0]}->{nodes} nodes, {before[1]}->{edges} edges "
-        f"({removed}); {len(comms)} communities"
-    )
+    say(f"graphify_clean: {before[0]}->{nodes} nodes, {before[1]}->{edges} edges ({removed}); {len(comms)} communities")
     return 0
 
 

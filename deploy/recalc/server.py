@@ -34,9 +34,7 @@ XLSM = "application/vnd.ms-excel.sheet.macroEnabled.12"
 ZIP_MAGIC = b"PK\x03\x04"  # an .xlsx or .xlsm is a zip file
 DISCARD_LIMIT = 8 * 1024 * 1024  # most of a refused body that is read and dropped
 
-# Written into each run's fresh profile before LibreOffice starts. Macros never executed (CLAUDE.md
 # rule 7): execution disabled outright, security level "very high". VBA project loaded only so it
-# can be saved back unchanged ("Save original Basic code"), never made executable.
 PROFILE_SETTINGS = """<?xml version="1.0" encoding="UTF-8"?>
 <oor:items xmlns:oor="http://openoffice.org/2001/registry" \
 xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -98,9 +96,7 @@ def convert(src: bytes, timeout: float) -> bytes:
         root = Path(tmp)
         profile = root / "profile"
         (profile / "user").mkdir(parents=True)
-        (profile / "user" / "registrymodifications.xcu").write_text(
-            PROFILE_SETTINGS, encoding="utf-8"
-        )
+        (profile / "user" / "registrymodifications.xcu").write_text(PROFILE_SETTINGS, encoding="utf-8")
         source = root / f"in{suffix}"
         out_dir = root / "out"
         source.write_bytes(src)
@@ -237,9 +233,7 @@ def make_handler(
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, stream=sys.stderr, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(asctime)s %(levelname)s %(message)s")
     token = os.environ.get("RECALC_TOKEN", "")
     if not token:
         log.error("RECALC_TOKEN is empty: refusing to start")
@@ -250,7 +244,6 @@ def main() -> None:
     port = int(os.environ.get("RECALC_PORT", "8080"))
     slots = threading.BoundedSemaphore(concurrency)
     handler = make_handler(token, max_bytes, timeout, slots, convert)
-    # All interfaces inside the container: the only network it is on is internal (compose).
     server = ThreadingHTTPServer(("0.0.0.0", port), handler)
     log.info(
         "listening on :%d (concurrency %d, timeout %s s, max %d bytes)",

@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 from rapidfuzz import fuzz, process
 
-# field -> (mapping source, synonyms). Keep synonyms lowercase and punctuation-free.
 STANDARD_FIELDS: dict[str, tuple[str, tuple[str, ...]]] = {
     "revenue": (
         "xbrl:RevenueFromOperations",
@@ -129,11 +128,8 @@ def normalise(label: str) -> str:
     return " ".join(label.split())
 
 
-_SYNONYMS: dict[str, str] = {
-    syn: field for field, (_, syns) in STANDARD_FIELDS.items() for syn in syns
-}
+_SYNONYMS: dict[str, str] = {syn: field for field, (_, syns) in STANDARD_FIELDS.items() for syn in syns}
 
-# A callable that resolves ambiguous labels, e.g. a small Claude model; returns (field, conf).
 AiResolver = Callable[[str, list[str]], tuple[str | None, float]]
 
 

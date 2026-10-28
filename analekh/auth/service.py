@@ -82,11 +82,7 @@ def login(db: Session, email: str, password: str, now: datetime | None = None) -
     except ValueError:
         verify_password(password, None)  # same cost as any other failure
         return _BAD
-    # Lock the row for this attempt: parallel guesses queue here instead of all reading the same
-    # failure count, so a flood cannot skip the pause or the block.
     user = db.scalar(select(User).where(User.email == key).with_for_update())
-    # Unknown, disabled and Microsoft accounts: same work, same reply as a wrong password, so the
-    # reply never tells anyone whether an address has an account (owner, 2026-10-22).
     if user is None or not user.is_active or user.auth_kind != "password" or not user.password_hash:
         verify_password(password, None)
         return _BAD
@@ -102,28 +98,17 @@ def login(db: Session, email: str, password: str, now: datetime | None = None) -
         return _BAD
     user.failed_count = 0
     user.paused_until = None
-    # Only someone holding the right password gets to see this, so it is safe to say.
-    if (
-        user.must_change_password
-        and user.first_password_expires_at is not None
-        and user.first_password_expires_at < now
-    ):
+    if user.must_change_password and user.first_password_expires_at is not None and user.first_password_expires_at < now:
         db.flush()
         return LoginResult(False, None, None, "first_password_expired", None)
-    # Housekeeping: drop this user's sessions that can no longer be used.
     db.execute(
         delete(AuthSession).where(
             AuthSession.user_id == user.id,
-            (AuthSession.created_at < now - timedelta(hours=cfg.session_max_hours))
-            | (AuthSession.last_seen_at < now - timedelta(hours=cfg.session_idle_hours)),
+            (AuthSession.created_at < now - timedelta(hours=cfg.session_max_hours)) | (AuthSession.last_seen_at < now - timedelta(hours=cfg.session_idle_hours)),
         )
     )
     token = secrets.token_urlsafe(32)
-    db.add(
-        AuthSession(
-            token_hash=_hash_token(token), user_id=user.id, created_at=now, last_seen_at=now
-        )
-    )
+    db.add(AuthSession(token_hash=_hash_token(token), user_id=user.id, created_at=now, last_seen_at=now))
     db.flush()
     return LoginResult(True, token, user, "ok", None, user.must_change_password)
 
@@ -141,7 +126,6 @@ def user_for_token(db: Session, token: str, now: datetime | None = None) -> User
         return None
     if now - session.created_at > timedelta(hours=cfg.session_max_hours):
         return None
-    # Write at most once a minute, so every click does not cost a database write.
     if now - session.last_seen_at >= LAST_SEEN_WRITE_EVERY:
         session.last_seen_at = now
         db.flush()
@@ -164,23 +148,14 @@ def purge_expired_sessions(db: Session, now: datetime | None = None) -> int:
     only clears the signing-in user's own; this sweeps the rest (a daily job)."""
     now = _now(now)
     cfg = get_settings()
-    result = db.execute(
-        delete(AuthSession).where(
-            (AuthSession.created_at < now - timedelta(hours=cfg.session_max_hours))
-            | (AuthSession.last_seen_at < now - timedelta(hours=cfg.session_idle_hours))
-        )
-    )
+    result = db.execute(delete(AuthSession).where((AuthSession.created_at < now - timedelta(hours=cfg.session_max_hours)) | (AuthSession.last_seen_at < now - timedelta(hours=cfg.session_idle_hours))))
     db.flush()
     return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
 
 def last_seen(db: Session) -> dict[str, datetime]:
     """Each user's most recent activity in any live or stale session, by user id."""
-    rows = db.execute(
-        select(AuthSession.user_id, func.max(AuthSession.last_seen_at)).group_by(
-            AuthSession.user_id
-        )
-    )
+    rows = db.execute(select(AuthSession.user_id, func.max(AuthSession.last_seen_at)).group_by(AuthSession.user_id))
     return {uid: at for uid, at in rows}
 
 
@@ -214,9 +189,7 @@ def create_user(
     return user
 
 
-def create_user_with_first_password(
-    db: Session, email: str, name: str, role: str
-) -> tuple[User, str]:
+def create_user_with_first_password(db: Session, email: str, name: str, role: str) -> tuple[User, str]:
     """A password user with a generated first password (flag set, expiry set). Returns the user
     and the plain password; the caller commits, then emails it with `first_password.send`
     or `first_password.deliver`."""
@@ -243,9 +216,7 @@ def set_password(db: Session, user: User, plain: str) -> None:
 FirstChange = Literal["ok", "wrong_current", "same_as_first", "expired", "not_pending"]
 
 
-def change_first_password(
-    db: Session, user: User, current: str, new: str, now: datetime | None = None
-) -> FirstChange:
+def change_first_password(db: Session, user: User, current: str, new: str, now: datetime | None = None) -> FirstChange:
     """The forced change. The new password must meet the rules (PasswordRuleError, raised before
     anything is hashed or counted). The current one must be the first password: a wrong one counts
     as a failed sign-in, and the block ends the session. The new one must differ from it."""

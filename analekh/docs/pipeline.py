@@ -48,14 +48,11 @@ def process_document(
 
     selected = select_pages(pages, filing.kind)
     kpi_count = 0
-    wanted = kpis_for(
-        company.results_taxonomy if company.results_taxonomy != "indas" else company.sector
-    )
+    wanted = kpis_for(company.results_taxonomy if company.results_taxonomy != "indas" else company.sector)
     if claude is not None and selected and filing.kind != "transcript":
         extraction = extract(claude, data, pages, selected, company.name, wanted)
         kpi_count = save_kpis(session, filing, extraction)
         # PHASE 3: run V10 here - map KPI names to XBRL logical names where they overlap and
-        # compare with stored facts; XBRL wins and the KPI is flagged.
 
     chunks = store_chunks(session, doc, chunk_pages(pages), embedder)
     filing.status = "parsed"
@@ -68,10 +65,7 @@ def _passing(exc: BaseException) -> bool:
         return exc.status_code in (408, 409, 429) or exc.status_code >= 500
     return isinstance(
         exc,
-        anthropic.APIConnectionError
-        | StorageUnavailable
-        | EndpointConnectionError
-        | ConnectTimeoutError,
+        anthropic.APIConnectionError | StorageUnavailable | EndpointConnectionError | ConnectTimeoutError,
     )
 
 

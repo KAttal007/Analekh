@@ -21,9 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "feed_items", sa.Column("attempts", sa.Integer(), server_default="0", nullable=False)
-    )
+    op.add_column("feed_items", sa.Column("attempts", sa.Integer(), server_default="0", nullable=False))
     op.add_column("feed_items", sa.Column("error", sa.Text(), nullable=True))
 
 

@@ -122,9 +122,7 @@ def test_change_set_proposal():
 
 
 def test_missing_period_column_is_a_warning_not_a_crash():
-    proposal = build_change_set(
-        make_workbook(), load_mapping(MAPPING), date(2027, 6, 30), FakeSource()
-    )
+    proposal = build_change_set(make_workbook(), load_mapping(MAPPING), date(2027, 6, 30), FakeSource())
     assert not proposal.items and "Q1FY28" in proposal.warnings[0]
 
 

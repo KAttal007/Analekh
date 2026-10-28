@@ -2,12 +2,8 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 // Phase 5 task pane (design doc 13.3, 19.2): works on the open workbook directly, reads the
-// hidden tag (custom document properties) so no lookup is needed, shows the pending change set
-// and highlights each item's cell when clicked. Writes still go through the approval gate.
 const API = localStorage.getItem("analekh_api") ?? "http://127.0.0.1:8000";
 
-// The user's own bridge token (made in Analekh > Settings), kept in this add-in's storage on this
-// machine and sent only in the Authorization header, never in a URL.
 const TOKEN_KEY = "analekh_token";
 const readToken = () => {
   try {
@@ -21,15 +17,12 @@ const writeToken = (token: string) => {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    /* storage unavailable: the token lasts until the pane closes */
   }
 };
 
 class SignedOut extends Error {}
 
 async function get<T>(path: string, token: string): Promise<T> {
-  // Browser-side call to the user's own Analekh API (set on this machine): not server-side SSRF.
-  // nosemgrep
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) throw new SignedOut();
   if (!res.ok) throw new Error(`Analekh answered ${res.status}.`);

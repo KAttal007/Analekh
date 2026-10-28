@@ -37,9 +37,6 @@ log = structlog.get_logger()
 SECTOR_MAP = Path(__file__).parent / "data" / "sector_map.csv"
 
 INDEX_BASE = "https://niftyindices.com/IndexConstituent/"
-# Smallest set of NSE Indices lists covering every indexed company (worked out from all 116 lists,
-# 2026-10-16): Total Market (Nifty 500 + Microcap 250), SME Emerge, IPO, WAVES, seven small lists
-# each adding a few. File names checked on niftyindices.com.
 SECTOR_LISTS = (
     "ind_niftytotalmarket_list.csv",
     "ind_niftysmelist.csv",
@@ -52,8 +49,6 @@ SECTOR_LISTS = (
     "ind_niftyhousingfinance_list.csv",
     "ind_niftymidsmallindiaconsumption_list.csv",
 )
-# NSE Indices' current sectors (classification structure revised 2022). A few stale lists still
-# carry the old names in capitals ("PHARMA", "CONSUMER GOODS"): those are ignored.
 NSE_SECTORS = frozenset(
     {
         "Automobile and Auto Components",
@@ -111,9 +106,7 @@ def save_sector_map(mapping: Mapping, path: Path = SECTOR_MAP) -> None:
             out.writerow([symbol, sector, industry or ""])
 
 
-def import_sector_worksheet(
-    session: Session, path: Path, map_path: Path = SECTOR_MAP
-) -> dict[str, int]:
+def import_sector_worksheet(session: Session, path: Path, map_path: Path = SECTOR_MAP) -> dict[str, int]:
     """The analyst's sectors from a worksheet (Symbol, Sector and Confirmed columns): rows
     confirmed with "Yes" and naming one of NSE's sectors are merged into the curated map and
     applied as the user's own, which no other source replaces. Nothing is downloaded."""

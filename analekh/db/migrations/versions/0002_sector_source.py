@@ -21,7 +21,6 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column("companies", sa.Column("sector_source", sa.Text(), nullable=True))
-    # Autogenerate does not detect check constraints.
     op.create_check_constraint(
         "ck_companies_sector_source",
         "companies",

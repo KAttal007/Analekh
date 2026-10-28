@@ -34,8 +34,6 @@ def test_no_raw_sql_in_auth_routes_and_service():
         assert 'execute("' not in src and "execute('" not in src, path
 
 
-# --- issue, send, expire, clear (service layer) -----------------------------------------------
-
 from datetime import UTC, datetime, timedelta  # noqa: E402
 
 from analekh.auth import first_password, reset  # noqa: E402
@@ -113,7 +111,6 @@ def test_expired_first_password_refused(db, user_with_first):
     later = datetime.now(UTC) + timedelta(hours=hours, seconds=1)
     res = login(db, user.email, plain, now=later)
     assert res.ok is False and res.reason == "first_password_expired" and res.token is None
-    # a wrong password still gets the plain reply, not the expiry message
     assert login(db, user.email, plain + "x", now=later).reason == "bad_credentials"
 
 
@@ -139,9 +136,7 @@ def test_send_first_password_ends_sessions_and_clears_block(db, sent):
     plain = first_password.issue(db, user, now=t)
     assert user.blocked is False and user.failed_count == 0 and user.paused_until is None
     assert user.must_change_password is True
-    assert user.first_password_expires_at == t + timedelta(
-        hours=get_settings().first_password_hours
-    )
+    assert user.first_password_expires_at == t + timedelta(hours=get_settings().first_password_hours)
     assert db.scalar(select(func.count()).select_from(AuthSession)) == 0
     assert not verify_password("Old-Passw0rd-Is-Fine1", user.password_hash)
     assert verify_password(plain, user.password_hash)
@@ -182,8 +177,6 @@ def test_weak_password_given_to_create_user_refused(db):
     with pytest.raises(ValueError):
         create_user(db, "w@firm.in", "W", "analyst", "short")
 
-
-# --- the HTTP side: gate, rules route, first-password route -----------------------------------
 
 import re  # noqa: E402
 
@@ -334,7 +327,6 @@ def test_first_password_route_rejects_31_chars_and_rule_failures(flagged, db):
     )
     assert weak.status_code == 400 and "digits" in weak.json()["missing"]
     assert user.password_hash == hashed and user.failed_count == 0  # nothing hashed or counted
-    # the reset route gives the very same message for the same input
     reset_res = client.post(
         "/auth/reset/confirm",
         json={"email": user.email, "code": "123456", "new_password": long_pw},
@@ -411,9 +403,7 @@ def test_expired_first_password_message_at_login(db, raw):
     db.commit()
     res = raw.post("/auth/login", json={"email": user.email, "password": plain})
     assert res.status_code == 401
-    assert (
-        res.json()["detail"] == "This first password has expired. Ask an admin to send a new one."
-    )
+    assert res.json()["detail"] == "This first password has expired. Ask an admin to send a new one."
 
 
 def test_allow_list_names_real_routes():

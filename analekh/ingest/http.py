@@ -29,10 +29,14 @@ ALLOWED_HOSTS = {
     "niftyindices.com",
     "www.niftyindices.com",
     "www.nseindia.com",
+    "sebi.gov.in",
+    "www.sebi.gov.in",
 }
-# Hosts limited to paths: niftyindices.com only for constituent lists; www.nseindia.com only for
-# integrated-filing lookup and financial-results list (results history), plus home page ("/"
-# matches only itself) which sets cookies they may need.
+SEBI_PATHS = (
+    "/sebiweb/home/HomeAction.do",
+    "/filings/public-issues/",
+    "/sebi_data/attachdocs/",
+)
 ALLOWED_PATHS = {
     "niftyindices.com": ("/IndexConstituent/",),
     "www.niftyindices.com": ("/IndexConstituent/",),
@@ -41,6 +45,8 @@ ALLOWED_PATHS = {
         "/api/integrated-filing-results",
         "/api/corporates-financial-results",
     ),
+    "sebi.gov.in": SEBI_PATHS,
+    "www.sebi.gov.in": SEBI_PATHS,
 }
 
 
@@ -105,7 +111,6 @@ def _retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in RETRY_STATUSES
 
 
-# Statuses that mean NSE is refusing us: stop the whole run rather than keep knocking.
 BLOCKED_STATUSES = {401, 403, 429}
 
 
@@ -113,7 +118,7 @@ def refused(exc: BaseException) -> bool:
     """A sign that NSE is blocking or throttling us, as opposed to one bad file."""
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in BLOCKED_STATUSES
-    return isinstance(exc, httpx.TransportError)  # timeouts and stalls included
+    return isinstance(exc, httpx.TransportError)  # incl. timeouts
 
 
 class PoliteClient:

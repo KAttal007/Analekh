@@ -19,10 +19,7 @@ def test_calc_is_exact_and_safe():
 
 
 def test_extract_numbers_skips_citations_labels_and_dates():
-    text = (
-        "Revenue rose 11.1% to INR 1,000 crore in Q2FY27 [fact:12 filing:3 context:OneD], "
-        "vs (25.5) on 30 Sep 2026 and 2026-09-30."
-    )
+    text = "Revenue rose 11.1% to INR 1,000 crore in Q2FY27 [fact:12 filing:3 context:OneD], vs (25.5) on 30 Sep 2026 and 2026-09-30."
     raws = [r for r, _ in extract_numbers(text)]
     assert raws == ["11.1%", "1,000", "(25.5)"]
     assert extract_numbers("loss of (25.5)")[0][1] == Decimal("-25.5")
@@ -71,9 +68,7 @@ class FakeClaude:
             )
             msg = SimpleNamespace(stop_reason="tool_use", content=[block])
             return SimpleNamespace(text="", message=msg, input_tokens=10, output_tokens=5)
-        msg = SimpleNamespace(
-            stop_reason="end_turn", content=[SimpleNamespace(type="text", text=self.final_text)]
-        )
+        msg = SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=self.final_text)])
         return SimpleNamespace(text=self.final_text, message=msg, input_tokens=10, output_tokens=5)
 
 
@@ -89,7 +84,5 @@ def test_report_loop_runs_tools_and_grounds_output():
         period_end="2026-09-30",
     )
     assert not good.blocked and good.tool_calls[0]["tool"] == "calc"
-    bad = run_report(
-        FakeClaude("Margin was 14.0%."), executor, "flash", company="DEMO", period_end="2026-09-30"
-    )
+    bad = run_report(FakeClaude("Margin was 14.0%."), executor, "flash", company="DEMO", period_end="2026-09-30")
     assert bad.blocked and bad.grounding.unmatched == ["14.0%"]

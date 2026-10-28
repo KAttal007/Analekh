@@ -21,9 +21,7 @@ def company(db):
 
 
 def count(db, company) -> int:
-    return db.scalar(
-        select(func.count()).select_from(Filing).where(Filing.company_id == company.id)
-    )
+    return db.scalar(select(func.count()).select_from(Filing).where(Filing.company_id == company.id))
 
 
 def store_it(db, store, company, data: bytes, **kw):
@@ -81,9 +79,7 @@ def test_the_same_bad_bytes_twice_still_store_nothing(db, store, company):
 
 
 @pytest.mark.parametrize("cut_at", [20, 120, 610])  # PyMuPDF: raises, reads 0 pages, raises
-def test_a_truncated_pdf_is_stored_and_the_document_queue_marks_it_failed(
-    db, store, company, cut_at
-):
+def test_a_truncated_pdf_is_stored_and_the_document_queue_marks_it_failed(db, store, company, cut_at):
     """The header can't tell a cut-off download from a good one; opening the file does. A file
     that opens with no pages is as unreadable as one that doesn't open."""
     from analekh.docs.pipeline import process_documents
@@ -95,9 +91,7 @@ def test_a_truncated_pdf_is_stored_and_the_document_queue_marks_it_failed(
     assert run.failed == 1 and filing.status == "failed" and filing.meta.get("error")
 
 
-def test_a_feed_item_with_an_error_page_is_given_up_at_once_and_the_queue_goes_on(
-    db, store, company
-):
+def test_a_feed_item_with_an_error_page_is_given_up_at_once_and_the_queue_goes_on(db, store, company):
     from analekh.ingest.pipeline import process_feed_items
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -105,9 +99,7 @@ def test_a_feed_item_with_an_error_page_is_given_up_at_once_and_the_queue_goes_o
             return httpx.Response(200, content=b"<html>Service Unavailable</html>")
         return httpx.Response(200, content=make_pdf(["Investor presentation"]))
 
-    client = PoliteClient(
-        transport=httpx.MockTransport(handler), backoff_base=0, rate_per_second=100_000
-    )
+    client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0, rate_per_second=100_000)
     items = []
     for name in ("bad.pdf", "good.pdf"):
         item = FeedItem(

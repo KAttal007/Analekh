@@ -27,29 +27,16 @@ from analekh.xbrl.elements import EARNING_ASSETS, FUNDING
 HUNDRED = Decimal(100)
 CENT = Decimal("0.01")  # ratios are shown to 0.01%
 ANNUALISE = Decimal(4)  # quarters in a year
-# Balance sheets further apart than a half-year (and a little) are not interpolated between.
 MAX_GAP = timedelta(days=200)
-# A ratio beyond this is a tagging or unit problem in the filing, not a margin: left out.
 PLAUSIBLE = Decimal(100)
-# Lender's NIM needs interest to be most of income. Seen September 2026: banks and NBFCs 74-100% of
-# revenue from operations, SBI Card 49% (card fees), IRFC (lessor) 9%. Below the line: dash, never a
-# negative margin for a company that doesn't earn interest.
 MIN_INTEREST_SHARE = Decimal("0.4")
 BANK_SECTORS = {"Banking Services"}  # banks and NBFCs (LSEG's group also holds NBFCs)
 FINANCE_SECTORS = {"Investment Banking & Investment Services"}  # brokers, AMCs, holdings, more
 
-# Margin shown by finance-sector companies (owner, 2026-10-26): banks and NBFCs net interest margin
-# ("nim"); brokers, wealth managers, asset managers core pre-provision profit margin ("cpppm").
-# NSE and LSEG sector lists group those two with investment holding companies and exchanges, no
-# field separates them, so the second group is named here. Finance companies not named (holding
-# companies, exchanges, shells): neither, a dash.
 FEE_FINANCE = frozenset(
     {
-        # Asset managers and alternative-asset managers
         "NAM-INDIA", "ABSLAMC", "HDFCAMC", "ICICIAMC", "SBIFUNDS", "UTIAMC", "CRAMC", "GAJA", "IVC",
-        # Wealth managers and distributors
         "360ONE", "ANANDRATHI", "NUVAMA", "WEALTH", "PRUDENT",
-        # Brokers, investment and merchant banks
         "5PAISA", "ANGELONE", "ARIHANTCAP", "ARSSBL", "BIRLAMONEY", "DBSTOCKBRO", "GEOJITFSL",
         "IIFLCAPS", "KHANDSE", "LKPSEC", "MONARCH", "MOTILALOFS", "SHAREINDIA", "SMCGLOBAL",
         "ALMONDZ", "INDOTHAI", "INVENTURE", "EMKAY", "CHOICEIN", "DAMCAPITAL", "SYSTMTXC",
@@ -57,11 +44,9 @@ FEE_FINANCE = frozenset(
         "JMFINANCIL", "ONELIFECAP", "GANGESSECU", "SHARDUL", "PALASHSECU",
     }
 )  # fmt: skip
-# In the finance sector but lenders: a primary dealer's income is interest on government bonds.
 LENDERS_IN_FINANCE = frozenset({"PNBGILTS", "EDELWEISS", "TFL", "LADDERUP", "APOORVA"})
 
 
-# Exchanges sit in the finance sector but run an operating business: EBITDA margin like anyone's.
 EXCHANGES = frozenset({"IEX", "MCX"})
 
 
@@ -82,7 +67,6 @@ def lender_kind(company: Company) -> Literal["nim", "cpppm", "ebitda", "holding"
         company.sector_lseg,
     }:
         return "nim"
-    # What is left of the finance sectors: holding companies and investment shells.
     if {"Holding Companies"} & {company.sector, company.sector_lseg} or FINANCE_SECTORS & {
         company.sector,
         company.sector_lseg,
@@ -99,12 +83,9 @@ LABELS = {
     "spread": "Spread",
 }
 NOTES = {
-    "nim": "(Interest earned - interest expense) x 4 / average interest-earning assets "
-    "(advances or loans, investments, bank and call money balances). Computed, not the "
-    "lender's reported NIM",
+    "nim": "(Interest earned - interest expense) x 4 / average interest-earning assets (advances or loans, investments, bank and call money balances). Computed, not the lender's reported NIM",
     "yield": "Interest earned x 4 / average interest-earning assets",
-    "cob": "Interest expense x 4 / average deposits, borrowings, debt securities and "
-    "subordinated liabilities",
+    "cob": "Interest expense x 4 / average deposits, borrowings, debt securities and subordinated liabilities",
     "spread": "Yield - cost of borrowing",
 }
 AVERAGE_NOTE = (
@@ -144,9 +125,7 @@ class Ratios:
         return out
 
 
-def balances(
-    session: Session, company_ids: list[int], suspect: set[int]
-) -> dict[tuple[int, bool], Balances]:
+def balances(session: Session, company_ids: list[int], suspect: set[int]) -> dict[tuple[int, bool], Balances]:
     """{(company id, consolidated): {element: {date: value}}} for the earning-asset and funding
     lines, leaving out filings V11 suspects of the wrong unit."""
     out: dict[tuple[int, bool], Balances] = {}
@@ -171,9 +150,7 @@ def balances(
     for r in rows:
         if r.value is None or r.filing_id in suspect:
             continue
-        out.setdefault((r.company_id, bool(r.consolidated)), {}).setdefault(r.element, {})[
-            r.period_end
-        ] = r.value
+        out.setdefault((r.company_id, bool(r.consolidated)), {}).setdefault(r.element, {})[r.period_end] = r.value
     return out
 
 
@@ -190,9 +167,7 @@ def balance_at(points: Points, at: date) -> Decimal | None:
     return points[before] + (points[after] - points[before]) * share
 
 
-def average(
-    parts: Balances, names: tuple[str, ...], opening: date, closing: date
-) -> Decimal | None:
+def average(parts: Balances, names: tuple[str, ...], opening: date, closing: date) -> Decimal | None:
     """Sum over the lines of the average of opening and closing balances. A line known at one end
     and not the other leaves the whole average unknown, rather than understated."""
     total: Decimal | None = None

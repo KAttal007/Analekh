@@ -24,12 +24,9 @@ from analekh.db.models import AuditEntry
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# The sign-in page must not be cached or leak its address in a Referer header.
 NO_STORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 BAD_CREDENTIALS = "Email or password is incorrect."
 FIRST_EXPIRED = "This first password has expired. Ask an admin to send a new one."
-# A cap on every password field so a huge body is refused on arrival. The rules' own maximum is
-# checked in the route (before any hashing) so every route gives the same message for it.
 FIELD_CAP = 128
 
 
@@ -86,7 +83,6 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
             headers=NO_STORE,
         )
     if result.reason != "ok" or result.user is None or result.token is None:
-        # Fail closed: a reason this route does not know yet never reaches the cookie below.
         return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
     for name, value in NO_STORE.items():
         response.headers[name] = value
@@ -111,9 +107,7 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
 
 def _signed_out() -> Response:
     out = Response(status_code=204, headers=NO_STORE)
-    out.delete_cookie(
-        SESSION_COOKIE, path="/", httponly=True, secure=_cookie_secure(), samesite="strict"
-    )
+    out.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=_cookie_secure(), samesite="strict")
     return out
 
 
@@ -173,9 +167,7 @@ def first_password(body: FirstPasswordIn, db: DB, current: CurrentUser) -> Respo
     """Choose your own password in place of the emailed one. Committed after a wrong first
     password too, so the failure count persists."""
     if not current.must_change_password:
-        return JSONResponse(
-            {"detail": "No password change is pending."}, status_code=400, headers=NO_STORE
-        )
+        return JSONResponse({"detail": "No password change is pending."}, status_code=400, headers=NO_STORE)
     try:  # the rules come first: nothing is hashed, verified or counted for a weak password
         validate_new_password(body.new_password)
     except PasswordRuleError as exc:
@@ -199,9 +191,7 @@ def first_password(body: FirstPasswordIn, db: DB, current: CurrentUser) -> Respo
             headers=NO_STORE,
         )
     if outcome == "not_pending":
-        return JSONResponse(
-            {"detail": "No password change is pending."}, status_code=400, headers=NO_STORE
-        )
+        return JSONResponse({"detail": "No password change is pending."}, status_code=400, headers=NO_STORE)
     return _signed_out()
 
 
@@ -252,7 +242,5 @@ def reset_confirm(body: ResetConfirmIn, db: DB) -> Response:
         )
     db.commit()
     if not ok:
-        return JSONResponse(
-            {"detail": "That code is not valid."}, status_code=400, headers=NO_STORE
-        )
+        return JSONResponse({"detail": "That code is not valid."}, status_code=400, headers=NO_STORE)
     return Response(status_code=204, headers=NO_STORE)

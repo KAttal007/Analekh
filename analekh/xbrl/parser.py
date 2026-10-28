@@ -132,10 +132,7 @@ def dims_hash(dimensions: dict[str, str]) -> str:
 
 
 def parse_instance(data: bytes) -> ParsedFiling:
-    # XXE-safe: entities are never expanded and nothing is fetched (no_network); lxml's wheel
-    # carries its own libxml2, not the image's.
     parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True)
-    # nosemgrep
     root = etree.fromstring(data, parser)
 
     schema_ref = None
@@ -213,10 +210,7 @@ def _dedupe(facts: list[ParsedFact], warnings: list[str]) -> list[ParsedFact]:
         if first is None:
             seen[key] = f
         elif first.value != f.value:
-            warnings.append(
-                f"{f.element}: contexts {first.context_ref} and {f.context_ref} "
-                f"disagree ({first.value} vs {f.value}); kept the first"
-            )
+            warnings.append(f"{f.element}: contexts {first.context_ref} and {f.context_ref} disagree ({first.value} vs {f.value}); kept the first")
     return list(seen.values())
 
 
@@ -225,12 +219,7 @@ def _parse_context(el: etree._Element) -> Context:
     if period is None:
         raise ValueError(f"context {el.get('id')} has no period")
     instant = period.findtext(f"{{{XBRLI}}}instant")
-    # A typed member's value sits in a child element (integrated filings break totals down this
-    # way, e.g. OtherCurrentFinancialAssetsDomain1..3), an explicit member's in its own text.
-    dims = {
-        m.get("dimension", ""): "".join(m.itertext()).strip()
-        for m in el.iter(f"{{{XBRLDI}}}explicitMember", f"{{{XBRLDI}}}typedMember")
-    }
+    dims = {m.get("dimension", ""): "".join(m.itertext()).strip() for m in el.iter(f"{{{XBRLDI}}}explicitMember", f"{{{XBRLDI}}}typedMember")}
     if instant:
         return Context(el.get("id", ""), None, date.fromisoformat(instant.strip()), True, dims)
     start = period.findtext(f"{{{XBRLI}}}startDate") or ""

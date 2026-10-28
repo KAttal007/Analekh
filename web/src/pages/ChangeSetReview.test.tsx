@@ -9,7 +9,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Today at 10:42 on the viewer's clock, so the banner reads "10:42" in any time zone.
 const at1042 = () => {
   const d = new Date();
   d.setHours(10, 42, 0, 0);
@@ -72,8 +71,7 @@ const show = () =>
     </Routes>,
     "/change-sets/3",
   );
-const disabled = (name: string | RegExp) =>
-  (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
+const disabled = (name: string | RegExp) => (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
 
 it("held by a colleague: banner, and every decision and Apply are off", async () => {
   mockApi(routes(() => ({ status: 200, body: HELD })));
@@ -171,8 +169,7 @@ it("a stale 409 on Apply says so, keeps Apply off and links back to the models",
 });
 
 it("a 503 recalc_unavailable on Apply shows the server's message and leaves Apply on", async () => {
-  const DOWN =
-    "Recalculation is unavailable right now. Try Apply again in a few minutes, or apply from Excel with the Analekh bridge.";
+  const DOWN = "Recalculation is unavailable right now. Try Apply again in a few minutes, or apply from Excel with the Analekh bridge.";
   mockApi(
     routes(() => ({ status: 200, body: null }), ANALYST, {
       "GET /api/change-sets/3": () => ({

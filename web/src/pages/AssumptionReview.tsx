@@ -12,9 +12,6 @@ export function AssumptionReview() {
   const id = Number(useParams().id);
   const qc = useQueryClient();
   const [edits, setEdits] = useState<Record<number, string>>({});
-  // Building is one of the three actions a colleague's lock holds off (model-locks stage 2).
-  // When a colleague lets go, their work may have decided rows: reload them before the buttons
-  // come back, so a stale "pending" row cannot be accepted over their decision.
   const gate = useModelLock(id, useLockPollMs(), {
     freedTo: `/models/${id}/assumptions`,
     refreshOnFree: [["assumptions", id]],
@@ -26,14 +23,11 @@ export function AssumptionReview() {
   };
   const list = useQuery({ queryKey: ["assumptions", id], queryFn: () => api.assumptions(id) });
   const decide = useMutation({
-    mutationFn: (body: Parameters<typeof api.decideAssumptions>[1]) =>
-      api.decideAssumptions(id, body),
+    mutationFn: (body: Parameters<typeof api.decideAssumptions>[1]) => api.decideAssumptions(id, body),
     onSuccess: (data) => qc.setQueryData(["assumptions", id], data),
     onError: (e) => {
       onLocked(e);
-      // Already decided by someone else: reload, so the stale rows give way to theirs.
-      if (e instanceof ApiError && e.status === 409)
-        void qc.invalidateQueries({ queryKey: ["assumptions", id] });
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: ["assumptions", id] });
     },
   });
   const finalize = useMutation({ mutationFn: () => api.finalize(id), onError: onLocked });
@@ -53,10 +47,7 @@ export function AssumptionReview() {
         subtitle="Proposed drivers for the forecast, each with its reasoning. Accept or edit every one; the model is only built once checks pass."
         actions={
           !hidden && (
-            <button
-              onClick={() => decide.mutate({ decisions: [], accept_all: true })}
-              disabled={!pending || off}
-            >
+            <button onClick={() => decide.mutate({ decisions: [], accept_all: true })} disabled={!pending || off}>
               <Icon name="check" />
               Accept all
             </button>
@@ -103,20 +94,13 @@ export function AssumptionReview() {
                         >
                           Accept
                         </button>
-                        <input
-                          className="input-sm"
-                          placeholder="Edit value"
-                          disabled={off}
-                          onChange={(e) => setEdits({ ...edits, [a.id]: e.target.value })}
-                        />
+                        <input className="input-sm" placeholder="Edit value" disabled={off} onChange={(e) => setEdits({ ...edits, [a.id]: e.target.value })} />
                         <button
                           className="btn-sm"
                           disabled={!edits[a.id] || off}
                           onClick={() =>
                             decide.mutate({
-                              decisions: [
-                                { id: a.id, decision: "edited", final_value: edits[a.id] },
-                              ],
+                              decisions: [{ id: a.id, decision: "edited", final_value: edits[a.id] }],
                               accept_all: false,
                             })
                           }
@@ -138,15 +122,9 @@ export function AssumptionReview() {
         </div>
       )}
       <div className="action-bar">
-        <span className="muted">
-          {pending ? `${pending} still to decide` : "All assumptions decided"}
-        </span>
+        <span className="muted">{pending ? `${pending} still to decide` : "All assumptions decided"}</span>
         {!hidden && (
-          <button
-            className="btn-primary"
-            onClick={() => finalize.mutate()}
-            disabled={pending > 0 || rows.length === 0 || finalize.isPending || off}
-          >
+          <button className="btn-primary" onClick={() => finalize.mutate()} disabled={pending > 0 || rows.length === 0 || finalize.isPending || off}>
             Build model
           </button>
         )}

@@ -63,13 +63,11 @@ def main() -> None:
         print(f"universe {label}: {len(listed)} companies")
     spike["universe"] = universe
 
-    # 2. Second feed: subject census of announcements
     ann = parse_rss(client.get(RSS_BASE + FEEDS["announcements"][0]).content)
     subjects = Counter((i.title or "").split(" - ")[-1].strip()[:80] for i in ann)
     spike["announcements"] = {"items": len(ann), "top_subjects": subjects.most_common(30)}
     print(f"announcements: {len(ann)} items")
 
-    # 3. Results XBRL
     feed = client.get(RSS_BASE + FEEDS["financial_results"][0])
     (out / "Financial_Results.xml").write_bytes(feed.content)
     items = parse_rss(feed.content)
@@ -114,10 +112,7 @@ def main() -> None:
         )
         fails = [r.rule for r in report.failures]
         skips = [r.rule for r in report.results if r.status == "skip"]
-        print(
-            f"- {item.title}: {len(parsed.facts)} facts, {taxonomy}, "
-            f"fail={fails or '-'} skip={skips or '-'}"
-        )
+        print(f"- {item.title}: {len(parsed.facts)} facts, {taxonomy}, fail={fails or '-'} skip={skips or '-'}")
 
     spike["results"] = summary
 
@@ -129,10 +124,7 @@ def main() -> None:
             for el, n in counter.most_common():
                 w.writerow([tax, el, n])
     print(f"\nwrote {out}/summary.json and elements.csv")
-    print(
-        "Next: compare 10 values per file against the published results PDF by hand,"
-        " then update analekh/xbrl/elements.py (# verify markers) and tests/fixtures/real/."
-    )
+    print("Next: compare 10 values per file against the published results PDF by hand, then update analekh/xbrl/elements.py (# verify markers) and tests/fixtures/real/.")
 
 
 if __name__ == "__main__":

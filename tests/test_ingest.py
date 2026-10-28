@@ -75,25 +75,17 @@ def test_client_refuses_other_hosts():
 
 
 def test_client_allows_only_the_integrated_filing_lookup_on_nseindia():
-    client = PoliteClient(
-        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"{}")), backoff_base=0
-    )
+    client = PoliteClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"{}")), backoff_base=0)
     assert client.get("https://www.nseindia.com/").status == 200
-    assert (
-        client.get("https://www.nseindia.com/api/integrated-filing-results?symbol=X").status == 200
-    )
+    assert client.get("https://www.nseindia.com/api/integrated-filing-results?symbol=X").status == 200
     for path in ("/api/anything", "/get-quotes/equity", "/companies-listing/corporate-filings"):
         with pytest.raises(DisallowedHostError):
             client.get("https://www.nseindia.com" + path)
 
 
 def test_client_allows_niftyindices_constituent_lists_only():
-    client = PoliteClient(
-        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x")), backoff_base=0
-    )
-    assert (
-        client.get("https://niftyindices.com/IndexConstituent/ind_nifty500list.csv").status == 200
-    )
+    client = PoliteClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x")), backoff_base=0)
+    assert client.get("https://niftyindices.com/IndexConstituent/ind_nifty500list.csv").status == 200
     with pytest.raises(DisallowedHostError):
         client.get("https://niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString")
 
@@ -111,9 +103,6 @@ def test_client_retries_then_succeeds():
     client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
     result = client.get("https://nsearchives.nseindia.com/content/RSS/Financial_Results.xml")
     assert result.content == b"ok" and result.etag == "abc" and calls["n"] == 3
-
-
-# --- database integration (needs PostgreSQL) ---------------------------------------------------
 
 
 @pytest.fixture
@@ -217,9 +206,7 @@ def test_xml_links_on_other_feeds_are_closed_without_a_request(db, store, compan
 
     client = _CountingClient(b"<?xml version='1.0'?><x/>")
     for feed in ("announcements", "board_meetings", "insider_trading", "related_party"):
-        item = _feed_item(
-            db, company, feed, f"https://nsearchives.nseindia.com/corporate/xbrl/{feed}.xml", feed
-        )
+        item = _feed_item(db, company, feed, f"https://nsearchives.nseindia.com/corporate/xbrl/{feed}.xml", feed)
         assert process_feed_item(db, store, client, item) is None
         assert item.processed_at is not None and item.error is None
     assert client.calls == []
@@ -269,9 +256,7 @@ def test_xml_on_the_results_feed_is_still_fetched(db, store, company):
     from analekh.ingest.pipeline import process_feed_item
 
     client = _CountingClient(q1_instance())
-    item = _feed_item(
-        db, company, "financial_results", "https://nsearchives.nseindia.com/x/q1.xml", "fr-1"
-    )
+    item = _feed_item(db, company, "financial_results", "https://nsearchives.nseindia.com/x/q1.xml", "fr-1")
     filing = process_feed_item(db, store, client, item)
     assert filing is not None and len(client.calls) == 1
 
@@ -335,8 +320,6 @@ def test_newest_filed_value_wins_whatever_the_download_order(db, store, company)
 
     from analekh.restatements import revisions
 
-    # The revision is downloaded first, the original afterwards (88 such cases were in use with
-    # the original's numbers before this): the revision's numbers must still be the ones in use.
     revised = ingest_results_xbrl(
         db,
         store,
@@ -445,7 +428,6 @@ def test_s3_store_write_marks_gzip_and_overwrites():
 
 
 def test_identity_headers_keep_contact_out_of_user_agent():
-    # NSE's CDN stalls any request whose User-Agent holds an email or a URL.
     assert identity_headers("Analekh/0.1 (contact: me@example.in)") == {
         "User-Agent": "Analekh/0.1",
         "From": "me@example.in",
@@ -619,9 +601,7 @@ def test_fetch_latest_makes_one_list_request_and_stores_only_new_filings(db, sto
     first = fetch_latest(db, store, client)
     assert first.new == 1 and first.unknown_symbols == ["NOTOURS"]
     (req,) = lookups
-    assert "symbol" not in req.url.params and req.url.params["size"] == str(
-        get_settings().latest_page_size
-    )
+    assert "symbol" not in req.url.params and req.url.params["size"] == str(get_settings().latest_page_size)
 
     second = fetch_latest(db, store, client)  # same list again: nothing new to download
     assert second.new == 0 and len(lookups) == 2
@@ -644,7 +624,6 @@ def test_results_history_list_rows_and_path():
     from analekh.ingest.http import path_allowed
     from analekh.ingest.integrated import _history_row
 
-    # TCS, as NSE's financial-results list writes it (2026-10-15 sample).
     row = {
         "symbol": "TCS",
         "toDate": "31-Dec-2020",
@@ -656,15 +635,11 @@ def test_results_history_list_rows_and_path():
     assert f.period_end == date(2020, 12, 31) and f.consolidated is False and f.xbrl_url
     assert f.broadcast_at is not None and f.broadcast_at.hour == 15  # 20:42 IST in UTC
     assert _history_row({**row, "consolidated": "Consolidated"}).consolidated is True
-    no_file = _history_row(
-        {**row, "xbrl": "-", "broadCastDate": None, "filingDate": "08-Jan-2021 20:42"}
-    )
+    no_file = _history_row({**row, "xbrl": "-", "broadCastDate": None, "filingDate": "08-Jan-2021 20:42"})
     assert no_file.xbrl_url is None and no_file.broadcast_at is not None
     dash = _history_row({**row, "xbrl": "https://nsearchives.nseindia.com/corporate/xbrl/-"})
     assert dash.xbrl_url is None  # NSE's "no XBRL" link: never requested
-    web = (
-        "https://nsearchives.nseindia.com/corporate/xbrl/INDAS_65941_381477_08012021084249_WEB.xml"
-    )
+    web = "https://nsearchives.nseindia.com/corporate/xbrl/INDAS_65941_381477_08012021084249_WEB.xml"
     assert _history_row({**row, "xbrl": web}).xbrl_url is None  # incomplete older file: skipped
     assert path_allowed("www.nseindia.com", "/api/corporates-financial-results")
     assert not path_allowed("www.nseindia.com", "/api/corporate-announcements")
@@ -675,14 +650,10 @@ def test_incomplete_older_file_is_rejected_not_half_stored(db, store, company):
 
     from analekh.ingest.pipeline import IncompleteXbrl
 
-    # NSE's older "_WEB" publications leave out the main contexts that most values point to.
     data = q2_instance().decode()
     start = data.index('<xbrli:context id="OneD">')
     end = data.index("</xbrli:context>", start) + len("</xbrli:context>")
     broken = (data[:start] + data[end:]).encode()
     with pytest.raises(IncompleteXbrl):
         ingest_results_xbrl(db, store, company, broken)
-    assert (
-        db.scalar(select(func.count()).select_from(Filing).where(Filing.company_id == company.id))
-        == 0
-    )
+    assert db.scalar(select(func.count()).select_from(Filing).where(Filing.company_id == company.id)) == 0

@@ -34,8 +34,6 @@ def sect_of(child):
     return copy.deepcopy(child.find(".//" + qn("w:sectPr")))
 
 
-# Section breaks of the template: before the architecture chapter (portrait) and after Figure 1
-# (landscape); the body's own sectPr (portrait) stays at the end.
 breaks = [k for k in kids if k.tag == qn("w:p") and k.find(".//" + qn("w:sectPr")) is not None]
 portrait_break, landscape_break = sect_of(breaks[0]), sect_of(breaks[1])
 title_block = [copy.deepcopy(k) for k in kids[:3]]  # Analekh / tagline / Technical Design Document
@@ -157,11 +155,7 @@ def paragraph(text):
 def heading(level, text, page_break=True):
     style = {1: "Heading1", 2: "Heading2", 3: "Heading3"}[level]
     p = OxmlElement("w:p")
-    pp = (
-        copy.deepcopy(first_style_ppr.get(style))
-        if style in first_style_ppr
-        else OxmlElement("w:pPr")
-    )
+    pp = copy.deepcopy(first_style_ppr.get(style)) if style in first_style_ppr else OxmlElement("w:pPr")
     if not page_break:
         for e in pp.findall(qn("w:pageBreakBefore")):
             pp.remove(e)
@@ -251,10 +245,7 @@ def cell_border(tcpr):
 def table(rows, width=9638):
     header, body_rows = rows[0], rows[1:]
     ncol = len(header)
-    weights = [
-        max(6, min(60, max(len(re.sub(r"[*`]", "", r[i] if i < len(r) else "")) for r in rows)))
-        for i in range(ncol)
-    ]
+    weights = [max(6, min(60, max(len(re.sub(r"[*`]", "", r[i] if i < len(r) else "")) for r in rows))) for i in range(ncol)]
     total = sum(weights)
     widths = [max(900, int(width * w / total)) for w in weights]
     widths[-1] += width - sum(widths)
@@ -358,7 +349,6 @@ with open(MARKDOWN, encoding="utf-8") as fh:
 for el in title_block:
     add(el)
 i = 0
-# Skip the Markdown title block (it is copied from the template): up to the first blank line
 # after "Technical Design Document".
 while not lines[i].startswith("Technical Design Document"):
     i += 1
@@ -421,11 +411,7 @@ while i < len(lines):
         continue
     if s.startswith("- "):
         first = re.sub(r"[*`]", "", s[2:])
-        num_id = (
-            "2"
-            if in_contents
-            else next((v for k, v in NUMBERED.items() if first.startswith(k)), "3")
-        )
+        num_id = "2" if in_contents else next((v for k, v in NUMBERED.items() if first.startswith(k)), "3")
         while i < len(lines) and lines[i].strip().startswith("- "):
             list_item(lines[i].strip()[2:], num_id)
             i += 1
@@ -446,26 +432,19 @@ while i < len(lines):
             after_break, landscape_open = True, False
         i += 1
         continue
-    # Ordinary paragraph: join wrapped lines until a blank line or a block start.
     para = [s]
     i += 1
-    while (
-        i < len(lines)
-        and lines[i].strip()
-        and not re.match(r"^(#|\||- |```|\*Figure|\d+\. )", lines[i].strip())
-    ):
+    while i < len(lines) and lines[i].strip() and not re.match(r"^(#|\||- |```|\*Figure|\d+\. )", lines[i].strip()):
         para.append(lines[i].strip())
         i += 1
     paragraph(" ".join(para))
 
-# Headers and footers come from the template: bring their version up to date.
 for sec in d.sections:
     for part in (sec.footer, sec.header, sec.first_page_footer, sec.first_page_header):
         for t in part._element.iter(qn("w:t")):
             if t.text and OLD in t.text:
                 t.text = t.text.replace(OLD, NEW)
 
-# Core properties
 cp = d.core_properties
 cp.title = "Analekh Technical Design Document"
 cp.subject = f"Version {NEW}"

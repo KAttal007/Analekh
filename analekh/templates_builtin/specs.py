@@ -53,18 +53,14 @@ NBFC = TemplateSpec(
             "input",
             "=ROUND({c}[[" + REV + "]]*Drivers!{c}{{Other expenses / revenue}},2)",
         ),
-        Line(
-            TE, "xbrl:Expenses", "input", "={c}[[" + FC + "]]+{c}[[" + EMP + "]]+{c}[[" + OTH + "]]"
-        ),
+        Line(TE, "xbrl:Expenses", "input", "={c}[[" + FC + "]]+{c}[[" + EMP + "]]+{c}[[" + OTH + "]]"),
         Line(
             PBT,
             None,
             "={c}[[" + TI + "]]-{c}[[" + TE + "]]",
             "={c}[[" + TI + "]]-{c}[[" + TE + "]]",
         ),
-        Line(
-            TAX, "xbrl:TaxExpense", "input", "=ROUND({c}[[" + PBT + "]]*Drivers!{c}{{Tax rate}},2)"
-        ),
+        Line(TAX, "xbrl:TaxExpense", "input", "=ROUND({c}[[" + PBT + "]]*Drivers!{c}{{Tax rate}},2)"),
         Line(PAT, "xbrl:ProfitLossForPeriod", "input", "={c}[[" + PBT + "]]-{c}[[" + TAX + "]]"),
     ],
     drivers=[
@@ -135,20 +131,8 @@ CONSUMER = TemplateSpec(
         Line(
             "EBITDA",
             None,
-            "={c}[["
-            + REV
-            + "]]-{c}[[Cost of materials consumed]]-{c}[["
-            + EMP
-            + "]]-{c}[["
-            + OTH
-            + "]]",
-            "={c}[["
-            + REV
-            + "]]-{c}[[Cost of materials consumed]]-{c}[["
-            + EMP
-            + "]]-{c}[["
-            + OTH
-            + "]]",
+            "={c}[[" + REV + "]]-{c}[[Cost of materials consumed]]-{c}[[" + EMP + "]]-{c}[[" + OTH + "]]",
+            "={c}[[" + REV + "]]-{c}[[Cost of materials consumed]]-{c}[[" + EMP + "]]-{c}[[" + OTH + "]]",
         ),
         Line(
             "Depreciation and amortisation",
@@ -161,15 +145,9 @@ CONSUMER = TemplateSpec(
             PBT,
             "xbrl:ProfitBeforeTax",
             "input",
-            "={c}[[EBITDA]]+{c}[["
-            + OI
-            + "]]-{c}[[Depreciation and amortisation]]-{c}[["
-            + FC
-            + "]]",
+            "={c}[[EBITDA]]+{c}[[" + OI + "]]-{c}[[Depreciation and amortisation]]-{c}[[" + FC + "]]",
         ),
-        Line(
-            TAX, "xbrl:TaxExpense", "input", "=ROUND({c}[[" + PBT + "]]*Drivers!{c}{{Tax rate}},2)"
-        ),
+        Line(TAX, "xbrl:TaxExpense", "input", "=ROUND({c}[[" + PBT + "]]*Drivers!{c}{{Tax rate}},2)"),
         Line(PAT, "xbrl:ProfitLossForPeriod", "input", "={c}[[" + PBT + "]]-{c}[[" + TAX + "]]"),
     ],
     drivers=[

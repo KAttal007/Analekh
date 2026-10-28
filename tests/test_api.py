@@ -31,7 +31,6 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def client(db, store):
     app.dependency_overrides[get_session] = lambda: db
     app.dependency_overrides[get_store] = lambda: store
-    # Sign-in is tested in test_auth_api.py; here every request is a fixed admin's.
     admin = UserRow(id="local", email="admin@test.local", name="Admin", role="admin")
     if db.get(UserRow, "local") is None:  # a saved user: model locks refer to it
         db.add(admin)
@@ -101,9 +100,7 @@ def test_facts_fall_back_to_standalone_when_company_files_no_consolidated(client
     ingest_results_xbrl(db, store, solo, standalone)
     facts = client.get("/companies/SOLO/facts", params={"elements": "RevenueFromOperations"})
     assert {f["value"] for f in facts.json()} == {"500000000.0000"}  # quarter and YTD
-    asked = client.get(
-        "/companies/SOLO/facts", params={"elements": "RevenueFromOperations", "consolidated": True}
-    )
+    asked = client.get("/companies/SOLO/facts", params={"elements": "RevenueFromOperations", "consolidated": True})
     assert asked.json() == []
 
 
@@ -125,7 +122,6 @@ def test_start_coverage_assumptions_finalize_then_review_and_apply(client, db, s
     done = client.post(f"/models/{model_id}/finalize").json()
     assert done["status"] == "built" and done["checks"]["passed"] and done["version"] == 1
 
-    # Next results: change set on the built model, reviewed and applied as a new version.
     nxt = ingest_results_xbrl(db, store, demo, quarter_instance(date(2026, 12, 31), **history(8)))
     model = db.get(Model, model_id)
     v1 = client.get(f"/models/{model_id}/versions/1")
@@ -172,11 +168,7 @@ def test_template_upload_confirm_test_activate(client, demo):
     ).json()
     assert t["status"] == "draft" and t["mapping"]["rows"]
     assert client.post(f"/templates/{t['id']}/activate").status_code == 409
-    mapping = t["mapping"] | {
-        "checks": [
-            {"sheet": "Checks", "cell_label": "All checks pass", "expect": 1, "tolerance": 0}
-        ]
-    }
+    mapping = t["mapping"] | {"checks": [{"sheet": "Checks", "cell_label": "All checks pass", "expect": 1, "tolerance": 0}]}
     assert client.post(f"/templates/{t['id']}/mapping", json=mapping).status_code == 200
     test = client.post(f"/templates/{t['id']}/test", json={"symbol": "DEMOFIN"}).json()
     assert test["result"] == "pass", test["issues"]
@@ -279,19 +271,11 @@ def test_glance_lines_changes_and_derived_ebitda(client, db, store):
     assert g["quarter_label"] == "Q2 FY27" and g["previous_end"] == "2026-06-30"
     lines = {line["key"]: line for line in g["lines"]}
     assert float(lines["revenue"]["qoq"]) == 11.1 and float(lines["revenue"]["yoy"]) == 25.0
-    # EBITDA = PBT 25 + finance 2 + depreciation 3 - other income 5 = 25 crore
-    assert (
-        float(lines["ebitda"]["value"]) == 25 * crore and "other income" in lines["ebitda"]["note"]
-    )
-    assert (
-        float(lines["ebitda_margin"]["value"]) == 25.0 and lines["ebitda_margin"]["kind"] == "pct"
-    )
-    # Margins change in basis points, worked out from unrounded margins: EBITDA margin 25/100 =
-    # 25.0% against 25/90 = 27.78% is -278 bps; net margin is 20% in all three quarters.
+    assert float(lines["ebitda"]["value"]) == 25 * crore and "other income" in lines["ebitda"]["note"]
+    assert float(lines["ebitda_margin"]["value"]) == 25.0 and lines["ebitda_margin"]["kind"] == "pct"
     assert lines["ebitda_margin"]["qoq"] == "-278" and lines["net_margin"]["qoq"] == "0"
     assert "exceptional_items" not in lines  # not tagged: no row
 
-    # A lender's finance costs are its cost of business: no EBITDA lines for financial sectors.
     glow.sector = "Banking Services"
     db.flush()
     lender = {line["key"] for line in client.get("/companies/GLOW/glance").json()["lines"]}
@@ -315,33 +299,22 @@ def test_glance_for_a_life_insurer_shows_premium_and_ratios(client, db, store):
             "PersistencyRatio13ThMonth": "0.8077",
             "ExpensesOfManagementRatio": "0.2038",
         }
-        return build_instance(
-            q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone"
-        )
+        return build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone")
 
-    ingest_results_xbrl(
-        db, store, life, quarter(date(2026, 4, 1), date(2026, 6, 30), 2000, 28, "1.9803")
-    )
-    ingest_results_xbrl(
-        db, store, life, quarter(date(2026, 7, 1), date(2026, 9, 30), 2500, 43, "1.8041")
-    )
+    ingest_results_xbrl(db, store, life, quarter(date(2026, 4, 1), date(2026, 6, 30), 2000, 28, "1.9803"))
+    ingest_results_xbrl(db, store, life, quarter(date(2026, 7, 1), date(2026, 9, 30), 2500, 43, "1.8041"))
     assert life.results_taxonomy == "life_insurance"  # detected from the premium line items
     g = client.get("/companies/LIFEX/glance").json()
     lines = {line["key"]: line for line in g["lines"]}
     assert list(lines)[:2] == ["gross_premium", "revenue"]
     assert lines["revenue"]["label"] == "Net premium income"
     assert float(lines["revenue"]["qoq"]) == 25.0
-    # Ratios read as percentages, and move in bps: 180.41% against 198.03% is -1,762 bps.
-    assert (
-        float(lines["solvency_ratio"]["value"]) == 180.4
-        and lines["solvency_ratio"]["qoq"] == "-1762"
-    )
+    assert float(lines["solvency_ratio"]["value"]) == 180.4 and lines["solvency_ratio"]["qoq"] == "-1762"
     assert "150%" in lines["solvency_ratio"]["note"]
     assert "ebitda" not in lines and "persistency_61m" not in lines  # not tagged: no row
 
 
 def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store):
-    # Canara Robeco AMC: its first results after listing (Sept 2025) cover April-September only.
     amc = Company(
         nse_symbol="HALFAMC",
         name="Half Year AMC Limited",
@@ -356,18 +329,13 @@ def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store)
         (date(2025, 4, 1), date(2025, 9, 30)),
         (date(2026, 7, 1), date(2026, 9, 30)),
     ):
-        data = build_instance(
-            q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone"
-        )
+        data = build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q, nature="Standalone")
         ingest_results_xbrl(db, store, amc, data)
 
     g = client.get("/companies/HALFAMC/glance").json()
     revenue = next(line for line in g["lines"] if line["key"] == "revenue")
     assert revenue["yoy"] is None
-    assert g["year_ago_note"] == (
-        "Q2 FY26 wasn't filed as a quarter: the standalone results for 30 Sep 2025 cover "
-        "1 Apr 2025 to 30 Sep 2025 only"
-    )
+    assert g["year_ago_note"] == ("Q2 FY26 wasn't filed as a quarter: the standalone results for 30 Sep 2025 cover 1 Apr 2025 to 30 Sep 2025 only")
     assert g["previous_note"] == "No standalone results for Q1 FY27 on record"
 
     params = {"quarter_end": "2026-09-30", "sector": "Half-Year AMC Test Sector"}
@@ -377,8 +345,6 @@ def test_year_ago_filed_as_a_half_year_explains_the_blank_yoy(client, db, store)
 
 
 def test_missing_comparison_quarter_says_why(client, db, store):
-    # Listed mid-year, first results for the half-year only (Canara Robeco AMC, September 2025):
-    # the year-ago quarter was never filed on its own, so YoY is a dash with a reason.
     halfy = Company(
         nse_symbol="HALFY",
         name="Halfy Asset Management Limited",
@@ -431,9 +397,7 @@ def test_results_desk_query_count_does_not_grow_with_companies(db, store):
             revenue = 1_000_000_000 + (n * 100 + i) * 1000  # each file unique
             q = pnl(revenue, 0, 500_000_000, 100_000_000)
             start, end = date(2026, 7, 1), date(2026, 9, 30)
-            ingest_results_xbrl(
-                db, store, c, build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q)
-            )
+            ingest_results_xbrl(db, store, c, build_instance(q_start=start, q_end=end, ytd_start=start, values_q=q))
 
     def count() -> tuple[int, list[str | None]]:
         seen: list[str] = []
@@ -451,10 +415,7 @@ def test_results_desk_query_count_does_not_grow_with_companies(db, store):
 
     add(2)
     few, notes = count()
-    assert (
-        notes == ["No consolidated results for Q2 FY26 on record"] * 2
-        or notes == ["No standalone results for Q2 FY26 on record"] * 2
-    )
+    assert notes == ["No consolidated results for Q2 FY26 on record"] * 2 or notes == ["No standalone results for Q2 FY26 on record"] * 2
     add(6)
     many, notes = count()
     assert len(notes) == 8 and len(set(notes)) == 1
@@ -499,7 +460,6 @@ def test_results_desk_rows_movers_and_sector_progress(client, db, store):
     assert [r["symbol"] for r in d["rows"]] == ["SLIDER", "GROWER", "TINY"]  # newest filing first
     grower = next(r for r in d["rows"] if r["symbol"] == "GROWER")
     assert float(grower["revenue_yoy"]) == 20.0 and float(grower["pat_yoy"]) == 20.0
-    # Only two companies qualify, so both are "top" and the bottom list stays empty.
     assert [r["symbol"] for r in d["revenue_top"]] == ["GROWER", "SLIDER"]
     assert d["revenue_bottom"] == []
     assert [r["symbol"] for r in d["turned_loss"]] == ["SLIDER"]
@@ -523,7 +483,6 @@ def test_latest_close_on_the_company_page_and_largest_first_on_the_desk(client, 
             values_q=pnl(revenue * crore, 0, 60 * crore, 15 * crore),
         )
         ingest_results_xbrl(db, store, c, data)
-    # Dates no real bhavcopy is loaded for (tests share the local database).
     db.add_all(
         [
             Price(company_id=big.id, trade_date=date(2020, 1, 2), close=900, market_cap=1),
@@ -567,7 +526,6 @@ def test_peer_lists_and_the_comps_table(client, demo, db):
     assert updated.json()["symbols"] == ["DEMOFIN", "ACMEIND"]
     assert [p["name"] for p in client.get("/peer-lists").json()] == ["Gold lenders"]
 
-    # A symbol that has left the universe is reported, not fatal.
     table = client.post("/comps/table", json={"symbols": ["DEMOFIN", "GONECO"]}).json()
     assert table["missing"] == ["GONECO"]
     [row] = table["rows"]
@@ -638,7 +596,6 @@ def test_prices_are_overdue_only_after_the_evening_window():
     def expected(h, m):  # IST on Friday 16 October 2026
         return last_close_day(datetime(2026, 10, 16, h, m, tzinfo=UTC) - PRICES_DUE_AFTER)
 
-    # 23:00 IST = 17:30 UTC: the job may still run, so Thursday's close is what's expected.
     assert expected(17, 30).isoformat() == "2026-10-15"
     assert expected(18, 0).isoformat() == "2026-10-16"  # 23:30 IST: Friday's close is due
 
@@ -701,14 +658,9 @@ def test_calendar_endpoint_scopes_to_the_watchlist(client, db):
     db.flush()
     params = {"start": when.isoformat(), "end": when.isoformat()}
     everyone = client.get("/calendar", params={**params, "watchlist": "false"}).json()
-    symbols = {
-        e["symbol"]: e["watched"] for e in everyone["events"] if e["symbol"].startswith("CEP")
-    }
+    symbols = {e["symbol"]: e["watched"] for e in everyone["events"] if e["symbol"].startswith("CEP")}
     assert symbols == {"CEPAAA": False, "CEPBBB": True}
     mine = client.get("/calendar", params={**params, "watchlist": "true"}).json()
     assert {e["symbol"] for e in mine["events"]} >= {"CEPBBB"}
     assert "CEPAAA" not in {e["symbol"] for e in mine["events"]}
-    assert (
-        client.get("/calendar", params={"start": "2026-10-19", "end": "2024-01-01"}).status_code
-        == 422
-    )
+    assert client.get("/calendar", params={"start": "2026-10-19", "end": "2024-01-01"}).status_code == 422

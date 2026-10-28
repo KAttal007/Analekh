@@ -48,9 +48,7 @@
   --normal: 200ms;
   --slow: 320ms;
 
-  --font:
-    "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
 
   font-family: var(--font);
@@ -132,8 +130,7 @@ html {
 }
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 600px at 70% -200px, var(--bg-glow), transparent 70%), var(--bg);
+  background: radial-gradient(1200px 600px at 70% -200px, var(--bg-glow), transparent 70%), var(--bg);
   background-attachment: fixed;
 }
 h1,
@@ -212,8 +209,6 @@ kbd {
   text-align: center;
   line-height: 16px;
 }
-
-/* ---------- Motion ---------- */
 
 @keyframes fade-up {
   from {
@@ -320,8 +315,6 @@ kbd {
   }
 }
 
-/* ---------- App shell ---------- */
-
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
@@ -383,7 +376,6 @@ kbd {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.3;
-  /* Too long for one line beside the mark: two even lines rather than clipped at the edge. */
   white-space: normal;
   text-wrap: balance;
 }
@@ -418,7 +410,6 @@ kbd {
     color var(--normal) var(--ease),
     transform var(--normal) var(--ease-out);
 }
-/* Pressing a tab dips it; letting go springs it back. */
 .nav a:active {
   transform: scale(0.95);
   transition-duration: var(--fast), var(--normal), 90ms;
@@ -435,7 +426,6 @@ kbd {
   background: transparent; /* the highlight below paints it, and slides to the next tab */
   color: var(--accent);
 }
-/* One highlight behind the active tab (Layout.tsx places it): glides between tabs. */
 .nav-highlight {
   position: absolute;
   top: 0;
@@ -460,11 +450,7 @@ kbd {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: radial-gradient(
-    220px circle at var(--gx, -300px) var(--gy, -300px),
-    color-mix(in srgb, var(--accent) var(--glow, 22%), transparent),
-    transparent 100%
-  );
+  background: radial-gradient(220px circle at var(--gx, -300px) var(--gy, -300px), color-mix(in srgb, var(--accent) var(--glow, 22%), transparent), transparent 100%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 400ms var(--ease);
@@ -504,7 +490,6 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
-/* Collapsed sidebar: icons only, labels as tooltips (title attribute). */
 .app.collapsed .brand-text,
 .app.collapsed .nav-label,
 .app.collapsed .nav-group-label,
@@ -551,7 +536,6 @@ kbd {
   .content {
     max-width: 1840px;
   }
-  /* A collapsed sidebar gives its width to the page instead of leaving it empty on the right. */
   .app.collapsed .content {
     max-width: calc(1840px + var(--sidebar-w) - var(--sidebar-w-collapsed));
   }
@@ -587,7 +571,6 @@ kbd {
   background: transparent;
   box-shadow: none;
 }
-/* Two or three mutually exclusive views, e.g. consolidated / standalone figures. */
 .segmented {
   position: relative;
   display: inline-flex;
@@ -609,7 +592,6 @@ kbd {
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
-/* With a sliding thumb (SegmentThumb in ui.tsx) the thumb paints the selection instead. */
 .segmented button {
   position: relative;
   z-index: 1;
@@ -668,7 +650,6 @@ kbd {
   .app,
   .app.collapsed {
     grid-template-columns: minmax(0, 1fr);
-    /* the bar keeps its own height; a short page's spare height goes to the content */
     grid-template-rows: auto 1fr;
   }
   .sidebar {
@@ -707,8 +688,6 @@ kbd {
     padding-right: var(--s4);
   }
 }
-
-/* ---------- Page structure ---------- */
 
 .page {
   display: flex;
@@ -859,8 +838,6 @@ kbd {
   color: var(--negative);
 }
 
-/* ---------- Controls ---------- */
-
 button,
 .btn {
   display: inline-flex;
@@ -992,8 +969,6 @@ input[type="file"] {
   align-items: end;
 }
 
-/* ---------- Tables ---------- */
-
 .table-wrap {
   overflow-x: auto;
   background: var(--surface);
@@ -1044,8 +1019,6 @@ tbody tr:hover td {
   align-items: center;
 }
 
-/* ---------- Badges, alerts, empty states, skeletons ---------- */
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1093,7 +1066,6 @@ tbody tr:hover td {
   color: var(--warn);
   border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 }
-/* A colleague holds the model (lock/ReadOnlyBanner.tsx): static, so lock checks never animate it. */
 .lock-banner {
   align-items: center;
   animation: none;
@@ -1106,7 +1078,6 @@ tbody tr:hover td {
 }
 /* A model a colleague held is free (lock/LockToast.tsx): appears at once, no entrance motion,
    and stays until dismissed or opened. */
-/* Model locks: reminders and free-model toasts share one corner, stacked. */
 .lock-corner {
   position: fixed;
   right: var(--s4);
@@ -1200,8 +1171,7 @@ tbody tr:hover td {
   gap: var(--s2);
   padding: 48px var(--s5);
   text-align: center;
-  background:
-    radial-gradient(400px 160px at 50% 0, var(--accent-soft), transparent 70%), var(--surface);
+  background: radial-gradient(400px 160px at 50% 0, var(--accent-soft), transparent 70%), var(--surface);
   border: 1px dashed var(--border-strong);
   border-radius: var(--r3);
 }
@@ -1233,12 +1203,7 @@ tbody tr:hover td {
 .skeleton {
   display: block;
   border-radius: var(--r1);
-  background: linear-gradient(
-    90deg,
-    var(--surface-2) 25%,
-    var(--surface-3) 37%,
-    var(--surface-2) 63%
-  );
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -1257,8 +1222,6 @@ tbody tr:hover td {
 .error {
   color: var(--negative);
 }
-
-/* ---------- Company search ---------- */
 
 .search {
   position: relative;
@@ -1352,8 +1315,6 @@ tbody tr:hover td {
   font-weight: 650;
 }
 
-/* ---------- Company page: content beside a full-height "latest quarter" column ---------- */
-
 /* Narrow screens: one column. The main column dissolves so its children and the rail share one
    flex column; order puts the quarter right after the figure tiles. */
 .company-page {
@@ -1379,7 +1340,6 @@ tbody tr:hover td {
   order: 3;
 }
 .area-stats {
-  /* Four tiles in one row even beside the quarter column; icons give way when it's tight. */
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   container-type: inline-size;
 }
@@ -1389,7 +1349,6 @@ tbody tr:hover td {
   }
 }
 @media (min-width: 1280px) {
-  /* The column sits at the right of the window, so this page drops the usual width cap. */
   .content:has(.company-page) {
     max-width: 1840px;
   }
@@ -1488,8 +1447,6 @@ table.glance tbody tr:last-child > * {
   margin-top: var(--s2);
 }
 
-/* ---------- Phones ---------- */
-
 @media (max-width: 640px) {
   /* Navigation: icons only (each keeps its label as a tooltip and for screen readers), so the
      whole bar fits without scrolling sideways. */
@@ -1511,7 +1468,6 @@ table.glance tbody tr:last-child > * {
   .page {
     gap: var(--s4);
   }
-  /* Figure tiles two to a row. */
   .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--s2);
@@ -1533,8 +1489,6 @@ table.glance tbody tr:last-child > * {
     display: none;
   }
 }
-
-/* ---------- Results desk (Home) ---------- */
 
 .desk {
   display: flex;
@@ -1657,7 +1611,6 @@ table.glance tbody tr:last-child > * {
 .desk-sub {
   font-size: 11px;
 }
-/* Which margin a row shows: EBITDA, NIM (lenders) or core pre-provision profit margin. */
 .desk-kind {
   display: block; /* its own line: the longest name is the core pre-provision profit margin */
   margin-bottom: 1px;
@@ -2009,8 +1962,6 @@ table.glance tbody tr:last-child > * {
   visibility: visible;
 }
 
-/* ---------- Welcome (first screen of a visit) ---------- */
-
 /* Analekh's lock screen, one screen tall. --p (0..1) is how far a scroll or swipe has lifted it;
    --mx / --my (-0.5..0.5) is where the pointer is, which the light leans towards. */
 .welcome {
@@ -2089,7 +2040,6 @@ table.glance tbody tr:last-child > * {
   }
 }
 
-/* The content follows the gesture: up, smaller, softer. Let go early and it springs back. */
 .welcome-inner {
   position: relative;
   width: 100%;
@@ -2114,7 +2064,6 @@ table.glance tbody tr:last-child > * {
   animation: fade-up 700ms var(--ease-out) both;
 }
 
-/* The mark is the lock screen's clock: large here, it flies to the sidebar on the way in. */
 .welcome-mark {
   width: 72px;
   height: 72px;
@@ -2153,7 +2102,6 @@ table.glance tbody tr:last-child > * {
   animation-delay: 280ms;
 }
 
-/* Frosted cards: the light shows through. */
 .welcome-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2210,7 +2158,6 @@ table.glance tbody tr:last-child > * {
   transform: translateX(4px);
 }
 
-/* "Scroll to enter": a chevron that breathes, fading as the page lifts. */
 .welcome-hint {
   position: absolute;
   bottom: 40px;
@@ -2497,13 +2444,11 @@ table.glance tbody tr:last-child > * {
 .comps-foot {
   border-top: none;
 }
-/* Margins give way first when the card is narrow; the table never scrolls the page sideways. */
 @container comps (max-width: 900px) {
   .comps-table .c-margin {
     display: none;
   }
 }
-/* Phones: each company becomes a card, its figures on a two-column grid. */
 @container comps (max-width: 560px) {
   .comps-table {
     overflow: visible;
@@ -2594,7 +2539,6 @@ table.glance tbody tr:last-child > * {
 /* ---------- Settings (design doc 19.1) ---------- */
 
 .settings-stats {
-  /* auto-fit: the four tiles share the full width instead of leaving empty columns. */
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   align-items: stretch;
 }
@@ -2709,7 +2653,6 @@ table.glance tbody tr:last-child > * {
 .history-table td.num {
   white-space: nowrap;
 }
-/* The line names stay in view while the quarters scroll sideways inside the card. */
 .history-table .history-line {
   position: sticky;
   left: 0;
@@ -2807,7 +2750,6 @@ table.glance tbody tr:last-child > * {
   white-space: nowrap;
 }
 
-/* Popover (ui.tsx): a panel opened by a click, which can hold links. */
 .popover-panel {
   position: fixed;
   z-index: 60;
@@ -2865,7 +2807,6 @@ table.glance tbody tr:last-child > * {
   gap: var(--s2);
 }
 
-/* Filings with no column in the history table, folded under it. */
 .other-filings {
   border-top: 1px solid var(--border);
   font-size: 13px;
@@ -2939,7 +2880,6 @@ table.glance tbody tr:last-child > * {
     width: 100%;
     min-width: 0;
   }
-  /* Four or more tabs are wider than a phone card: scroll them inside it, never past its edge. */
   .area-chart .segmented {
     max-width: 100%;
     overflow-x: auto;
@@ -2954,15 +2894,12 @@ table.glance tbody tr:last-child > * {
   }
 }
 
-/* ---------- Reports (Reports.tsx) ---------- */
-
 .reports-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: var(--s4);
   align-items: stretch;
 }
-/* Cards in a row share one height; their contents spread to fill it, so gaps stay equal. */
 .reports-grid > .card {
   display: flex;
   flex-direction: column;
@@ -3198,7 +3135,6 @@ table.glance tbody tr:last-child > * {
   color: var(--text);
   padding-right: var(--s5);
 }
-/* Work in progress: a soft pulse for what is not built yet, and a dot on its badge. */
 .pulse-bar {
   display: block;
   height: 6px;
@@ -3244,8 +3180,6 @@ table.glance tbody tr:last-child > * {
   }
 }
 
-/* ---------- Results calendar (ResultsCalendar.tsx) ---------- */
-
 .cal {
   overflow: hidden;
 }
@@ -3273,7 +3207,6 @@ table.glance tbody tr:last-child > * {
   font-variant-numeric: tabular-nums;
 }
 
-/* What to show: pills with their counts. */
 .cal-kinds {
   display: flex;
   flex-wrap: wrap;
@@ -3303,7 +3236,6 @@ table.glance tbody tr:last-child > * {
   color: inherit;
 }
 
-/* Day strip: scrolls and snaps; the selected day is lit by a thumb that glides to it. */
 .cal-strip-wrap {
   position: relative;
   padding: var(--s3) 0 var(--s2);
@@ -3318,7 +3250,6 @@ table.glance tbody tr:last-child > * {
   scrollbar-width: none;
   overscroll-behavior-x: contain;
   cursor: grab;
-  /* The edges fade out, so the strip reads as continuing. */
   mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
 }
 .cal-strip::-webkit-scrollbar {
@@ -3447,7 +3378,6 @@ table.glance tbody tr:last-child > * {
   }
 }
 
-/* Week: seven columns. */
 .cal-week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -3513,7 +3443,6 @@ table.glance tbody tr:last-child > * {
   flex: none;
 }
 
-/* Month: a grid of days. */
 .cal-month {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -3580,7 +3509,6 @@ table.glance tbody tr:last-child > * {
   color: var(--text-2);
 }
 
-/* The chosen day, below every view. */
 .cal-day-head {
   display: flex;
   flex-wrap: wrap;
@@ -3726,7 +3654,6 @@ table.glance tbody tr:last-child > * {
   }
 }
 
-/* ---------- Sign-in ---------- */
 /* Rises from the welcome page (data-vt="reveal"): the calendar and mark on the left, a frosted
    card on the right, over the same living light. */
 
@@ -3904,7 +3831,6 @@ table.glance tbody tr:last-child > * {
     order: 0;
   }
 }
-/* The sign-in screen rises into place from the welcome page. */
 :root[data-vt="reveal"]::view-transition-old(root) {
   animation: unlock-out 520ms var(--ease-out) both;
 }
@@ -3931,7 +3857,6 @@ table.glance tbody tr:last-child > * {
   align-items: center;
   gap: 6px;
 }
-/* Collapsed: the icon alone, centred like the nav icons above it. */
 .collapsed .signed-in-name,
 .collapsed .sign-out-label {
   display: none;
@@ -3940,8 +3865,6 @@ table.glance tbody tr:last-child > * {
   justify-content: center;
   padding-inline: 0;
 }
-
-/* ---------- Admin area ---------- */
 
 .admin-tag {
   margin-left: auto;
@@ -3972,7 +3895,6 @@ table.glance tbody tr:last-child > * {
   max-width: none; /* the admin screens use the full width */
 }
 @media (max-width: 860px) {
-  /* The admin links are words, not icons: keep them, in one row with the way back. */
   .admin .nav {
     align-items: center;
     gap: var(--s1);
@@ -4070,7 +3992,6 @@ table.glance tbody tr:last-child > * {
   margin: 0;
   font-size: 12px;
 }
-/* A modal pop-up (Update stopped by blocked results), in the admin panel's look. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -4177,7 +4098,6 @@ table.glance tbody tr:last-child > * {
   margin-top: var(--s2);
 }
 
-/* The live password rules under a new-password box */
 .password-rules {
   margin: calc(var(--s2) * -1) 0 0;
   padding: 0;
@@ -4192,4 +4112,50 @@ table.glance tbody tr:last-child > * {
 }
 .password-rules .rule-met > span:first-child {
   color: var(--accent);
+}
+
+.welcome-foot a {
+  color: inherit;
+  text-decoration: underline;
+}
+.legal {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5) 64px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.legal h1 {
+  margin: var(--s4) 0 var(--s3);
+}
+.legal h2 {
+  margin: var(--s6) 0 var(--s2);
+  font-size: 18px;
+}
+.legal-back {
+  color: var(--accent);
+  font-size: 14px;
+}
+.legal-draft {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r2);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+}
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.legal-table th,
+.legal-table td {
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.legal-table th {
+  width: 38%;
+  font-weight: 600;
 }

@@ -248,11 +248,7 @@ it("Close gives the lock back and hides the reminder", async () => {
   const calls = mockApi(routes());
   renderAt(<IdleReminder />);
   fireEvent.click(await screen.findByRole("button", { name: "Close" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/1/lock/release")).toBe(
-      true,
-    ),
-  );
+  await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/1/lock/release")).toBe(true));
   await waitFor(() => expect(screen.queryByText(TCS)).toBeNull());
   await wait(200); // idle again, nothing held: no reminder
   expect(screen.queryByRole("region", { name: "Models still open" })).toBeNull();
@@ -270,11 +266,7 @@ it("several models: one reminder lists each with its own Close, and one Keep ope
   expect(screen.getAllByRole("button", { name: "Keep open" })).toHaveLength(1);
   expect(tones).toBe(1);
   fireEvent.click(screen.getByRole("button", { name: "Close Infosys's model" }));
-  await waitFor(() =>
-    expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/2/lock/release")).toBe(
-      true,
-    ),
-  );
+  await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.url === "/api/models/2/lock/release")).toBe(true));
   // One left: the reminder now reads as for one model.
   expect(await screen.findByText(TCS)).toBeTruthy();
   expect(screen.queryByText(/Infosys/)).toBeNull();
@@ -298,12 +290,8 @@ it("several models: a running one is listed without its Close", async () => {
   renderAt(<IdleReminder />);
   await screen.findByRole("region", { name: "Models still open" });
   held = [mine(1), mine(2, { job_running: true })];
-  await waitFor(() =>
-    expect(screen.queryByRole("button", { name: "Close Infosys's model" })).toBeNull(),
-  );
-  expect(
-    screen.getByRole("button", { name: "Close Tata Consultancy Services's model" }),
-  ).toBeTruthy();
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Close Infosys's model" })).toBeNull());
+  expect(screen.getByRole("button", { name: "Close Tata Consultancy Services's model" })).toBeTruthy();
 });
 
 it("never goes idle before the settings say how long to wait", async () => {

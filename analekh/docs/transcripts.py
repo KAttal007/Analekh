@@ -35,11 +35,7 @@ def parse_turns(pages: list[PageText], management: set[str] | None = None) -> li
             m = _TURN.match(line.strip())
             if m:
                 speaker = " ".join(m.group("speaker").split())
-                turns.append(
-                    Turn(
-                        speaker, _role(speaker, analysts, management), page.number, m.group("text")
-                    )
-                )
+                turns.append(Turn(speaker, _role(speaker, analysts, management), page.number, m.group("text")))
                 if turns[-1].role == "moderator":
                     for q in _NEXT_Q.finditer(m.group("text")):
                         analysts.add(" ".join(q.group("name").split()).lower())

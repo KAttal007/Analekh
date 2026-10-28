@@ -91,7 +91,6 @@ def test_login_response_has_no_store_and_no_referrer(raw, user):
 def test_three_failed_logins_over_http_pause_the_account(raw, user, db):
     for _ in range(3):
         assert _login(raw, password="wrong one").status_code == 401
-    # The failures were committed by the route, not left in a transaction that was rolled back.
     db.expire_all()
     assert db.get(User, user.id).failed_count == 3
     paused = _login(raw)  # right password, still refused
@@ -117,9 +116,7 @@ def test_me_and_logout_round_trip(raw, user, db):
     assert raw.post("/auth/logout").status_code == 403  # CSRF header missing
     out = raw.post("/auth/logout", headers=CSRF)
     assert out.status_code == 204
-    assert 'analekh_session=""' in out.headers["set-cookie"].lower() or (
-        "max-age=0" in out.headers["set-cookie"].lower()
-    )
+    assert 'analekh_session=""' in out.headers["set-cookie"].lower() or ("max-age=0" in out.headers["set-cookie"].lower())
     assert db.scalar(select(AuthSession.token_hash)) is None
     raw.cookies.clear()
     assert raw.get("/auth/me").status_code == 401
@@ -135,7 +132,6 @@ def test_disabled_user_session_gets_401(raw, user, db):
 def test_post_without_csrf_header_is_403(raw, user):
     _login(raw)
     assert raw.post("/watchlist", json={"symbol": "X"}).status_code == 403
-    # with the header the request gets past the check (it then fails on the unknown company)
     assert raw.post("/watchlist", json={"symbol": "X"}, headers=CSRF).status_code != 403
 
 
@@ -163,9 +159,7 @@ def test_admin_only_dependency_refuses_analyst(raw, user, db):
         db.flush()
         assert raw.get("/_probe_admin").status_code == 200
     finally:
-        app.router.routes[:] = [
-            r for r in app.router.routes if getattr(r, "path", "") != "/_probe_admin"
-        ]
+        app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/_probe_admin"]
 
 
 _OPEN = (
@@ -182,7 +176,6 @@ _OPEN = (
 
 def test_every_non_public_route_requires_session(raw):
     checked = 0
-    # openapi lists every route however the app nests its routers
     for route, methods in app.openapi()["paths"].items():
         if route.startswith(_OPEN):
             continue
@@ -242,10 +235,7 @@ def test_public_calendar_has_no_watched_flag(raw, db):
     for event in body["events"]:
         assert "watched" not in event
     assert "unscheduled" not in body
-    assert (
-        raw.get("/public/calendar", params={"start": "2026-02-01", "end": "2026-01-01"}).status_code
-        == 422
-    )
+    assert raw.get("/public/calendar", params={"start": "2026-02-01", "end": "2026-01-01"}).status_code == 422
 
 
 def test_access_log_has_no_secrets(raw, db, caplog):
@@ -265,8 +255,6 @@ def test_access_log_has_no_secrets(raw, db, caplog):
 def test_form_limits_match_the_service_limits(raw, user):
     from analekh.auth.passwords import MAX_EMAIL
 
-    # one past the limit is refused at the door, without reaching the service
     assert _login(raw, password="x" * (get_settings().password_max_length + 1)).status_code == 422
     assert _login(raw, email="a" * (MAX_EMAIL + 1)).status_code == 422
-    # at the limit it is an ordinary wrong password
     assert _login(raw, password="x" * get_settings().password_max_length).status_code == 401

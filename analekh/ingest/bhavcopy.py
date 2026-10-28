@@ -26,11 +26,7 @@ from sqlalchemy.orm import Session
 from analekh.db.models import Company, Fact, Price
 from analekh.ingest.http import PoliteClient
 
-BHAVCOPY_URL = (
-    "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{day:%Y%m%d}_F_0000.csv.zip"
-)
-# Equity series: main board (EQ, BE trade-for-trade, BZ non-compliant) and SME (SM, ST, SZ).
-# Bonds, government securities and the rest of the file are left out.
+BHAVCOPY_URL = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{day:%Y%m%d}_F_0000.csv.zip"
 EQUITY_SERIES = frozenset({"EQ", "BE", "BZ", "SM", "ST", "SZ"})
 SERIES_RANK = {"EQ": 0, "SM": 1, "BE": 2, "ST": 3, "BZ": 4, "SZ": 5}  # one row per ISIN
 
@@ -97,13 +93,10 @@ def fetch(client: PoliteClient, day: date) -> list[BhavRow] | None:
     return parse(data)
 
 
-# Paid-up equity capital in the Ind-AS, IRDAI general and IRDAI life formats (banks use the first).
 PAID_UP = ("PaidUpValueOfEquityShareCapital", "PaidUpEquityCapital", "PaidUpEquityShareCapital")
 FACE_VALUE = "FaceValueOfEquityShareCapital"
 ASSETS = "Assets"  # total assets for Ind-AS filers and banks; not in the insurers' formats
 INSURERS = ("insurance", "life_insurance")
-# Above the largest Indian company: a market cap past this comes from a bad filing, so none is
-# shown rather than a wrong one.
 MAX_MARKET_CAP = Decimal("30e12")  # ₹30 lakh crore
 ASSETS_MULTIPLE = 100  # paid-up capital above this many times total assets is a tagging error
 JUMP = 50  # bonus and rights issues never move paid-up capital this far in a quarter
@@ -141,11 +134,7 @@ def shares_outstanding(session: Session, company_ids: list[int]) -> dict[int, De
     """
     face: dict[int, Decimal] = {}
     insurers: set[int] = set()
-    for cid, value, taxonomy in session.execute(
-        select(Company.id, Company.face_value, Company.results_taxonomy).where(
-            Company.id.in_(company_ids)
-        )
-    ):
+    for cid, value, taxonomy in session.execute(select(Company.id, Company.face_value, Company.results_taxonomy).where(Company.id.in_(company_ids))):
         if value:
             face[cid] = value
         if taxonomy in INSURERS:
@@ -210,9 +199,7 @@ def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
     if not rows:
         return {"rows": 0, "matched": 0, "with_market_cap": 0}
     by_isin = {r.isin: r for r in rows}
-    companies = session.execute(
-        select(Company.id, Company.isin).where(Company.isin.in_(by_isin))
-    ).all()
+    companies = session.execute(select(Company.id, Company.isin).where(Company.isin.in_(by_isin))).all()
     shares = shares_outstanding(session, [cid for cid, _ in companies])
     values = []
     for cid, isin in companies:
@@ -237,10 +224,7 @@ def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
         session.execute(
             stmt.on_conflict_do_update(
                 index_elements=[Price.company_id, Price.trade_date],
-                set_={
-                    c: stmt.excluded[c]
-                    for c in ("open", "high", "low", "close", "prev_close", "volume", "market_cap")
-                },
+                set_={c: stmt.excluded[c] for c in ("open", "high", "low", "close", "prev_close", "volume", "market_cap")},
             )
         )
     return {
@@ -251,9 +235,7 @@ def store(session: Session, rows: list[BhavRow]) -> dict[str, int]:
 
 
 def stored_for(session: Session, day: date) -> int:
-    return int(
-        session.scalar(select(func.count()).select_from(Price).where(Price.trade_date == day)) or 0
-    )
+    return int(session.scalar(select(func.count()).select_from(Price).where(Price.trade_date == day)) or 0)
 
 
 def latest_stored(session: Session) -> date | None:
@@ -272,8 +254,6 @@ def load_day(session: Session, client: PoliteClient, day: date) -> dict[str, obj
     if rows is None:
         return {"day": day.isoformat(), "skipped": "no file (holiday, or not published yet)"}
     counts = store(session, rows)
-    # Only the latest close is kept, so a company missing from today's file (suspended, not
-    # traded) has no price rather than a stale one.
     gone = cast("CursorResult[Any]", session.execute(delete(Price).where(Price.trade_date < day)))
     replaced = gone.rowcount
     return {"day": day.isoformat(), **counts, "replaced": replaced}

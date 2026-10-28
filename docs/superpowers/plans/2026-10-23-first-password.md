@@ -417,9 +417,7 @@ def test_add_user_refused_without_smtp(admin_client, no_smtp):
     # and no user row was created
 
 
-def test_generated_password_never_in_reply_or_log(
-    admin_client, sent, caplog
-): ...  # the plain password taken from the captured mail is absent from r.text and caplog.text
+def test_generated_password_never_in_reply_or_log(admin_client, sent, caplog): ...  # the plain password taken from the captured mail is absent from r.text and caplog.text
 
 
 def test_analyst_cannot_add_or_send(analyst_client): ...  # 403

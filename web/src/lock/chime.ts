@@ -19,8 +19,7 @@ export function resetChime(): void {
 }
 
 const audioCtor = (): Ctor | undefined =>
-  (window as unknown as { AudioContext?: Ctor; webkitAudioContext?: Ctor }).AudioContext ??
-  (window as unknown as { webkitAudioContext?: Ctor }).webkitAudioContext;
+  (window as unknown as { AudioContext?: Ctor; webkitAudioContext?: Ctor }).AudioContext ?? (window as unknown as { webkitAudioContext?: Ctor }).webkitAudioContext;
 
 /** Create or wake the shared AudioContext. Only works inside a user gesture: browsers start one
  *  made without a gesture suspended, so the idle reminder's chime would be silent. */

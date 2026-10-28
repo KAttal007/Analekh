@@ -248,3 +248,9 @@ Still open from Phase 0: a hand-check of 10 values per file against the results 
 | Report generation (17) | Today `genai/reports.py` runs one open tool loop per report (all tools, up to 20 turns). Proposal: fixed workflows for the flash; section-by-section runs for the note, IC note and initiation (outline from a report template, core data pre-fetched by code, a short tool loop per section, grounding check per section so one section can be redone); keep the open loop for Q&A and red-flag digging. |
 | Python 3.15 | Blocked on Windows wheels for pyyaml, playa-pdf (via camelot-py) and numpy-financial. |
 | Investor presentations (3.2, 11) | Link each quarter's deck from NSE's corporate announcements list (subject "Investor Presentation"): one request a day, plus a backfill by date range or per company; store only the link. Needs the owner's approval to widen `ALLOWED_PATHS`; stashed by the owner on 2026-10-14. |
+
+### 12. New source host approved by the owner (28 October 2026)
+
+| Design doc says | Done instead | Why |
+|---|---|---|
+| Rule 1: only NSE, NSE Indices and the published lists are fetched | `sebi.gov.in` and `www.sebi.gov.in` added to `ALLOWED_HOSTS`, limited by `ALLOWED_PATHS` to `/sebiweb/home/HomeAction.do` (the DRHP, RHP and prospectus lists, smid 10, 11, 12: one request a day, newest page only), `/filings/public-issues/` (an entry page, fetched once per new entry to find its PDF) and `/sebi_data/attachdocs/` (the PDFs). No other page, no crawling of older list pages | Owner approval 2026-10-28 (host, then the listing and entry paths the same day). Confirmed: each entry page embeds its PDF from `/sebi_data/attachdocs/<month>/<id>.pdf` (checked on the Jio prospectus, 200 application/pdf). `/sebi_data/` itself returns 403, so only the attachment folder is open |

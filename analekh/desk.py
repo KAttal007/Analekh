@@ -30,7 +30,6 @@ from analekh.interest import balances, is_lender, ratios
 from analekh.prices import latest_prices
 from analekh.xbrl.elements import candidates
 
-# Movers leave out small companies and tiny profit bases, where growth rates are noise.
 MIN_REVENUE = Decimal(500_000_000)  # Rs 50 crore of quarterly revenue
 MIN_PROFIT_BASE = Decimal("0.02")  # year-ago profit at least 2% of year-ago revenue
 MOVERS = 5
@@ -71,7 +70,6 @@ class DeskRow:
     market_cap: Decimal | None = None  # at the latest stored close (bhavcopy)
     price_date: date | None = None  # that close's trading day
     margin_consolidated: bool | None = None  # the basis the margin is on (NIM may fall back)
-    # Year-ago values, for the movers' base checks; not sent to the page.
     revenue_prev: Decimal | None = field(default=None, repr=False)
     pat_prev: Decimal | None = field(default=None, repr=False)
 
@@ -103,7 +101,6 @@ class Desk:
     turned_profitable: list[DeskRow] = field(default_factory=list)
     turned_loss: list[DeskRow] = field(default_factory=list)
     sectors: list[SectorProgress] = field(default_factory=list)
-    # Sectors that reported the quarter, whatever the filter: the desk's sector dropdown.
     all_sectors: list[str] = field(default_factory=list)
 
 
@@ -135,15 +132,11 @@ def desk(
     sort: str = "filed",
     now: datetime | None = None,
 ) -> Desk:
-    # Each query is a round trip to the database: the counts share one, and the companies in
-    # scope (active, with a sector) are the sum of the per-sector totals.
     quarters = recent_quarters(session)
     end = quarter_end or (quarters[0][0] if quarters else None)
     totals = sector_totals(session)
     filings_total, latest_filed_at = session.execute(
-        select(func.count(), func.max(Filing.filed_at))
-        .select_from(Filing)
-        .where(Filing.kind == "results_xbrl")  # not transcripts, decks or other documents
+        select(func.count(), func.max(Filing.filed_at)).select_from(Filing).where(Filing.kind == "results_xbrl")  # not transcripts, decks or other documents
     ).one()
     out = Desk(
         quarter_end=end,
@@ -179,9 +172,7 @@ def desk(
     if sector:
         company_q = company_q.where(Company.sector == sector)
     if watchlist_user:
-        company_q = company_q.where(
-            Company.id.in_(select(Watchlist.company_id).where(Watchlist.user_id == watchlist_user))
-        )
+        company_q = company_q.where(Company.id.in_(select(Watchlist.company_id).where(Watchlist.user_id == watchlist_user)))
     filings = session.execute(
         select(Filing.company_id, Filing.consolidated, Filing.filed_at, Filing.meta).where(
             Filing.kind == "results_xbrl",
@@ -193,9 +184,7 @@ def desk(
     by_company: dict[int, list] = {}
     for f in filings:
         by_company.setdefault(f.company_id, []).append(f)
-    companies = {
-        c.id: c for c in session.scalars(select(Company).where(Company.id.in_(by_company)))
-    }
+    companies = {c.id: c for c in session.scalars(select(Company).where(Company.id.in_(by_company)))}
 
     year_ago = date(end.year - 1, end.month, end.day)
     periods = [(_quarter_start(end), end), (_quarter_start(year_ago), year_ago)]
@@ -227,9 +216,7 @@ def desk(
             held_back.add((f.company_id, bool(f.consolidated)))
             continue
         if f.value is not None:
-            values.setdefault((f.company_id, bool(f.consolidated)), {}).setdefault(f.element, {})[
-                f.period_end
-            ] = f.value
+            values.setdefault((f.company_id, bool(f.consolidated)), {}).setdefault(f.element, {})[f.period_end] = f.value
 
     prices = latest_prices(session, list(by_company))
     lenders = [cid for cid, c in companies.items() if is_lender(c)]
@@ -251,11 +238,7 @@ def desk(
                     for start, at in periods
                     if (
                         v := next(
-                            (
-                                by_element[e][at]
-                                for e in candidates(name, tax)
-                                if at in by_element.get(e, {})
-                            ),
+                            (by_element[e][at] for e in candidates(name, tax) if at in by_element.get(e, {})),
                             None,
                         )
                     )
@@ -270,10 +253,8 @@ def desk(
         margin = margin_prev = None
         margin_kind: str | None = None
         margin_basis: bool | None = basis
-        # Banks and NBFCs: NIM, a dash where it can't be worked out (interest.py).
         if company_id in lenders:
             margin_kind = "nim"
-            # Consolidated when it allows a NIM, else standalone (the lender's own book).
             for consolidated in (True, False) if basis else (False,):
                 qb, parts = lines_for(consolidated), sheets.get((company_id, consolidated), {})
 
@@ -291,8 +272,6 @@ def desk(
                     margin_basis, margin_prev = consolidated, nim(year_ago)
                     break
         elif taxonomy == "indas":
-            # Outside finance EBITDA margin; asset managers and brokers the core pre-provision
-            # profit margin (glance.hidden_lines); other financials neither.
             shown = {"=ebitda_margin": "ebitda", "=cpppm": "cpppm"}
             hidden = hidden_lines(c)
             for line, kind in shown.items():
@@ -312,9 +291,7 @@ def desk(
                 revenue_yoy=change(rev, rev_prev, "inr"),
                 pat=pat,
                 pat_yoy=change(pat, pat_prev, "inr"),
-                margin=margin.quantize(Decimal("0.01" if margin_kind == "nim" else "0.1"))
-                if margin is not None
-                else None,
+                margin=margin.quantize(Decimal("0.01" if margin_kind == "nim" else "0.1")) if margin is not None else None,
                 margin_kind=margin_kind,
                 margin_yoy=change(margin, margin_prev, "pct"),
                 margin_consolidated=margin_basis if margin is not None else None,
@@ -326,10 +303,7 @@ def desk(
         if price := prices.get(company_id):
             rows[-1].market_cap, rows[-1].price_date = price.market_cap, price.trade_date
         if (company_id, basis) in held_back and (rev_prev is None or rev is None):
-            rows[-1].yoy_note = (
-                "A filing for this comparison looks tagged in the wrong unit (check V11): "
-                "left out until its PDF is checked"
-            )
+            rows[-1].yoy_note = "A filing for this comparison looks tagged in the wrong unit (check V11): left out until its PDF is checked"
         elif rev_prev is None and pat_prev is None:
             needs_note[(company_id, basis)] = rows[-1]
 
@@ -353,12 +327,7 @@ def desk(
 
 def _solid_base(r: DeskRow) -> bool:
     """Profit growth means something: a year-ago profit, and not a tiny one next to revenue."""
-    return (
-        r.pat_prev is not None
-        and r.revenue_prev is not None
-        and r.pat_prev > 0
-        and r.pat_prev >= r.revenue_prev * MIN_PROFIT_BASE
-    )
+    return r.pat_prev is not None and r.revenue_prev is not None and r.pat_prev > 0 and r.pat_prev >= r.revenue_prev * MIN_PROFIT_BASE
 
 
 def _split(ranked: list[DeskRow]) -> tuple[list[DeskRow], list[DeskRow]]:
@@ -372,9 +341,7 @@ def _split(ranked: list[DeskRow]) -> tuple[list[DeskRow], list[DeskRow]]:
 def _movers(out: Desk, rows: list[DeskRow]) -> None:
     big = [r for r in rows if r.revenue is not None and r.revenue >= MIN_REVENUE]
 
-    by_revenue = sorted(
-        ((r.revenue_yoy, r) for r in big if r.revenue_yoy is not None), key=lambda t: t[0]
-    )
+    by_revenue = sorted(((r.revenue_yoy, r) for r in big if r.revenue_yoy is not None), key=lambda t: t[0])
     out.revenue_top, out.revenue_bottom = _split([r for _, r in by_revenue])
 
     by_profit = []  # both quarters profitable, on a year-ago base that isn't tiny
@@ -399,11 +366,7 @@ def sector_totals(session: Session) -> dict[str, int]:
     """Active companies per sector (companies without a sector are outside the desk)."""
     return {
         name: n
-        for name, n in session.execute(
-            select(Company.sector, func.count())
-            .where(Company.is_active, Company.sector.is_not(None))
-            .group_by(Company.sector)
-        ).all()
+        for name, n in session.execute(select(Company.sector, func.count()).where(Company.is_active, Company.sector.is_not(None)).group_by(Company.sector)).all()
         if name is not None  # the query excludes them; this tells the type checker
     }
 
@@ -415,8 +378,6 @@ def _sectors(out: Desk, rows: list[DeskRow], totals: dict[str, int]) -> None:
             grouped.setdefault(r.sector, []).append(r)
 
     def sized(rs: list[DeskRow]) -> list[DeskRow]:
-        # Medians use the movers' floor: a one-company sector of tiny filers would otherwise
-        # show its outlier as the sector's "median".
         return [r for r in rs if r.revenue is not None and r.revenue >= MIN_REVENUE]
 
     def median(values: list[Decimal]) -> Decimal | None:
@@ -428,12 +389,8 @@ def _sectors(out: Desk, rows: list[DeskRow], totals: dict[str, int]) -> None:
                 sector=name,
                 reported=len(rs),
                 total=totals.get(name, len(rs)),
-                median_revenue_yoy=median(
-                    [r.revenue_yoy for r in sized(rs) if r.revenue_yoy is not None]
-                ),
-                median_pat_yoy=median(
-                    [r.pat_yoy for r in sized(rs) if r.pat_yoy is not None and _solid_base(r)]
-                ),
+                median_revenue_yoy=median([r.revenue_yoy for r in sized(rs) if r.revenue_yoy is not None]),
+                median_pat_yoy=median([r.pat_yoy for r in sized(rs) if r.pat_yoy is not None and _solid_base(r)]),
             )
             for name, rs in grouped.items()
         ),

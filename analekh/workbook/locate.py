@@ -50,9 +50,7 @@ def relabel(wb: Workbook, axis: PeriodAxis, last_actual: date) -> PeriodAxis:
         ws.cell(row=axis.header_row, column=col, value=fiscal_label(end))
         if axis.flag_row:
             ws.cell(row=axis.flag_row, column=col, value="A" if end <= last_actual else "E")
-    new = detect_axis(
-        ws, label_column=axis.label_column, header_row=axis.header_row, flag_row=axis.flag_row
-    )
+    new = detect_axis(ws, label_column=axis.label_column, header_row=axis.header_row, flag_row=axis.flag_row)
     if new is None:
         raise ValueError("period axis not found after relabelling")
     return new

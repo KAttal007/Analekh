@@ -1,7 +1,3 @@
-// The welcome screen is the landing page: every time Analekh is opened at its home address (a new
-// tab, a reload, typing the address), signed in or not. Moving around inside the app does not bring
-// it back, so this is remembered for the page's lifetime only.
-
 let welcomed = false;
 
 export function hasWelcomed(): boolean {
@@ -12,12 +8,10 @@ export function markWelcomed(): void {
   welcomed = true;
 }
 
-/** Tests only: a fresh page load. */
 export function resetWelcomed(): void {
   welcomed = false;
 }
 
-/** Good morning / afternoon / evening, by the visitor's own clock. */
 export function greeting(now = new Date()): string {
   const h = now.getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";

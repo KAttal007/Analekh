@@ -59,7 +59,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     check_auth_switch()
     if auth_is_off():
         log.warning("sign_in_is_off", note="ENV=dev: every request acts as the dev admin")
-    # Pin the worker-thread count so the database pool can be sized against it.
     limiter = anyio.to_thread.current_default_thread_limiter()
     limiter.total_tokens = get_settings().api_thread_limit
     threading.Thread(target=_warm_up, name="warm-up", daemon=True).start()
@@ -97,7 +96,6 @@ for router in (
 ):
     app.include_router(router, dependencies=[Depends(get_user)])  # every route needs a session
 
-# Open: sign-in itself and the public sign-in-screen data (plus /docs, /openapi.json, /health).
 app.include_router(auth.router)
 app.include_router(public.router)
 
@@ -106,14 +104,10 @@ def _storage_down(request: Request, exc: Exception) -> JSONResponse:
     endpoint = get_settings().minio_endpoint
     return JSONResponse(
         status_code=503,
-        content={
-            "detail": f"Object storage (MinIO) is not reachable at {endpoint}. "
-            "Start it with: docker compose up -d minio"
-        },
+        content={"detail": f"Object storage (MinIO) is not reachable at {endpoint}. Start it with: docker compose up -d minio"},
     )
 
 
-# Raised while connecting (StorageUnavailable) or by a later call on the cached store (botocore).
 for _exc in (StorageUnavailable, EndpointConnectionError, ConnectTimeoutError):
     app.add_exception_handler(_exc, _storage_down)
 

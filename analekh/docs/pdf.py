@@ -49,7 +49,6 @@ def subset(data: bytes, page_numbers: list[int]) -> bytes:
 
 
 OCR_DPI = 200
-# Model routing, threads and logging for RapidOCR (see the file's header).
 OCR_CONFIG = Path(__file__).with_name("rapidocr.yaml")
 _engine: Any = None
 

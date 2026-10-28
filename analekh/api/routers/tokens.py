@@ -36,10 +36,7 @@ def create(body: TokenIn, db: DB, current: CurrentUser) -> TokenCreated:
 
 @router.get("", response_model=list[TokenOut])
 def list_tokens(db: DB, current: CurrentUser) -> list[TokenOut]:
-    return [
-        TokenOut(id=t.id, name=t.name, created_at=t.created_at)
-        for t in tokens.list_api_tokens(db, current)
-    ]
+    return [TokenOut(id=t.id, name=t.name, created_at=t.created_at) for t in tokens.list_api_tokens(db, current)]
 
 
 @router.delete("/{token_id}", status_code=204)

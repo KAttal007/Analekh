@@ -12,15 +12,12 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-# Numbers like 1,234.5  12,34,567  -3.2  (4.5)  18%  but not dates or fiscal labels.
 _NUM = re.compile(r"(?<![\w.])\(?-?\d[\d,]*(?:\.\d+)?\)?%?(?![\w])")
 _MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
-# Masked before matching: citations like [fact:12 filing:3], fiscal labels, years, dates.
 _IGNORE_CONTEXT = re.compile(
     r"\[[^\]]*\]"
     r"|\b(?:Q[1-4]|H[12]|9M)?\s*FY\s*'?\d{2,4}\b|\bQ[1-4]\b|\b9M\b"
     r"|\b\d{4}-\d{2}-\d{2}\b"
-    # Years only in date context, so a bare value like 2045 (crore) is still checked.
     rf"|\b\d{{1,2}}[- ]?{_MONTH}[- ,]*(?:19|20)\d{{2}}\b"
     rf"|\b{_MONTH}\s+(?:\d{{1,2}},?\s+)?(?:19|20)\d{{2}}\b"
     r"|\b(?:since|until|CY)\s*(?:19|20)\d{2}\b",
@@ -91,10 +88,5 @@ def matches(raw: str, value: Decimal, sources: Iterable[Decimal]) -> bool:
 def check(text: str, tool_results: list[Any]) -> GroundingResult:
     sources = collect_values(tool_results)
     numbers = extract_numbers(text)
-    unmatched = [
-        raw
-        for raw, v in numbers
-        if not (v == v.to_integral_value() and abs(v) in SMALL_INTEGERS and "%" not in raw)
-        and not matches(raw, v, sources)
-    ]
+    unmatched = [raw for raw, v in numbers if not (v == v.to_integral_value() and abs(v) in SMALL_INTEGERS and "%" not in raw) and not matches(raw, v, sources)]
     return GroundingResult(ok=not unmatched, numbers=[r for r, _ in numbers], unmatched=unmatched)

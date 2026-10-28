@@ -7,10 +7,7 @@ from docx import Document
 from pptx import Presentation
 from pptx.util import Inches, Pt
 
-DISCLAIMER = (
-    "Analytical summary generated from public filings. Not investment advice; "
-    "no rating or target price."
-)
+DISCLAIMER = "Analytical summary generated from public filings. Not investment advice; no rating or target price."
 
 
 def note_docx(title: str, markdown: str) -> bytes:
@@ -69,8 +66,5 @@ def initiation_docx(company: str, markdown: str) -> bytes:
     """Initiation draft (design doc 15.3). Rating and target price are left to the analyst."""
     body = markdown
     if "Rating" not in markdown:
-        body += (
-            "\n\n## Rating and target price\nLeft for the analyst. Publishing a "
-            "recommendation in India generally requires SEBI Research Analyst registration."
-        )
+        body += "\n\n## Rating and target price\nLeft for the analyst. Publishing a recommendation in India generally requires SEBI Research Analyst registration."
     return note_docx(f"{company}: initiation draft", body)

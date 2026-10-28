@@ -71,9 +71,7 @@ class ReportRun:
         return not self.grounding.ok
 
 
-def run_report(
-    claude: Claude, executor: ToolExecutor, kind: str, max_turns: int = 20, **params: Any
-) -> ReportRun:
+def run_report(claude: Claude, executor: ToolExecutor, kind: str, max_turns: int = 20, **params: Any) -> ReportRun:
     prompt = PROMPTS[kind].format(**{"model_id": None, **params})
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     system = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
@@ -106,9 +104,7 @@ def run_report(
             try:
                 output = executor.run(block.name, args)
                 results.append(output)
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": to_json(output)}
-                )
+                tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": to_json(output)})
             except Exception as exc:  # noqa: BLE001 - surface to the model, keep going
                 tool_results.append(
                     {

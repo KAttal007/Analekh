@@ -1,7 +1,4 @@
 # Production environment (design doc 22.5): pulled and started by the pipeline on the self-hosted
-# `india` runner. IMAGE_TAG is the commit SHA built and scanned in the same pipeline.
-# Hosted deployments use a managed S3 service and Valkey instead of MinIO and Redis
-# (Appendix G.9): set MINIO_ENDPOINT and REDIS_URL in /etc/analekh/production.env.
 x-app: &app
   image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}:${IMAGE_TAG:?set IMAGE_TAG}
   env_file: /etc/analekh/production.env
@@ -18,8 +15,6 @@ services:
     image: valkey/valkey:8
     restart: unless-stopped
 
-  # Object storage on the VM (MinIO, built from source in CI: deploy/minio). Swap for a managed
-  # S3 service later by changing MINIO_ENDPOINT and the keys in production.env.
   minio:
     image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/minio:${IMAGE_TAG:?set IMAGE_TAG}
     command: server /data --console-address 127.0.0.1:9001
@@ -27,13 +22,11 @@ services:
     volumes: [minio:/data]
     restart: unless-stopped
 
-  # The built React app behind nginx; /api is proxied to the API (web/nginx.conf).
   web:
     image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/web:${IMAGE_TAG:?set IMAGE_TAG}
     restart: unless-stopped
     depends_on: [api]
 
-  # TLS and the only published ports (80, 443); everything else stays on the internal network.
   caddy:
     image: caddy:2
     env_file: /etc/analekh/production.env
@@ -44,11 +37,7 @@ services:
     restart: unless-stopped
     depends_on: [web]
 
-  # Headless LibreOffice for Apply, in its own image (deploy/recalc). It publishes no port and sits
-  # on an internal network only: no internet, no Postgres, no object store. Set RECALC_URL
   # (http://recalc:8080), RECALC_TOKEN (at least 32 random bytes) and RECALC_FALLBACK=fail in
-  # /etc/analekh/production.env; the API reads the same token and RECALC_MAX_BYTES must match
-  # MAX_UPLOAD_CEILING_BYTES there if that is changed.
   recalc:
     image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/recalc:${IMAGE_TAG:?set IMAGE_TAG}
     env_file: /etc/analekh/production.env
@@ -70,7 +59,6 @@ services:
     command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
     ports: ["127.0.0.1:8000:8000"]
     networks: [default, recalc]
-    # started, not healthy: the API must come up even when recalc is down (Apply then says so)
     depends_on: [postgres, valkey, migrate, recalc]
 
   worker:
@@ -81,7 +69,6 @@ services:
 
   beat:
     <<: *app
-    # The schedule file goes to /tmp: the image runs as a non-root user and /app is root-owned.
     command: celery -A analekh.jobs beat -l info -s /tmp/celerybeat-schedule
     depends_on: [valkey]
 

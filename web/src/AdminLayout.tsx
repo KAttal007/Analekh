@@ -24,8 +24,6 @@ export function AdminLayout() {
 }
 
 function AdminShell() {
-  // An admin can hold models too: the sign-in and idle reminders follow them here (the idle one
-  // chimes, so the sound is woken on their clicks as in the main shell).
   useEffect(() => unlockChimeOnGesture(), []);
   return (
     <div className="app admin">

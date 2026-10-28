@@ -18,9 +18,6 @@ from analekh.xbrl.parser import ParsedFact, ParsedFiling, period_type
 Status = Literal["pass", "fail", "skip"]
 Action = Literal["block", "flag", "warn", "highlight", "label", "info"]
 
-# SEBI LODR 33(3): results within 45 days of each quarter end (half-year for SME filers), audited
-# annual results within 60 days of financial year end. XBRL due within 24 hours of PDF results, so
-# feed date gets one day's grace.
 RESULTS_DEADLINE_DAYS = 45
 ANNUAL_RESULTS_DEADLINE_DAYS = 60
 XBRL_GRACE_DAYS = 1
@@ -62,7 +59,6 @@ class ValidationContext:
     filed_at: date | None = None
     history: list[HistoryFact] = field(default_factory=list)
     kpis: list[KpiValue] = field(default_factory=list)
-    # The same company's stored facts on the other basis (standalone for a consolidated filing),
     # for V11.
     other_basis: list[HistoryFact] = field(default_factory=list)
 
@@ -74,9 +70,7 @@ class ValidationContext:
         ends = [f.period_end for f in self.filing.facts if not f.is_instant]
         return max(ends) if ends else None
 
-    def fact(
-        self, logical: str, *, quarter: bool = True, instant: bool = False
-    ) -> ParsedFact | None:
+    def fact(self, logical: str, *, quarter: bool = True, instant: bool = False) -> ParsedFact | None:
         end = self.period_end
         for element in candidates(logical, self.taxonomy):
             for f in self.filing.facts:
@@ -95,7 +89,6 @@ class ValidationContext:
 class ValidationReport:
     results: list[RuleResult]
     # V11's correction of the filing's rupee amounts (e.g. 100 when tagged 100 times too small),
-    # and the filing as corrected: what the pipeline stores. None when no correction applies.
     scale: Decimal | None = None
     filing: ParsedFiling | None = field(default=None, compare=False, repr=False)
 
@@ -185,12 +178,7 @@ def v1_total_income(ctx: ValidationContext) -> RuleResult:
 
 
 def v2_pbt(ctx: ValidationContext) -> RuleResult:
-    # Exceptional items tagged with sign: charge negative, gain positive (confirmed Tata Elxsi, Q3
-    # FY26: -956,888,000 labour-code charge), so added. Banks also deduct provisions; insurers go
-    # through shareholders' account.
     if ctx.taxonomy == "life_insurance":
-        # The policyholders' total income less expenses is the surplus, not PBT: PBT is struck
-        # in the shareholders' account (Canara HSBC Life, every quarter to the rupee).
         return _identity(
             "V2",
             "block",
@@ -224,9 +212,7 @@ def v2_pbt(ctx: ValidationContext) -> RuleResult:
 
 def v3_pat(ctx: ValidationContext) -> RuleResult:
     pat = ctx.fact("pat_continuing") or ctx.fact("pat")
-    return _identity(
-        "V3", "flag", "PBT - tax = PAT", [ctx.fact("pbt"), ctx.fact("tax")], pat, [1, -1]
-    )
+    return _identity("V3", "flag", "PBT - tax = PAT", [ctx.fact("pbt"), ctx.fact("tax")], pat, [1, -1])
 
 
 def v4_balance_sheet(ctx: ValidationContext) -> RuleResult:
@@ -252,14 +238,7 @@ def v5_quarter_vs_ytd(ctx: ValidationContext) -> RuleResult:
             continue
         names = candidates(logical, ctx.taxonomy)
         prior = next(
-            (
-                h
-                for h in ctx.history
-                if h.element in names
-                and h.period_start == ytd.period_start
-                and q.period_start is not None
-                and (q.period_start - h.period_end).days == 1
-            ),
+            (h for h in ctx.history if h.element in names and h.period_start == ytd.period_start and q.period_start is not None and (q.period_start - h.period_end).days == 1),
             None,
         )
         if prior is None:
@@ -267,9 +246,7 @@ def v5_quarter_vs_ytd(ctx: ValidationContext) -> RuleResult:
         derived = ytd.value - prior.value
         diff = derived - q.value
         ok = abs(diff) <= tolerance(q, ytd)
-        checked.append(
-            {"logical": logical, "derived": derived, "reported": q.value, "diff": diff, "ok": ok}
-        )
+        checked.append({"logical": logical, "derived": derived, "reported": q.value, "diff": diff, "ok": ok})
     if not checked:
         return RuleResult("V5", "skip", "flag", "Quarter vs YTD: no prior YTD in history")
     bad = [c for c in checked if not c["ok"]]
@@ -301,23 +278,14 @@ def v7_swing(ctx: ValidationContext) -> RuleResult:
             continue
         names = candidates(logical, ctx.taxonomy)
         prev = next(
-            (
-                h
-                for h in ctx.history
-                if h.element in names
-                and h.period_start is not None
-                and period_type(h.period_start, h.period_end) == "Q"
-                and (q.period_start - h.period_end).days == 1
-            ),
+            (h for h in ctx.history if h.element in names and h.period_start is not None and period_type(h.period_start, h.period_end) == "Q" and (q.period_start - h.period_end).days == 1),
             None,
         )
         if prev is None or prev.value == 0:
             continue
         change = (q.value - prev.value) / abs(prev.value)
         if abs(change) > SWING_THRESHOLD:
-            swings.append(
-                {"logical": logical, "previous": prev.value, "current": q.value, "change": change}
-            )
+            swings.append({"logical": logical, "previous": prev.value, "current": q.value, "change": change})
     if swings:
         return RuleResult("V7", "fail", "highlight", "QoQ change above 50%", {"swings": swings})
     return RuleResult("V7", "pass", "highlight", "No QoQ swing above 50%")
@@ -331,11 +299,7 @@ def is_year_end(ctx: ValidationContext) -> bool:
         return False
     if (end.month, end.day) == (3, 31):
         return True
-    return any(
-        f.period_end == end and period_type(f.period_start, f.period_end) == "FY"
-        for f in ctx.filing.facts
-        if not f.is_instant
-    )
+    return any(f.period_end == end and period_type(f.period_start, f.period_end) == "FY" for f in ctx.filing.facts if not f.is_instant)
 
 
 def v8_late_filing(ctx: ValidationContext) -> RuleResult:
@@ -382,9 +346,7 @@ def v9_restatement(ctx: ValidationContext) -> RuleResult:
                 }
             )
     if diffs:
-        return RuleResult(
-            "V9", "fail", "info", f"Restatement: {len(diffs)} values changed", {"diffs": diffs}
-        )
+        return RuleResult("V9", "fail", "info", f"Restatement: {len(diffs)} values changed", {"diffs": diffs})
     return RuleResult("V9", "pass", "info", "No restated values")
 
 
@@ -411,15 +373,7 @@ def v10_kpi_conflict(ctx: ValidationContext) -> RuleResult:
 
 # V11: amounts tagged in wrong unit. Filer entering lakh as rupees, or crore as lakh, files every
 # rupee amount 100, 1,000, 1 lakh or 1 crore times off; statement still adds up, V1-V3 pass (Metro
-# Brands, consolidated, September 2025: revenue Rs 6.51 cr for Rs 651.14 cr).
-# Two independent signals: other basis (consolidated can't be far below standalone, nor standalone
-# far above consolidated) and company's own neighbouring quarters (median of at least three, so one
 # bad quarter can't move it). Both agree on same power of ten: amounts corrected (rule 5 holds:
-# factor exact and recorded, stored file keeps values as filed). One signal alone, or disagreement:
-# flagged suspect and blocked, never changed. Matches own history: passes, whatever other basis
-# says (other filing is the odd one). Off own history but level with other basis: corrected if
-# other basis is off its own history by same power (both slipped), passed if other basis in line
-# with its own (real change). Per-share values and ratios are not amounts.
 SCALE_POWERS = range(2, 8)  # 100 to 1 crore
 SCALE_SLACK = 0.3  # log10 distance from an exact power: within a factor of 2 either way
 SCALE_MIN_BASE = Decimal(10_000_000)  # Rs 1 crore: below it, ratios of tiny figures are noise
@@ -451,12 +405,7 @@ def rescaled(filing: ParsedFiling, factor: Decimal) -> ParsedFiling:
     else as filed."""
     return replace(
         filing,
-        facts=[
-            replace(f, value=f.value * factor, decimals=scaled_decimals(f.decimals, factor))
-            if f.unit in MONETARY_UNITS
-            else f
-            for f in filing.facts
-        ],
+        facts=[replace(f, value=f.value * factor, decimals=scaled_decimals(f.decimals, factor)) if f.unit in MONETARY_UNITS else f for f in filing.facts],
     )
 
 
@@ -465,11 +414,7 @@ def _quarters(facts: list[HistoryFact], names: tuple[str, ...]) -> dict[date, De
     out: dict[date, Decimal] = {}
     for name in names:
         for h in facts:
-            if (
-                h.element == name
-                and h.period_start is not None
-                and period_type(h.period_start, h.period_end) == "Q"
-            ):
+            if h.element == name and h.period_start is not None and period_type(h.period_start, h.period_end) == "Q":
                 out.setdefault(h.period_end, h.value)
         if out:
             return out
@@ -503,9 +448,7 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
         ratio = q.value / other
         details["other_basis"] = {"value": other, "ratio": ratio}
         k = _power(ratio)
-        if k is not None and (
-            (consolidated is not False and k < 0) or (consolidated is False and k > 0)
-        ):
+        if k is not None and ((consolidated is not False and k < 0) or (consolidated is False and k > 0)):
             k_basis = k
 
     k_hist = None
@@ -514,17 +457,8 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
         details["neighbours"] = {"median": typical}
         k_hist = _power(q.value / typical)
         if k_hist is None:
-            return RuleResult(
-                "V11", "pass", "block", "Amounts in line with past quarters", details
-            ), None
+            return RuleResult("V11", "pass", "block", "Amounts in line with past quarters", details), None
 
-    # Out of line with own history but level with other basis: either both filings slipped same way
-    # (other basis off ITS history by same power: two histories agree, both corrected) or quarter
-    # really differed (other basis in line with own history: lumpy quarter, demerger). Seen in full
-    # sweep 21 October 2026 (Eveready, MTNL both 100x small; Mahindra Lifespace a real jump).
-    # Or, where two bases normally run level (histories within factor of five; never a holding
-    # company, whose standalone runs far below), this filing alone is off by same power against both
-    # its past and an in-line other basis: corrected, either direction.
     if k_hist is not None and other is not None and other >= SCALE_MIN_BASE and k_basis is None:
         lg = abs(math.log10(float(q.value / other)))
         other_typical = _typical(_quarters(ctx.other_basis, names), q.period_end)
@@ -546,8 +480,7 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
                     "V11",
                     "pass",
                     "block",
-                    "A real change: the other basis reports the same quarter and is in line"
-                    " with its own past quarters",
+                    "A real change: the other basis reports the same quarter and is in line with its own past quarters",
                     details,
                 ), None
             if k_other == k_hist:
@@ -563,8 +496,7 @@ def v11_scale(ctx: ValidationContext) -> tuple[RuleResult, Decimal | None]:
                 "V11",
                 "fail",
                 "flag",
-                f"Amounts tagged {size} times too {way}; corrected (other basis and past quarters"
-                " agree)",
+                f"Amounts tagged {size} times too {way}; corrected (other basis and past quarters agree)",
                 details,
             ),
             factor,

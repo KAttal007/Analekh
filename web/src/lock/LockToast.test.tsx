@@ -106,8 +106,7 @@ function Watch({ id }: { id: number }) {
   const gate = useModelLock(id, 25, { freedTo: `/models/${id}/assumptions` });
   return <p data-testid={`lock-${id}`}>{gate.held ? "held" : gate.loaded ? "free" : "..."}</p>;
 }
-const shows = async (id: number, state: "held" | "free") =>
-  waitFor(() => expect(screen.getByTestId(`lock-${id}`).textContent).toBe(state));
+const shows = async (id: number, state: "held" | "free") => waitFor(() => expect(screen.getByTestId(`lock-${id}`).textContent).toBe(state));
 const settle = () => new Promise((r) => setTimeout(r, 80)); // a few polls
 
 it("the toast names the company and opens the model when clicked", () => {

@@ -61,18 +61,14 @@ def test_watcher_skips_without_touching_nse_or_the_database(monkeypatch):
     monkeypatch.setattr(seasons, "watch_due", lambda now=None: (False, "off season: test"))
     monkeypatch.setattr(status, "record", lambda *args: recorded.append(args))
     assert watch_results() == {"skipped": "off season: test"}
-    # The skipped run is noted for the Settings screen (and here, kept out of the database).
     assert recorded == [("results_watch", "skipped", {"skipped": "off season: test"})]
 
 
 def test_next_ask_and_previous_start():
     from analekh.seasons import next_ask, previous_start
 
-    # In season at 10:30: next ask 11:00, last start 10:00 (hourly).
     assert next_ask(ist(2026, 10, 20, 10).replace(minute=30)) == ist(2026, 10, 20, 11)
     assert previous_start(ist(2026, 10, 20, 10).replace(minute=30)) == ist(2026, 10, 20, 10)
-    # Off season after 21:00: tomorrow at 21:00; at 02:00 the last start was 23:00 yesterday.
     assert next_ask(ist(2026, 9, 10, 22)) == ist(2026, 9, 11, 21)
     assert previous_start(ist(2026, 9, 10, 2)) == ist(2026, 9, 9, 23)
-    # The day before a season opens: the next ask is that evening's 21:00 run.
     assert next_ask(ist(2026, 10, 4, 12)) == ist(2026, 10, 4, 21)

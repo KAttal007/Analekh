@@ -2,28 +2,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { type CalendarEvent, type CalendarKind } from "../api/client";
-import {
-  addDays,
-  addMonths,
-  dayLong,
-  dayNumber,
-  daysFrom,
-  isWeekend,
-  iso,
-  monthGrid,
-  monthLong,
-  monthShort,
-  rangeLabel,
-  startOfWeek,
-  weekdayShort,
-} from "../lib/calendar";
+import { addDays, addMonths, dayLong, dayNumber, daysFrom, isWeekend, iso, monthGrid, monthLong, monthShort, rangeLabel, startOfWeek, weekdayShort } from "../lib/calendar";
 import { calendarQuery, dayStrip } from "../lib/preload";
 import { Icon } from "./Icon";
 import { Avatar, Badge, EmptyState, ErrorNote, Segmented, SegmentThumb, Skeleton } from "./ui";
-
-// One calendar for the Results desk and the Watchlist: the same component, a different scope.
-// `watchlistOnly` is the whole difference: on the desk it follows the "Watchlist only" switch,
-// on the Watchlist it is always on.
 
 type View = "day" | "week" | "month";
 type KindFilter = "all" | CalendarKind;
@@ -41,17 +23,9 @@ const KIND_LABEL: Record<CalendarKind, string> = {
 };
 const KIND_TONE = { results: "accent", meeting: "neutral", concall: "ok" } as const;
 
-const reducedMotion = () =>
-  typeof window !== "undefined" &&
-  !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export function ResultsCalendar({
-  watchlistOnly = false,
-  title = "Results calendar",
-}: {
-  watchlistOnly?: boolean;
-  title?: string;
-}) {
+export function ResultsCalendar({ watchlistOnly = false, title = "Results calendar" }: { watchlistOnly?: boolean; title?: string }) {
   const today = iso(new Date());
   const [view, setView] = useState<View>("day");
   const [selected, setSelected] = useState(today);
@@ -97,7 +71,6 @@ export function ResultsCalendar({
   const inStrip = (day: string) => day >= strip[0] && day <= strip[strip.length - 1];
   const changeView = (next: View) => {
     setView(next);
-    // The strip only reaches so far back and ahead; a day outside it falls back to today.
     if (next === "day" && !inStrip(selected)) setSelected(today);
   };
   const step = (dir: 1 | -1) => {
@@ -121,61 +94,26 @@ export function ResultsCalendar({
           {title}
         </h2>
         <div className="cal-nav">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={view === "month" ? "Previous month" : "Previous week"}
-            onClick={() => step(-1)}
-          >
+          <button type="button" className="icon-btn" aria-label={view === "month" ? "Previous month" : "Previous week"} onClick={() => step(-1)}>
             <Icon name="chevronLeft" />
           </button>
           <span className="cal-label" aria-live="polite">
             {label}
           </span>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={view === "month" ? "Next month" : "Next week"}
-            onClick={() => step(1)}
-          >
+          <button type="button" className="icon-btn" aria-label={view === "month" ? "Next month" : "Next week"} onClick={() => step(1)}>
             <Icon name="chevronRight" />
           </button>
-          <button
-            type="button"
-            className="btn-sm"
-            onClick={() => setSelected(today)}
-            disabled={selected === today}
-          >
+          <button type="button" className="btn-sm" onClick={() => setSelected(today)} disabled={selected === today}>
             Today
           </button>
         </div>
-        <Segmented
-          label="Calendar view"
-          options={VIEWS}
-          value={view}
-          onChange={(v) => changeView(v)}
-        />
+        <Segmented label="Calendar view" options={VIEWS} value={view} onChange={(v) => changeView(v)} />
       </div>
 
       <div className="cal-kinds" role="group" aria-label="Show">
-        <KindChip
-          active={kind === "all"}
-          onClick={() => setKind("all")}
-          label="All"
-          count={counts.results + counts.meeting + counts.concall}
-        />
-        <KindChip
-          active={kind === "results"}
-          onClick={() => setKind("results")}
-          label="Results"
-          count={counts.results}
-        />
-        <KindChip
-          active={kind === "meeting"}
-          onClick={() => setKind("meeting")}
-          label="Board meetings"
-          count={counts.meeting}
-        />
+        <KindChip active={kind === "all"} onClick={() => setKind("all")} label="All" count={counts.results + counts.meeting + counts.concall} />
+        <KindChip active={kind === "results"} onClick={() => setKind("results")} label="Results" count={counts.results} />
+        <KindChip active={kind === "meeting"} onClick={() => setKind("meeting")} label="Board meetings" count={counts.meeting} />
         <KindChip
           active={kind === "concall"}
           onClick={() => setKind("concall")}
@@ -196,38 +134,15 @@ export function ResultsCalendar({
         </div>
       ) : (
         <>
-          {view === "day" && (
-            <DayStrip days={strip} today={today} selected={selected} byDay={byDay} onPick={pick} />
-          )}
-          {view === "week" && (
-            <WeekView
-              days={daysFrom(range.start, 7)}
-              today={today}
-              selected={selected}
-              byDay={byDay}
-              onPick={pick}
-            />
-          )}
-          {view === "month" && (
-            <MonthView
-              days={monthGrid(selected).days}
-              month={selected.slice(0, 7)}
-              today={today}
-              selected={selected}
-              byDay={byDay}
-              onPick={pick}
-            />
-          )}
+          {view === "day" && <DayStrip days={strip} today={today} selected={selected} byDay={byDay} onPick={pick} />}
+          {view === "week" && <WeekView days={daysFrom(range.start, 7)} today={today} selected={selected} byDay={byDay} onPick={pick} />}
+          {view === "month" && <MonthView days={monthGrid(selected).days} month={selected.slice(0, 7)} today={today} selected={selected} byDay={byDay} onPick={pick} />}
 
           <div className="cal-day-head">
             <h3>{dayLong(selected)}</h3>
             <span className="muted">
               {events.length
-                ? `${events.length} ${events.length === 1 ? "company" : "companies"}${
-                    watchlistOnly
-                      ? ""
-                      : `, ${events.filter((e) => e.watched).length} on your watchlist`
-                  }`
+                ? `${events.length} ${events.length === 1 ? "company" : "companies"}${watchlistOnly ? "" : `, ${events.filter((e) => e.watched).length} on your watchlist`}`
                 : "Nothing scheduled"}
             </span>
           </div>
@@ -268,30 +183,9 @@ export function ResultsCalendar({
   );
 }
 
-function KindChip({
-  active,
-  onClick,
-  label,
-  count,
-  disabled,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-  disabled?: boolean;
-  title?: string;
-}) {
+function KindChip({ active, onClick, label, count, disabled, title }: { active: boolean; onClick: () => void; label: string; count: number; disabled?: boolean; title?: string }) {
   return (
-    <button
-      type="button"
-      className={active ? "cal-chip on" : "cal-chip"}
-      aria-pressed={active}
-      onClick={onClick}
-      disabled={disabled}
-      title={disabled ? title : undefined}
-    >
+    <button type="button" className={active ? "cal-chip on" : "cal-chip"} aria-pressed={active} onClick={onClick} disabled={disabled} title={disabled ? title : undefined}>
       {label}
       <span className="cal-chip-n">{count}</span>
     </button>
@@ -355,7 +249,6 @@ function DayStrip({ days, today, selected, byDay, onPick }: DayProps) {
   const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
   const placed = useRef(false);
 
-  // Keep the selected day centred: instantly the first time, smoothly after.
   useEffect(() => {
     const box = scroller.current;
     const tile = box?.querySelector<HTMLElement>('[aria-pressed="true"]');
@@ -392,7 +285,6 @@ function DayStrip({ days, today, selected, byDay, onPick }: DayProps) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       box.classList.remove("dragging");
-      // The click that ends a drag must not pick a day; clear the flag after it has fired.
       window.setTimeout(() => (drag.current = null), 0);
     };
     window.addEventListener("pointermove", move);
@@ -401,8 +293,7 @@ function DayStrip({ days, today, selected, byDay, onPick }: DayProps) {
 
   const onKeyDown = (ev: React.KeyboardEvent) => {
     const i = days.indexOf(selected);
-    const next =
-      ev.key === "ArrowRight" ? days[i + 1] : ev.key === "ArrowLeft" ? days[i - 1] : undefined;
+    const next = ev.key === "ArrowRight" ? days[i + 1] : ev.key === "ArrowLeft" ? days[i - 1] : undefined;
     if (!next) return;
     ev.preventDefault();
     onPick(next);
@@ -415,22 +306,10 @@ function DayStrip({ days, today, selected, byDay, onPick }: DayProps) {
 
   return (
     <div className="cal-strip-wrap">
-      <button
-        type="button"
-        className="icon-btn cal-edge cal-edge-l"
-        aria-label="Scroll days back"
-        onClick={() => scrollBy(-1)}
-      >
+      <button type="button" className="icon-btn cal-edge cal-edge-l" aria-label="Scroll days back" onClick={() => scrollBy(-1)}>
         <Icon name="chevronLeft" />
       </button>
-      <div
-        className="cal-strip"
-        ref={scroller}
-        role="group"
-        aria-label="Days"
-        onPointerDown={onPointerDown}
-        onKeyDown={onKeyDown}
-      >
+      <div className="cal-strip" ref={scroller} role="group" aria-label="Days" onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
         <SegmentThumb selected='[aria-pressed="true"]' />
         {days.map((day) => {
           const n = byDay.get(day)?.length ?? 0;
@@ -461,12 +340,7 @@ function DayStrip({ days, today, selected, byDay, onPick }: DayProps) {
           );
         })}
       </div>
-      <button
-        type="button"
-        className="icon-btn cal-edge cal-edge-r"
-        aria-label="Scroll days ahead"
-        onClick={() => scrollBy(1)}
-      >
+      <button type="button" className="icon-btn cal-edge cal-edge-r" aria-label="Scroll days ahead" onClick={() => scrollBy(1)}>
         <Icon name="chevronRight" />
       </button>
     </div>
@@ -481,19 +355,8 @@ function WeekView({ days, today, selected, byDay, onPick }: DayProps) {
       {days.map((day) => {
         const list = byDay.get(day) ?? [];
         return (
-          <div
-            key={day}
-            className="cal-week-col"
-            data-weekend={isWeekend(day) || undefined}
-            data-selected={day === selected || undefined}
-          >
-            <button
-              type="button"
-              className="cal-week-head"
-              data-today={day === today || undefined}
-              aria-pressed={day === selected}
-              onClick={() => onPick(day)}
-            >
+          <div key={day} className="cal-week-col" data-weekend={isWeekend(day) || undefined} data-selected={day === selected || undefined}>
+            <button type="button" className="cal-week-head" data-today={day === today || undefined} aria-pressed={day === selected} onClick={() => onPick(day)}>
               <span className="cal-dow">{weekdayShort(day)}</span>
               <span className="cal-num">{dayNumber(day)}</span>
               <span className="cal-count" data-empty={list.length === 0 || undefined}>
@@ -503,12 +366,7 @@ function WeekView({ days, today, selected, byDay, onPick }: DayProps) {
             <ul>
               {list.slice(0, 5).map((e) => (
                 <li key={`${e.symbol}-${e.kind}`}>
-                  <Link
-                    to={`/companies/${e.symbol}`}
-                    className="cal-pill"
-                    data-kind={e.kind}
-                    title={`${e.name} · ${e.status === "filed" ? "Results filed" : KIND_LABEL[e.kind]}`}
-                  >
+                  <Link to={`/companies/${e.symbol}`} className="cal-pill" data-kind={e.kind} title={`${e.name} · ${e.status === "filed" ? "Results filed" : KIND_LABEL[e.kind]}`}>
                     {e.watched && <i className="cal-mine" aria-hidden />}
                     {e.name.replace(/\b(limited|ltd\.?)$/i, "").trim()}
                   </Link>
@@ -529,7 +387,6 @@ function WeekView({ days, today, selected, byDay, onPick }: DayProps) {
   );
 }
 
-/** The month as a grid: a day's count, and its first names, at a glance. */
 function MonthView({ days, month, today, selected, byDay, onPick }: DayProps & { month: string }) {
   return (
     <div className="cal-month" role="grid" aria-label={monthLong(selected)}>

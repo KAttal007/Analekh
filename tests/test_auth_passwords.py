@@ -26,10 +26,7 @@ def test_too_long_password_refused_before_hashing(monkeypatch):
     monkeypatch.setattr(passwords, "_hasher", type("H", (), {"hash": boom, "verify": boom})())
     with pytest.raises(PasswordTooLong):
         hash_password("x" * 10_000)
-    assert (
-        verify_password("x" * (get_settings().password_max_length + 1), "$argon2id$whatever")
-        is False
-    )
+    assert verify_password("x" * (get_settings().password_max_length + 1), "$argon2id$whatever") is False
 
 
 def test_none_hash_still_does_work(monkeypatch):

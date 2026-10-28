@@ -21,7 +21,6 @@ from analekh.db.models import AuditEntry, User
 SUBJECT_FIRST = "Your Analekh account"
 SUBJECT_RESET = "Your Analekh password was reset"
 
-# User.first_password_mail
 MAIL_SENDING = "sending"
 MAIL_SENT = "sent"
 MAIL_FAILED = "failed"
@@ -46,19 +45,14 @@ def issue(db: Session, user: User, now: datetime | None = None) -> str:
 
 def _body(user: User, plain: str, *, first: bool) -> str:
     s = get_settings()
-    opening = (
-        "An Analekh account has been made for you."
-        if first
-        else "Your Analekh password was reset by an admin."
-    )
+    opening = "An Analekh account has been made for you." if first else "Your Analekh password was reset by an admin."
     lines = [
         opening,
         "",
         f"Username: {user.email}",
         f"First password: {plain}",
         "",
-        f"This password works once and lasts {s.first_password_hours} hours. When you sign in "
-        "you will be asked to choose your own password.",
+        f"This password works once and lasts {s.first_password_hours} hours. When you sign in you will be asked to choose your own password.",
     ]
     if s.web_app_url:
         lines += ["", f"Sign in at: {s.web_app_url}"]
@@ -90,9 +84,7 @@ def deliver(
             return
         hash_now = user.password_hash
         db.commit()  # no transaction held open while the mail server is slow
-        ok = mail.send_mail(
-            user.email, SUBJECT_FIRST if first else SUBJECT_RESET, _body(user, plain, first=first)
-        )
+        ok = mail.send_mail(user.email, SUBJECT_FIRST if first else SUBJECT_RESET, _body(user, plain, first=first))
         db.refresh(user)
         if user.password_hash == hash_now:
             user.first_password_mail = MAIL_SENT if ok else MAIL_FAILED

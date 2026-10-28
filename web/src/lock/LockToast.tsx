@@ -8,17 +8,7 @@ import { lockKey } from "./useModelLock";
 
 /** A model the viewer waited for is free. Appears at once (no entrance motion) and stays until
  *  dismissed or opened. */
-export function LockToast({
-  companyName,
-  modelId,
-  onOpen,
-  onDismiss,
-}: {
-  companyName: string;
-  modelId: number;
-  onOpen(): void;
-  onDismiss?(): void;
-}) {
+export function LockToast({ companyName, modelId, onOpen, onDismiss }: { companyName: string; modelId: number; onOpen(): void; onDismiss?(): void }) {
   return (
     <div className="lock-toast" role="status" data-model={modelId}>
       <Icon name="check" />
@@ -26,13 +16,7 @@ export function LockToast({
         {companyName}'s model is free. You can open it for editing.
       </button>
       {onDismiss && (
-        <button
-          type="button"
-          className="icon-btn lock-toast-close"
-          aria-label="Dismiss"
-          title="Dismiss"
-          onClick={onDismiss}
-        >
+        <button type="button" className="icon-btn lock-toast-close" aria-label="Dismiss" title="Dismiss" onClick={onDismiss}>
           <Icon name="x" size={14} />
         </button>
       )}

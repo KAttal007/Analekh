@@ -29,7 +29,6 @@ from analekh.universe.search import get as get_company
 BASIS_LABEL = {True: "Consolidated", False: "Standalone", None: "n.a."}
 MAX_COMPANIES = 30  # per table: enough for any peer set, small enough to answer at once
 
-# Balance-sheet equity for the book value, first found wins (instant facts, no dimensions).
 BOOK_VALUE = {
     "indas": ("EquityAttributableToOwnersOfParent", "Equity"),
     "banking": (),  # capital + reserves, below
@@ -151,9 +150,7 @@ def _sum(values: list[Decimal | None]) -> Decimal | None:
     return sum((v for v in values if v is not None), Decimal(0))
 
 
-def book_value(
-    session: Session, company: Company, consolidated: bool
-) -> tuple[Decimal | None, date | None]:
+def book_value(session: Session, company: Company, consolidated: bool) -> tuple[Decimal | None, date | None]:
     """Equity from the latest balance sheet filed on this basis."""
     taxonomy = company.results_taxonomy or "indas"
     names = BOOK_VALUE.get(taxonomy, BOOK_VALUE["indas"])
@@ -206,17 +203,11 @@ def gather(session: Session, symbol: str, consolidated: bool | None = None) -> C
         other_ends = four_quarters(other)
         if other_ends is not None:
             basis, q, ends = not first, other, other_ends
-            mine, theirs = (
-                ("standalone", "consolidated") if first else ("consolidated", "standalone")
-            )
+            mine, theirs = ("standalone", "consolidated") if first else ("consolidated", "standalone")
             notes.append(f"{mine}: fewer than four {theirs} quarters")
     revenue = pat = ebitda = yoy = None
     if ends is None:
-        notes.append(
-            "SME companies file half-yearly results; TTM needs four quarters"
-            if company.is_sme
-            else "fewer than four back-to-back quarters of results on record"
-        )
+        notes.append("SME companies file half-yearly results; TTM needs four quarters" if company.is_sme else "fewer than four back-to-back quarters of results on record")
     else:
         revenue = _sum([raw_value(q, "revenue", e) for e in ends])
         pat = _sum([raw_value(q, "pat", e) for e in ends])
@@ -228,9 +219,7 @@ def gather(session: Session, symbol: str, consolidated: bool | None = None) -> C
         year_ago = date(latest.year - 1, latest.month, latest.day)
         yoy = change(raw_value(q, "revenue", latest), raw_value(q, "revenue", year_ago), "inr")
     book, book_at = book_value(session, company, basis)
-    price = session.scalar(
-        select(Price).where(Price.company_id == company.id).order_by(Price.trade_date.desc())
-    )
+    price = session.scalar(select(Price).where(Price.company_id == company.id).order_by(Price.trade_date.desc()))
     if price is None:
         notes.append("no closing price loaded")
     elif price.market_cap is None:
@@ -267,9 +256,7 @@ def clean_symbols(symbols: list[str]) -> list[str]:
     return out
 
 
-def build_table(
-    session: Session, symbols: list[str], consolidated: bool | None = None
-) -> tuple[list[CompRow], list[str]]:
+def build_table(session: Session, symbols: list[str], consolidated: bool | None = None) -> tuple[list[CompRow], list[str]]:
     """Rows for the symbols Analekh knows, and the ones it doesn't (a saved list can outlive a
     delisting or a symbol change), so one stale symbol never breaks the table."""
     rows: list[CompRow] = []
@@ -298,13 +285,10 @@ def suggest_peers(session: Session, company: Company, limit: int = 8) -> list[Co
             Company.is_active,
             Company.sector == company.sector,
             Company.id != company.id,
-            func.coalesce(Company.results_taxonomy, "indas")
-            == (company.results_taxonomy or "indas"),
+            func.coalesce(Company.results_taxonomy, "indas") == (company.results_taxonomy or "indas"),
         )
     ).all()
-    own = session.scalar(
-        select(Price.market_cap).where(Price.company_id == company.id, Price.trade_date == latest)
-    )
+    own = session.scalar(select(Price.market_cap).where(Price.company_id == company.id, Price.trade_date == latest))
 
     pairs = [(peer, cap) for peer, cap in rows if cap is not None]
 
@@ -330,8 +314,7 @@ def to_xlsx(rows: list[CompRow], title: str = "Comparable companies") -> bytes:
     ws.write(
         1,
         0,
-        "INR crore; TTM = last four reported quarters; YoY = latest quarter on a year earlier; "
-        "n.m. = not meaningful; n.a. = not available; check Basis before comparing",
+        "INR crore; TTM = last four reported quarters; YoY = latest quarter on a year earlier; n.m. = not meaningful; n.a. = not available; check Basis before comparing",
     )
     headers = [
         "Company",

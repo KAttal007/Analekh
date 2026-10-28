@@ -67,10 +67,7 @@ def process_documents(limit: int = 10, company_id: int | None = None) -> dict:
     with session_scope() as s:
         claude = Claude(s) if get_settings().anthropic_api_key else None
         q = select(Filing).where(Filing.status == "fetched", Filing.kind != "results_xbrl")
-        if company_id is not None:
-            q = q.where(Filing.company_id == company_id)
-        else:
-            q = q.where(exists().where(Watchlist.company_id == Filing.company_id))
+        q = q.where(Filing.company_id == company_id) if company_id is not None else q.where(exists().where(Watchlist.company_id == Filing.company_id))
         filings = list(s.scalars(q.order_by(Filing.id).limit(limit)))
         run = run_documents(s, store, filings, claude, embedder=None)
     return run.__dict__
@@ -96,11 +93,7 @@ def refresh_company(symbol: str) -> dict:
         store, client = default_store(), PoliteClient()
         feed_run = process_feed_items(s, store, client, pending)
         integrated = fetch_results(s, store, client, company)
-        latest = s.scalar(
-            select(Filing)
-            .where(Filing.company_id == company.id, Filing.kind == "results_xbrl")
-            .order_by(Filing.period_end.desc().nulls_last())
-        )
+        latest = s.scalar(select(Filing).where(Filing.company_id == company.id, Filing.kind == "results_xbrl").order_by(Filing.period_end.desc().nulls_last()))
         return {
             "filing_id": latest.id if latest else None,
             "period_end": str(latest.period_end) if latest else None,
@@ -199,7 +192,6 @@ def release_revoked_sync(sender: Any = None, request: Any = None, **_: Any) -> N
     name = getattr(sender, "name", None) or getattr(request, "task", None)
     if request is None or name != sync_model.name:
         return
-    # POST /models/{id}/sync queues positionally (model_id, filing_id); kwargs for safety.
     args = getattr(request, "args", None) or ()
     kwargs = getattr(request, "kwargs", None) or {}
     model_id = args[0] if args else kwargs.get("model_id")
@@ -222,11 +214,7 @@ def _sync_model(model_id: int, filing_id: int) -> dict:
             return {"error": "model or filing not found"}
         if model.mapping is None:
             return {"error": "model mapping not confirmed"}
-        version = s.scalar(
-            select(ModelVersion)
-            .where(ModelVersion.model_id == model_id)
-            .order_by(ModelVersion.version.desc())
-        )
+        version = s.scalar(select(ModelVersion).where(ModelVersion.model_id == model_id).order_by(ModelVersion.version.desc()))
         if version is None:
             return {"error": "model has no saved version"}
         proposal = build_change_set(
@@ -281,16 +269,11 @@ def bulk_fetch_results(
 
     with session_scope() as s:
         q = select(Company.nse_symbol).where(Company.is_active).order_by(Company.nse_symbol)
-        if symbols:
-            q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols]))
-        else:
-            q = q.where(Company.sector.is_not(None))
+        q = q.where(Company.nse_symbol.in_([x.upper() for x in symbols])) if symbols else q.where(Company.sector.is_not(None))
         if sectors:
             q = q.where(Company.sector.in_(sectors))
         if skip_done and not history:
-            q = q.where(
-                ~exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl")
-            )
+            q = q.where(~exists().where(Filing.company_id == Company.id, Filing.kind == "results_xbrl"))
         if start_at:
             q = q.where(Company.nse_symbol >= start_at.upper())
         todo = list(s.scalars(q))
@@ -302,9 +285,7 @@ def bulk_fetch_results(
         import csv
 
         with gaps.open(newline="", encoding="utf-8") as fh:
-            nothing = {
-                r["symbol"] for r in csv.DictReader(fh) if not r["reason"].startswith("error")
-            }
+            nothing = {r["symbol"] for r in csv.DictReader(fh) if not r["reason"].startswith("error")}
         todo = [x for x in todo if x not in nothing]
     todo = todo[:limit]
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -322,20 +303,13 @@ def bulk_fetch_results(
                     company = get_company(s, symbol)
                     if company is None:
                         raise LookupError(f"unknown company {symbol}")
-                    if history:
-                        outcome = fetch_history(s, store, client, company, one_basis=one_basis)
-                    else:
-                        outcome = fetch_results(
-                            s, store, client, company, quarters=quarters, one_basis=one_basis
-                        )
+                    outcome = fetch_history(s, store, client, company, one_basis=one_basis) if history else fetch_results(s, store, client, company, quarters=quarters, one_basis=one_basis)
                     entry.update(listed=outcome.listed, new=outcome.new)
                     if outcome.missing:
                         entry["missing"] = len(outcome.missing)
                     if outcome.errors:
                         entry["errors"] = outcome.errors
-                    entry["blocked"] = sum(
-                        bool(r.report and r.report.blocks_auto_apply) for r in outcome.results
-                    )
+                    entry["blocked"] = sum(bool(r.report and r.report.blocks_auto_apply) for r in outcome.results)
                     if outcome.gap:
                         entry["gap"] = outcome.gap
                     if not history:  # the no-filings list is about integrated filings
@@ -420,11 +394,9 @@ def watch_results(force: bool = False) -> dict:
         return skipped
     try:
         with session_scope() as s:
-            # last_ok_summary, not last_summary: a skipped run overwrites that one
             last = s.get(JobStatus, "results_watch")
             size = next_page_size(last.last_ok_summary if last else None)
             out = fetch_latest(s, default_store(), PoliteClient(max_attempts=2), size=size)
-            # A first or newer filing changes the share count behind today's market cap.
             caps = recompute_market_caps(s) if out.new else None
     except Exception as exc:
         status.record("results_watch", "error", {"why": reason, "error": str(exc)})

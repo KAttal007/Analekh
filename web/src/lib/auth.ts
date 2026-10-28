@@ -17,19 +17,14 @@ export function safeReturnPath(raw: string | null | undefined): string {
   return raw;
 }
 
-// The path only (never a credential) is kept for the tab's lifetime, so an expired session lands
-// back where the user was after signing in again.
 const RETURN_KEY = "analekh.return-path";
 
 export function rememberReturnPath(path: string): void {
   try {
     sessionStorage.setItem(RETURN_KEY, safeReturnPath(path));
-  } catch {
-    /* storage unavailable: sign-in returns to the home page */
-  }
+  } catch { /* storage blocked: sign-in still works */ }
 }
 
-/** The page sign-in will return to, without forgetting it. */
 export function peekReturnPath(): string {
   try {
     return safeReturnPath(sessionStorage.getItem(RETURN_KEY));
@@ -50,7 +45,6 @@ export function takeReturnPath(): string {
 
 export const ME_KEY = ["me"] as const;
 
-/** Who is signed in: the user, or null when nobody is (a 401 is an answer here, not an error). */
 export function useMe() {
   return useQuery<Me | null>({
     queryKey: ME_KEY,
@@ -88,18 +82,12 @@ export function useSignOut() {
     try {
       await (everywhere ? api.logoutEverywhere() : api.logout());
     } catch (error) {
-      // A 401 means the session was already over: that is signed out. Any other failure (server
-      // down, network) means it is NOT: stay where we are and let the caller say so.
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
     resetWelcomed();
-    // Nothing from the lock reminders carries over to whoever signs in next in this tab.
     clearFreed();
     forgetSignInLocks();
-    // Signed out first, on the live entry, so the open page sees it at once. client.clear()
-    // would drop that entry too, leaving the page watching a copy nobody updates.
     client.setQueryData(ME_KEY, null);
-    // Nothing else from this session stays in the page.
     client.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
     navigate("/welcome", { replace: true });
   };

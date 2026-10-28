@@ -68,9 +68,7 @@ def score_page(page: PageText, total_pages: int) -> dict[str, float]:
     return scores
 
 
-def select_pages(
-    pages: list[PageText], kind: str = "presentation", per_category: int = 4, min_score: float = 2.0
-) -> list[PageScore]:
+def select_pages(pages: list[PageText], kind: str = "presentation", per_category: int = 4, min_score: float = 2.0) -> list[PageScore]:
     """Top pages per category, capped at the document kind's limit, in page order."""
     limit = DEFAULT_LIMITS.get(kind, 10)
     chosen: dict[int, PageScore] = {}
@@ -80,9 +78,7 @@ def select_pages(
             by_cat.setdefault(cat, []).append(PageScore(page.number, cat, score))
     for scored in by_cat.values():
         for ps in sorted(scored, key=lambda s: -s.score)[:per_category]:
-            if ps.score >= min_score and (
-                ps.page not in chosen or chosen[ps.page].score < ps.score
-            ):
+            if ps.score >= min_score and (ps.page not in chosen or chosen[ps.page].score < ps.score):
                 chosen[ps.page] = ps
     best = sorted(chosen.values(), key=lambda s: -s.score)[:limit]
     return sorted(best, key=lambda s: s.page)

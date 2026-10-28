@@ -13,7 +13,6 @@ export function RequireSignIn() {
     rememberReturnPath(pathname + search);
     return <Navigate to="/login" replace />;
   }
-  // Still on the emailed first password: nothing else works until a new one is chosen.
   if (me.data?.must_change_password) return <Navigate to="/login" replace />;
   return <Outlet />;
 }

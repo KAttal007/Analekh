@@ -5,8 +5,7 @@ import { ReadOnlyBanner, sinceText } from "./ReadOnlyBanner";
 afterEach(cleanup);
 
 // A moment on the viewer's own clock: the banner speaks local time, whatever the zone.
-const local = (y: number, mo: number, d: number, h: number, mi: number) =>
-  new Date(y, mo - 1, d, h, mi).toISOString();
+const local = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi).toISOString();
 
 test("today's lock shows the holder and the local time, HH:MM", () => {
   render(<ReadOnlyBanner holderName="Kaushal" takenAt={local(2026, 10, 24, 10, 42)} />);
@@ -34,12 +33,6 @@ test("the banner text is exactly the agreed copy", () => {
 });
 
 test("an action (an admin's release) sits inside the banner", () => {
-  render(
-    <ReadOnlyBanner
-      holderName="Kaushal"
-      takenAt={local(2026, 10, 24, 10, 42)}
-      action={<button>Release lock</button>}
-    />,
-  );
+  render(<ReadOnlyBanner holderName="Kaushal" takenAt={local(2026, 10, 24, 10, 42)} action={<button>Release lock</button>} />);
   expect(screen.getByRole("button", { name: "Release lock" })).toBeTruthy();
 });

@@ -23,13 +23,9 @@ class BackfillSummary:
     unknown_symbols: list[str] = field(default_factory=list)
 
 
-def run_backfill(
-    session: Session, store: ObjectStore, import_dir: Path, symbol: str | None = None
-) -> BackfillSummary:
+def run_backfill(session: Session, store: ObjectStore, import_dir: Path, symbol: str | None = None) -> BackfillSummary:
     summary = BackfillSummary()
-    folders = (
-        [import_dir / symbol] if symbol else sorted(p for p in import_dir.iterdir() if p.is_dir())
-    )
+    folders = [import_dir / symbol] if symbol else sorted(p for p in import_dir.iterdir() if p.is_dir())
     for folder in folders:
         company = resolve(session, folder.name)
         if company is None:
@@ -38,9 +34,7 @@ def run_backfill(
         for path in sorted(folder.iterdir()):
             suffix = path.suffix.lower()
             if suffix == ".xml":
-                result = ingest_results_xbrl(
-                    session, store, company, path.read_bytes(), source_url=f"import:{path.name}"
-                )
+                result = ingest_results_xbrl(session, store, company, path.read_bytes(), source_url=f"import:{path.name}")
                 (summary.skipped if result.skipped else summary.ingested).append(str(path))
             elif suffix == ".pdf":
                 store_document(

@@ -16,15 +16,10 @@ _MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
 _Q_END_MONTH = {1: 6, 2: 9, 3: 12, 4: 3}
 
 _PATTERNS = [
-    # Q2FY27, Q2 FY27, Q2FY2027, Q2FY27E
     (re.compile(r"^Q([1-4])\s*FY\s*'?(\d{2}|\d{4})([AE])?$"), "q_fy"),
-    # 2QFY27, 2Q FY27
     (re.compile(r"^([1-4])Q\s*FY\s*'?(\d{2}|\d{4})([AE])?$"), "q_fy"),
-    # FY27, FY27E, FY2027A
     (re.compile(r"^FY\s*'?(\d{2}|\d{4})([AE])?$"), "fy"),
-    # H1FY27, 1HFY27
     (re.compile(r"^(?:H([12])|([12])H)\s*FY\s*'?(\d{2}|\d{4})([AE])?$"), "h_fy"),
-    # Sep-26, Sep 2026, Sep'26
     (re.compile(r"^([A-Za-z]{3})[\s\-']*(\d{2}|\d{4})([AE])?$"), "month"),
 ]
 
@@ -111,9 +106,7 @@ class PeriodAxis:
     flags: dict[int, str]  # column index -> "A" | "E" | ""
 
     def column_for(self, period_end: date, kind: str = "Q") -> int | None:
-        return next(
-            (c for c, p in self.columns.items() if p.end == period_end and p.kind == kind), None
-        )
+        return next((c for c, p in self.columns.items() if p.end == period_end and p.kind == kind), None)
 
     def is_estimate(self, col: int) -> bool:
         flag = self.flags.get(col, "")
@@ -146,9 +139,7 @@ class PeriodAxis:
                 }
                 for c, p in sorted(self.columns.items())
             },
-            "last_actual": get_column_letter(self.last_actual_column)
-            if self.last_actual_column
-            else None,
+            "last_actual": get_column_letter(self.last_actual_column) if self.last_actual_column else None,
         }
 
 

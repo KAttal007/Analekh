@@ -57,9 +57,6 @@ def feed_item(db, company, link: str | None, minute: int) -> FeedItem:
     return item
 
 
-# --- issue 1: the feed queue -----------------------------------------------------------------
-
-
 def test_one_bad_feed_item_does_not_block_the_queue(db, store, company):
     from analekh.ingest.pipeline import MAX_ATTEMPTS, process_feed_items
 
@@ -72,7 +69,6 @@ def test_one_bad_feed_item_does_not_block_the_queue(db, store, company):
             good: httpx.Response(200, content=q2_instance()),
         }
     )
-    # The bad items come first, as they would in the queue's pub_date order.
     items = [feed_item(db, company, url, i) for i, url in enumerate([gone, broken, unreadable])]
     items.append(feed_item(db, company, good, 9))
     no_link = feed_item(db, company, None, 10)
@@ -82,7 +78,6 @@ def test_one_bad_feed_item_does_not_block_the_queue(db, store, company):
     stored = db.scalars(select(Filing).where(Filing.company_id == company.id)).all()
     assert [f.source_url for f in stored] == [good]
 
-    # A file that is gone is given up at once; a broken one is retried on later runs.
     by_url = {i.link: i for i in items}
     assert by_url[gone].processed_at is not None and "404" in (by_url[gone].error or "")
     assert by_url[broken].processed_at is None and by_url[broken].attempts == 1
@@ -126,9 +121,6 @@ def test_a_failed_item_retries_after_fresh_ones(db, store, company):
     assert pending_feed_items(db, limit=10) == [fresh, retried]
 
 
-# --- issue 2: the document queue -------------------------------------------------------------
-
-
 def stored_doc(db, store, company, data: bytes, name: str) -> Filing:
     from analekh.ingest.pipeline import store_document
 
@@ -148,9 +140,7 @@ def test_one_bad_document_does_not_block_the_document_queue(db, store, company):
     assert bad.status == "failed" and bad.meta.get("error")
 
 
-def test_document_queue_stops_on_a_passing_outage_and_leaves_the_rest_waiting(
-    db, store, company, monkeypatch
-):
+def test_document_queue_stops_on_a_passing_outage_and_leaves_the_rest_waiting(db, store, company, monkeypatch):
     import anthropic
 
     from analekh.docs import pipeline
@@ -166,9 +156,6 @@ def test_document_queue_stops_on_a_passing_outage_and_leaves_the_rest_waiting(
     run = pipeline.process_documents(db, store, [first, second], claude=None, embedder=None)
     assert run.done == 0 and run.stopped and run.failed == 0
     assert first.status == "fetched" and second.status == "fetched"  # tried again next run
-
-
-# --- issue 3: the results watcher ------------------------------------------------------------
 
 
 def row(company, url: str, qe: str = "30-SEP-2026", **extra) -> dict:
@@ -229,9 +216,6 @@ def test_per_company_fetch_skips_an_unreadable_file(db, store, company):
     assert outcome.new == 1 and len(outcome.errors) == 1 and outcome.gap is None
 
 
-# --- issue 4: feed validators ----------------------------------------------------------------
-
-
 def test_feed_etag_is_kept_only_after_the_items_are_stored(monkeypatch):
     from analekh.ingest import feeds
 
@@ -252,11 +236,7 @@ def test_feed_etag_is_kept_only_after_the_items_are_stored(monkeypatch):
     monkeypatch.setattr(feeds, "store_items", lambda *_a, **_k: 0)
     watcher.poll(None, "financial_results")  # type: ignore[arg-type]
     watcher.poll(None, "financial_results")  # type: ignore[arg-type]
-    # Not "If-None-Match" on the retry: a 304 then would lose the items the failed poll had.
     assert sent == [None, None, '"v1"']
-
-
-# --- issue 7: a listed file whose listing changed --------------------------------------------
 
 
 def test_listed_file_is_fetched_again_only_when_its_listing_changes(db, store, company):
@@ -271,15 +251,12 @@ def test_listed_file_is_fetched_again_only_when_its_listing_changes(db, store, c
     fetch_results(db, store, client, company)
     assert asked.count(url) == 1  # listing unchanged: not downloaded again
 
-    # NSE lists the same link again, now as a revision broadcast later: fetch it once more.
     listed[0].update(broadcast_Date="22-Oct-2026 09:30:00", type_Sub="Revision")
     same_file = fetch_results(db, store, client, company)
     assert asked.count(url) == 2 and same_file.new == 0  # same bytes: nothing new stored
     fetch_results(db, store, client, company)
     assert asked.count(url) == 2  # the new listing is remembered: no loop
 
-    # A different file behind the same link, listed again later: stored as a new filing. (A file
-    # swapped with no change to its listing can't be seen without re-downloading every link.)
     files[url] = httpx.Response(200, content=q2_instance(revenue=1_010_000_000))
     listed[0].update(broadcast_Date="23-Oct-2026 09:30:00")
     replaced = fetch_results(db, store, client, company)
@@ -292,9 +269,7 @@ def test_listing_without_a_broadcast_time_does_not_cause_refetches(db, store, co
     from analekh.ingest.integrated import fetch_results
 
     url = ARCHIVE + "NO_TIME.xml"
-    client, asked = client_for(
-        {url: httpx.Response(200, content=q2_instance())}, [row(company, url)]
-    )
+    client, asked = client_for({url: httpx.Response(200, content=q2_instance())}, [row(company, url)])
     fetch_results(db, store, client, company)
     fetch_results(db, store, client, company)
     assert asked.count(url) == 1

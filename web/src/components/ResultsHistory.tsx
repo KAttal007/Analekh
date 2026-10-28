@@ -1,33 +1,18 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Filing, History, HistoryLine } from "../api/client";
-import {
-  byQuarter,
-  filedOn,
-  filingLinks,
-  isBlocked,
-  isSuspect,
-  periodKind,
-  type QuarterFilings,
-} from "../lib/filings";
+import { byQuarter, filedOn, filingLinks, isBlocked, isSuspect, periodKind, type QuarterFilings } from "../lib/filings";
 import { longDate, plain, type Scale } from "../lib/format";
 import { Icon } from "./Icon";
 import { revisionLabel, revisionText, RevisionTag } from "./RevisionTag";
 import { Badge, EmptyState, InfoTip, Popover, StatusBadge, TagTip } from "./ui";
 
 // Results history (design doc 19.1): every stored quarter's lines, oldest on the left, in the
-// company's own results format. One unit for the whole table, named in the header, so the cells
-// hold plain numbers an analyst can read across. Each quarter's heading is also its filing: a
-// link to it on NSE, its revision or check status, and the details behind an info button.
-// Filings with no column (older quarters, full-year filings) are listed under the table.
 
 const BOLD = new Set(["revenue", "pat"]);
 
-const BLOCKED_NOTE =
-  "A validation check failed on this filing. Its figures are shown as filed, but they won't " +
-  "update a model without your review.";
+const BLOCKED_NOTE = "A validation check failed on this filing. Its figures are shown as filed, but they won't " + "update a model without your review.";
 const SUSPECT_NOTE =
-  "Held back: its amounts look off by a power of ten against the company's other filings. " +
-  "Left as filed and kept out of the figures until it is checked against the results PDF.";
+  "Held back: its amounts look off by a power of ten against the company's other filings. " + "Left as filed and kept out of the figures until it is checked against the results PDF.";
 
 function cell(line: HistoryLine, raw: string | null | undefined, scale: Scale): string {
   if (raw == null) return "–";
@@ -50,7 +35,6 @@ function SourceLinks({ f }: { f: Filing }) {
   );
 }
 
-/** The one status word a quarter's heading shows: a failed check outranks a revision. */
 function headMark(f: Filing): { label: string; tone: "error" | "warn" } | null {
   if (isBlocked(f)) return { label: "Blocked", tone: "error" };
   const rev = f.revision ? revisionLabel(f.revision) : null;
@@ -102,9 +86,7 @@ function OtherFilings({ filings }: { filings: Filing[] }) {
       <ul className="other-list">
         {filings.map((f) => (
           <li key={f.id}>
-            <span className="other-period">
-              {f.period_end ? longDate(f.period_end) : "Period not read"}
-            </span>
+            <span className="other-period">{f.period_end ? longDate(f.period_end) : "Period not read"}</span>
             <span className="muted">{periodKind(f)}</span>
             <span className="muted hide-sm">Filed {filedOn(f.filed_at)}</span>
             <span className="other-tags">
@@ -133,7 +115,6 @@ export function ResultsHistory({
   excelUrl: string;
 }) {
   const basis = history.consolidated ? "consolidated" : "standalone";
-  // Oldest on the left, as in a model, but opened at the newest quarters: the ones read first.
   const wrap = useRef<HTMLDivElement>(null);
   const newest = history.quarter_ends.at(-1);
   useLayoutEffect(() => {
@@ -160,17 +141,10 @@ export function ResultsHistory({
       {hasTable ? (
         /* Quarters run across, so a long history scrolls inside the card, never the page; the
            line names stay pinned on the left. Focusable so the keyboard can scroll it too. */
-        <div
-          className="table-wrap history-table"
-          ref={wrap}
-          tabIndex={0}
-          role="region"
-          aria-label="Results history, quarters scroll sideways"
-        >
+        <div className="table-wrap history-table" ref={wrap} tabIndex={0} role="region" aria-label="Results history, quarters scroll sideways">
           <table>
             <caption className="sr-only">
-              Quarterly results, {basis}, in ₹ {scale.long}. Each quarter links to its filing on
-              NSE.
+              Quarterly results, {basis}, in ₹ {scale.long}. Each quarter links to its filing on NSE.
             </caption>
             <thead>
               <tr>

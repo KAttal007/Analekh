@@ -55,9 +55,7 @@ function Where() {
 
 function renderLogin(initial = "/login") {
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[initial]}>
         <Where />
         <Routes>
@@ -91,9 +89,7 @@ test("wrong credentials show only the server's one sentence", async () => {
   fill("Email", "k@firm.in");
   fill("Password", "nope");
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "Email or password is incorrect.",
-  );
+  expect((await screen.findByRole("alert")).textContent).toContain("Email or password is incorrect.");
 });
 
 test("sign-in posts JSON with the CSRF header and never puts credentials in the address", async () => {
@@ -111,8 +107,7 @@ test("sign-in posts JSON with the CSRF header and never puts credentials in the 
   });
   expect(post.init.headers).toMatchObject({ "X-Analekh-CSRF": "1" });
   expect(post.init.credentials).toBe("same-origin");
-  for (const call of push.mock.calls)
-    expect(String(call[2] ?? "")).not.toMatch(/secret|password|@/);
+  for (const call of push.mock.calls) expect(String(call[2] ?? "")).not.toMatch(/secret|password|@/);
   expect(window.location.href).not.toMatch(/secret|password|@/);
 });
 
@@ -184,9 +179,7 @@ test("reset: the server's reason is shown for a short password or a bad code", a
   fill("New password", "short");
   fill("Confirm new password", "short");
   fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "Password must be at least 15 characters.",
-  );
+  expect((await screen.findByRole("alert")).textContent).toContain("Password must be at least 15 characters.");
 });
 
 test("reset: when email is not set up the page says so", async () => {
@@ -221,7 +214,6 @@ test("signed in, the protected page opens and the sign-in page leaves", async ()
 });
 
 test("the public calendar is listed beside the form when there is something this week", async () => {
-  // Dated today, so the current-week card always includes it.
   const event = {
     date: iso(new Date()),
     kind: "results",
@@ -276,9 +268,7 @@ test("first password: two different new passwords are refused before sending", a
   fill("New password", NEW_PASSWORD);
   fill("Confirm new password", NEW_PASSWORD + "x");
   fireEvent.click(screen.getByRole("button", { name: "Set password" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "The two passwords do not match.",
-  );
+  expect((await screen.findByRole("alert")).textContent).toContain("The two passwords do not match.");
   expect(calls.some((c) => c.url === "/api/auth/first-password")).toBe(false);
 });
 
@@ -294,9 +284,7 @@ test("first password: the server's message for missing rules is shown", async ()
   fill("New password", "short");
   fill("Confirm new password", "short");
   fireEvent.click(screen.getByRole("button", { name: "Set password" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "Password needs: At least 1 number.",
-  );
+  expect((await screen.findByRole("alert")).textContent).toContain("Password needs: At least 1 number.");
   expect(screen.getByRole("heading", { name: "Choose your password" })).toBeTruthy();
 });
 
@@ -332,9 +320,7 @@ test("reset step uses the shared rules field", async () => {
   expect(await screen.findByText("15 to 30 characters")).toBeTruthy();
   expect(screen.getByText("At least 1 number")).toBeTruthy();
   fill("New password", "abc1");
-  expect(screen.getByText("At least 1 number").closest("li")!.getAttribute("data-met")).toBe(
-    "true",
-  );
+  expect(screen.getByText("At least 1 number").closest("li")!.getAttribute("data-met")).toBe("true");
 });
 
 test("refuses 31 characters with maxLength in the DOM", async () => {
@@ -345,8 +331,7 @@ test("refuses 31 characters with maxLength in the DOM", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   await screen.findByText("15 to 30 characters");
   await waitFor(() => {
-    for (const label of ["New password", "Confirm new password"])
-      expect((screen.getByLabelText(label) as HTMLInputElement).maxLength).toBe(30);
+    for (const label of ["New password", "Confirm new password"]) expect((screen.getByLabelText(label) as HTMLInputElement).maxLength).toBe(30);
   });
 });
 
@@ -367,7 +352,6 @@ test("after sign-in the desk's data is asked for before the page changes", async
 });
 
 test("signing in again after a session ran out re-arms the sign-in reminder", async () => {
-  // The session expired without a sign-out: the reminder's mark from the last sign-in is still here.
   sessionStorage.setItem("analekh.signin-locks", ME.id);
   routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
   renderLogin();

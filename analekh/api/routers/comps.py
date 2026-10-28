@@ -108,19 +108,8 @@ def peers(symbol: str, db: DB, limit: int = 8) -> list[schemas.PeerOut]:
     company = company_or_404(db, symbol)
     found = suggest_peers(db, company, max(1, min(limit, MAX_COMPANIES)))
     latest = select(func.max(Price.trade_date)).scalar_subquery()
-    caps = dict(
-        db.execute(
-            select(Price.company_id, Price.market_cap).where(
-                Price.trade_date == latest, Price.company_id.in_([p.id for p in found])
-            )
-        ).all()
-    )
-    return [
-        schemas.PeerOut(
-            symbol=p.nse_symbol, name=p.name, sector=p.sector, market_cap=caps.get(p.id)
-        )
-        for p in found
-    ]
+    caps = dict(db.execute(select(Price.company_id, Price.market_cap).where(Price.trade_date == latest, Price.company_id.in_([p.id for p in found]))).all())
+    return [schemas.PeerOut(symbol=p.nse_symbol, name=p.name, sector=p.sector, market_cap=caps.get(p.id)) for p in found]
 
 
 def _requested(body: schemas.CompsRequest, db: DB) -> list[str]:

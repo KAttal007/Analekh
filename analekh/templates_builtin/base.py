@@ -78,9 +78,7 @@ def _fill(template: str, col: int, data_rows: dict[str, int], driver_rows: dict[
     return re.sub(r"\{\{(.+?)\}\}", lambda m: str(driver_rows[m.group(1)]), out)
 
 
-def build(
-    spec: TemplateSpec, last_actual: date, n_hist: int = 8, n_fcst: int = 4
-) -> tuple[bytes, Mapping]:
+def build(spec: TemplateSpec, last_actual: date, n_hist: int = 8, n_fcst: int = 4) -> tuple[bytes, Mapping]:
     periods = quarter_ends(last_actual, n_hist, n_fcst)
     cols = list(range(FIRST_DATA_COL, FIRST_DATA_COL + len(periods)))
     hist_cols, fcst_cols = cols[:n_hist], cols[n_hist:]
@@ -101,7 +99,6 @@ def build(
     data_rows = {ln.label: i for i, ln in enumerate(spec.lines, start=3)}
     driver_rows = {d.label: i for i, d in enumerate(spec.drivers, start=3)}
 
-    # Period header and A/E flags on Data; other period sheets mirror them by formula.
     data.cell(row=1, column=LABEL_COL, value="Period").font = BOLD
     data.cell(row=2, column=LABEL_COL, value="A/E").font = BOLD
     for col, end in zip(cols, periods, strict=True):
@@ -162,9 +159,7 @@ def build(
         value="Rating and target price are left to the analyst (section 15.3).",
     )
 
-    sens.cell(
-        row=1, column=1, value="Sensitivities: fill once valuation inputs are set"
-    ).font = BOLD
+    sens.cell(row=1, column=1, value="Sensitivities: fill once valuation inputs are set").font = BOLD
 
     checks.cell(row=2, column=LABEL_COL, value="Check (0 = pass)").font = BOLD
     for i, (label, tmpl) in enumerate(spec.checks, start=3):
@@ -178,15 +173,10 @@ def build(
     checks.cell(
         row=summary_row,
         column=FIRST_DATA_COL,
-        value=(
-            f"=IF(AND(MAX({first}3:{last}{summary_row - 1})<0.5,"
-            f"MIN({first}3:{last}{summary_row - 1})>-0.5),1,0)"
-        ),
+        value=(f"=IF(AND(MAX({first}3:{last}{summary_row - 1})<0.5,MIN({first}3:{last}{summary_row - 1})>-0.5),1,0)"),
     )
 
-    for col_i, h in enumerate(
-        ("Sheet", "Cell", "Value", "Source", "Period", "Filing", "Document and page"), start=1
-    ):
+    for col_i, h in enumerate(("Sheet", "Cell", "Value", "Source", "Period", "Filing", "Document and page"), start=1):
         sources.cell(row=1, column=col_i, value=h).font = BOLD
 
     cover["A1"], cover["A1"].font = spec.name, Font(bold=True, size=14)
@@ -258,11 +248,5 @@ def _derived_rows(spec: TemplateSpec, data_rows: dict[str, int]) -> list[tuple[s
                 "=IFERROR(({c}[[Revenue from operations]]/{p}[[Revenue from operations]]-1)*100,0)",
             )
         )
-    rows = [
-        (label, re.sub(r"\[\[(.+?)\]\]", lambda m: f"[[{m.group(1)}]]", t)) for label, t in rows
-    ]
-    # Model rows reference Data cells across sheets.
-    return [
-        (label, t.replace("{c}[[", "Data!{c}[[").replace("{p}[[", "Data!{p}[["))
-        for label, t in rows
-    ]
+    rows = [(label, re.sub(r"\[\[(.+?)\]\]", lambda m: f"[[{m.group(1)}]]", t)) for label, t in rows]
+    return [(label, t.replace("{c}[[", "Data!{c}[[").replace("{p}[[", "Data!{p}[[")) for label, t in rows]

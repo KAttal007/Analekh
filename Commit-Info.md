@@ -3,6 +3,11 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-28** SEBI added as a source host (`sebi.gov.in`) for DRHP, RHP and prospectus files
+  of unlisted companies, limited to three paths: the offer-document listing
+  (`/sebiweb/home/HomeAction.do`), entry pages (`/filings/public-issues/`) and PDFs
+  (`/sebi_data/attachdocs/`). Approved by the owner; logged in `deviations.md` section 12.
+  Unblocks the offer-document ingest and the public disclosure pages.
 - **2026-10-27** Roadmap and documents brought up to date. New `docs/roadmap.md`: where each
   phase stands, the order of work, AI without paid APIs, new sources (SEBI offer documents for
   recent listings: RHP for early coverage, the Prospectus as the final record; debt-segment

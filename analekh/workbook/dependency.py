@@ -17,9 +17,7 @@ MAX_RANGE_CELLS = 50_000
 
 CellKey = tuple[str, str]  # (sheet, "A1")
 
-_REF = re.compile(
-    r"^(?:(?P<sheet>'[^']+'|[^!]+)!)?(?P<ref>\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)$"
-)
+_REF = re.compile(r"^(?:(?P<sheet>'[^']+'|[^!]+)!)?(?P<ref>\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)$")
 
 
 def expand(ref: str) -> list[str]:
@@ -31,11 +29,7 @@ def expand(ref: str) -> list[str]:
         raise ValueError(f"not a bounded range: {ref}")
     if (max_col - min_col + 1) * (max_row - min_row + 1) > MAX_RANGE_CELLS:
         return []
-    return [
-        f"{get_column_letter(c)}{r}"
-        for c in range(min_col, max_col + 1)
-        for r in range(min_row, max_row + 1)
-    ]
+    return [f"{get_column_letter(c)}{r}" for c in range(min_col, max_col + 1) for r in range(min_row, max_row + 1)]
 
 
 def references(formula: str, own_sheet: str) -> tuple[set[CellKey], bool]:

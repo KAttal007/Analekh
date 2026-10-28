@@ -83,8 +83,6 @@ it("stops listening when unmounted", () => {
   const { unmount } = renderHook(() => useIdle(T));
   unmount();
   const removed = off.mock.calls.map((c) => c[0]);
-  expect(removed).toEqual(
-    expect.arrayContaining(["pointerdown", "keydown", "wheel", "touchstart"]),
-  );
+  expect(removed).toEqual(expect.arrayContaining(["pointerdown", "keydown", "wheel", "touchstart"]));
   off.mockRestore();
 });

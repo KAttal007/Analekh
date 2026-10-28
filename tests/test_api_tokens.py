@@ -71,10 +71,7 @@ def test_create_list_and_revoke_over_http(signed_in):
     assert all("token" not in t and "token_hash" not in t for t in listed)
     gone = signed_in.delete(f"/auth/tokens/{made.json()['id']}", headers=CSRF)
     assert gone.status_code == 204
-    assert (
-        TestClient(app).get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code
-        == 401
-    )
+    assert TestClient(app).get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
 
 
 def test_bearer_token_authenticates_and_carries_role(signed_in, raw):
@@ -87,9 +84,7 @@ def test_bearer_token_authenticates_and_carries_role(signed_in, raw):
 def test_bearer_request_needs_no_csrf_header(signed_in):
     token = signed_in.post("/auth/tokens", json={"name": "x"}, headers=CSRF).json()["token"]
     fresh = TestClient(app)
-    out = fresh.post(
-        "/auth/tokens", json={"name": "second"}, headers={"Authorization": f"Bearer {token}"}
-    )
+    out = fresh.post("/auth/tokens", json={"name": "second"}, headers={"Authorization": f"Bearer {token}"})
     assert out.status_code == 201
 
 

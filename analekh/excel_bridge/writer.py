@@ -35,9 +35,7 @@ def target_path(src: Path, save_mode: str, label: str) -> Path:
     return src.with_name(f"{src.stem}.{label}-{stamp}{src.suffix}")
 
 
-def apply_openpyxl(
-    src: Path, writes: list[Write], save_mode: str, label: str, tag: Tag | None = None
-) -> Path:
+def apply_openpyxl(src: Path, writes: list[Write], save_mode: str, label: str, tag: Tag | None = None) -> Path:
     wb = load_workbook(src, keep_vba=src.suffix.lower() == ".xlsm")
     for w in writes:
         wb[w.sheet][w.cell].value = w.formula if w.formula else coerce(w.value)
@@ -49,9 +47,7 @@ def apply_openpyxl(
     return dst
 
 
-def apply_xlwings(
-    src: Path, writes: list[Write], save_mode: str, label: str
-) -> Path:  # pragma: no cover - needs desktop Excel
+def apply_xlwings(src: Path, writes: list[Write], save_mode: str, label: str) -> Path:  # pragma: no cover - needs desktop Excel
     import xlwings as xw
 
     dst = target_path(src, save_mode, label)
@@ -115,6 +111,4 @@ def link_tag(path: Path, tag: Tag) -> str:
     except WorkbookLocked:
         if _tag_open_book(path, tag):
             return "open"
-        raise RuntimeError(
-            f"{path.name} is open in another program. Close it and run the link again."
-        ) from None
+        raise RuntimeError(f"{path.name} is open in another program. Close it and run the link again.") from None

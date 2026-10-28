@@ -87,9 +87,7 @@ def qa(body: schemas.QaRequest, db: DB) -> dict:
     from analekh.genai.tools import ToolExecutor
 
     c = company_or_404(db, body.symbol)
-    run = run_report(
-        Claude(db), ToolExecutor(db), "qa", company=c.nse_symbol, question=body.question
-    )
+    run = run_report(Claude(db), ToolExecutor(db), "qa", company=c.nse_symbol, question=body.question)
     return {
         "answer": run.text,
         "blocked": run.blocked,

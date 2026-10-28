@@ -104,7 +104,10 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    file per trading day after the close, for closing prices (`analekh prices`; approved by the owner
    2026-10-17; no live prices). Only the latest day's prices are kept: each file replaces the
    previous day's (owner's rule, 2026-10-18).
-   No other NSE website page or internal API: never widen
+   SEBI's offer documents (DRHP, RHP, prospectus) on `sebi.gov.in`, limited by `ALLOWED_PATHS` to
+   the three list pages (`/sebiweb/home/HomeAction.do`, smid 10 to 12; once a day, newest page
+   only), `/filings/public-issues/` entry pages (one per new entry) and `/sebi_data/attachdocs/`
+   PDFs (approved by the owner 2026-10-28; deviations section 12). No other NSE website page or internal API: never widen
    `ALLOWED_HOSTS` / `ALLOWED_PATHS` in `analekh/ingest/http.py` without the owner's approval;
    never crawl pages. Requests identify as Analekh: never disguise them as a browser.
 2. **Human in the loop**: nothing writes to an analyst's model without an approved change set

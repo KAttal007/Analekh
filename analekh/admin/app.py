@@ -29,17 +29,9 @@ with session_scope() as s:
         .where(FeedItem.pub_date >= since)
         .group_by(FeedItem.feed)
     ).all()
-    failed = s.execute(
-        select(Filing.id, Filing.company_id, Filing.kind, Filing.period_end, Filing.status)
-        .where(Filing.status == "failed")
-        .order_by(Filing.id.desc())
-        .limit(200)
-    ).all()
+    failed = s.execute(select(Filing.id, Filing.company_id, Filing.kind, Filing.period_end, Filing.status).where(Filing.status == "failed").order_by(Filing.id.desc()).limit(200)).all()
     blocked = s.execute(
-        select(Filing.id, Filing.company_id, Filing.period_end, Filing.meta["validation"])
-        .where(Filing.meta["blocks_auto_apply"].as_boolean().is_(True))
-        .order_by(Filing.id.desc())
-        .limit(200)
+        select(Filing.id, Filing.company_id, Filing.period_end, Filing.meta["validation"]).where(Filing.meta["blocks_auto_apply"].as_boolean().is_(True)).order_by(Filing.id.desc()).limit(200)
     ).all()
     tokens = s.execute(
         select(

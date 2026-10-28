@@ -1,5 +1,4 @@
 # Runs before code leaves a developer's machine (design doc 22.6, 23): lint, format and secret
-# scanning. Install once with `uv run pre-commit install`.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.0

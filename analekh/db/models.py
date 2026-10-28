@@ -36,9 +36,6 @@ class Base(DeclarativeBase):
     type_annotation_map = {dict[str, Any]: JSONB}
 
 
-# --- universe and coverage (sections 4, 8) --------------------------------------------------------
-
-
 class Company(Base):
     """Every NSE-listed company, preloaded from EQUITY_L.csv and the SME list."""
 
@@ -69,16 +66,12 @@ class Company(Base):
     face_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     sector: Mapped[str | None] = mapped_column(Text)
     industry: Mapped[str | None] = mapped_column(Text)
-    # Where the sector came from (universe/sectors.py): user > excel_stocks > nse_indices.
     sector_source: Mapped[str | None] = mapped_column(Text)
-    # LSEG industry group from an Excel Stocks workbook, kept when NSE's sector is shown.
     sector_lseg: Mapped[str | None] = mapped_column(Text)
     results_taxonomy: Mapped[str | None] = mapped_column(Text)
     is_sme: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
-    source: Mapped[str] = mapped_column(
-        Text, default="nse_equity_list", server_default="nse_equity_list"
-    )
+    source: Mapped[str] = mapped_column(Text, default="nse_equity_list", server_default="nse_equity_list")
     refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -93,9 +86,6 @@ class Watchlist(Base):
     settings: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default=text("'{}'"))
 
     company: Mapped[Company] = relationship()
-
-
-# --- feeds, filings, facts ------------------------------------------------------------------------
 
 
 class FeedItem(Base):
@@ -113,7 +103,6 @@ class FeedItem(Base):
     description: Mapped[str | None] = mapped_column(Text)
     pub_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
-    # Set when done, or when given up on (then error says why). Failed attempts so far.
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     error: Mapped[str | None] = mapped_column(Text)
@@ -123,7 +112,6 @@ class Filing(Base):
     __tablename__ = "filings"
     __table_args__ = (
         Index("ix_filings_company_period", "company_id", text("period_end DESC")),
-        # The results desk and Home page: who reported a quarter, the newest filing.
         Index(
             "ix_filings_results_quarter",
             "period_end",
@@ -142,7 +130,6 @@ class Filing(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
     feed_item_id: Mapped[int | None] = mapped_column(ForeignKey("feed_items.id"))
-    # results_xbrl, presentation, annual_report, transcript, other
     kind: Mapped[str] = mapped_column(Text)
     period_start: Mapped[date | None] = mapped_column(Date)
     period_end: Mapped[date | None] = mapped_column(Date)
@@ -153,7 +140,6 @@ class Filing(Base):
     file_sha256: Mapped[str] = mapped_column(String(64), unique=True)
     storage_key: Mapped[str] = mapped_column(Text)
     filed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # fetched, parsed, validated, failed
     status: Mapped[str] = mapped_column(Text, default="fetched", server_default="fetched")
     meta: Mapped[dict[str, Any]] = mapped_column(default=dict, server_default=text("'{}'"))
 
@@ -163,9 +149,7 @@ class Filing(Base):
 class Fact(Base):
     __tablename__ = "facts"
     __table_args__ = (
-        UniqueConstraint(
-            "filing_id", "element", "period_start", "period_end", "consolidated", "dims_hash"
-        ),
+        UniqueConstraint("filing_id", "element", "period_start", "period_end", "consolidated", "dims_hash"),
         Index(
             "ix_facts_latest",
             "company_id",
@@ -235,9 +219,7 @@ class Chunk(Base):
     ord: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
-    tsv: Mapped[str | None] = mapped_column(
-        TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)
-    )
+    tsv: Mapped[str | None] = mapped_column(TSVECTOR, Computed("to_tsvector('english', text)", persisted=True))
 
 
 class Price(Base):
@@ -254,9 +236,6 @@ class Price(Base):
     market_cap: Mapped[Decimal | None] = mapped_column(Numeric(24, 2))
 
 
-# --- templates, models, builds, assumptions (sections 12-16) --------------------------------------
-
-
 class Template(Base):
     __tablename__ = "templates"
     __table_args__ = (UniqueConstraint("owner", "name", "version"),)
@@ -271,7 +250,6 @@ class Template(Base):
     mapping: Mapped[dict[str, Any] | None] = mapped_column()
     driver_cells: Mapped[dict[str, Any] | None] = mapped_column()
     check_cells: Mapped[dict[str, Any] | None] = mapped_column()
-    # draft, tested, active
     status: Mapped[str] = mapped_column(Text, default="draft", server_default="draft")
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -314,20 +292,14 @@ class ModelLock(Base):
     the database allows one lock per model."""
 
     __tablename__ = "model_locks"
-    __table_args__ = (
-        CheckConstraint("activity IN ('update','build','report')", name="ck_model_locks_activity"),
-    )
+    __table_args__ = (CheckConstraint("activity IN ('update','build','report')", name="ck_model_locks_activity"),)
 
-    model_id: Mapped[int] = mapped_column(
-        ForeignKey("models.id", ondelete="CASCADE"), primary_key=True
-    )
+    model_id: Mapped[int] = mapped_column(ForeignKey("models.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     activity: Mapped[str] = mapped_column(Text)
     job_id: Mapped[str | None] = mapped_column(Text)
     taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ModelBuild(Base):
@@ -352,7 +324,6 @@ class Assumption(Base):
     proposed_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     rationale: Mapped[str | None] = mapped_column(Text)
     citations: Mapped[dict[str, Any] | None] = mapped_column()
-    # pending, accepted, edited, skipped
     decision: Mapped[str] = mapped_column(Text, default="pending", server_default="pending")
     final_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
 
@@ -377,7 +348,6 @@ class ChangeSet(Base):
     model_id: Mapped[int] = mapped_column(ForeignKey("models.id"))
     base_version: Mapped[int] = mapped_column(Integer)
     filing_id: Mapped[int | None] = mapped_column(ForeignKey("filings.id"))
-    # proposed, approved, applied, rejected
     status: Mapped[str] = mapped_column(Text, default="proposed", server_default="proposed")
     summary: Mapped[dict[str, Any] | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -391,7 +361,6 @@ class ChangeItem(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     change_set_id: Mapped[int] = mapped_column(ForeignKey("change_sets.id"))
-    # actual_write, roll_forward, assumption_suggestion, label_shift
     kind: Mapped[str] = mapped_column(Text)
     sheet: Mapped[str | None] = mapped_column(Text)
     cell: Mapped[str | None] = mapped_column(Text)
@@ -401,14 +370,10 @@ class ChangeItem(Base):
     formula_after: Mapped[str | None] = mapped_column(Text)
     rationale: Mapped[str | None] = mapped_column(Text)
     source_fact_id: Mapped[int | None] = mapped_column(ForeignKey("facts.id"))
-    # pending, accepted, edited, skipped
     decision: Mapped[str] = mapped_column(Text, default="pending", server_default="pending")
     final_value: Mapped[str | None] = mapped_column(Text)
 
     change_set: Mapped[ChangeSet] = relationship(back_populates="items")
-
-
-# --- outputs, accounting --------------------------------------------------------------------------
 
 
 class Report(Base):
@@ -473,9 +438,6 @@ class JobStatus(Base):
     last_ok_summary: Mapped[dict[str, Any] | None] = mapped_column()
 
 
-# --- sign-in, roles, tokens, settings, audit (auth design, stage 1) -------------------------------
-
-
 class User(Base):
     """A person who signs in. Email is stored lowercase; the id is an opaque string."""
 
@@ -495,11 +457,8 @@ class User(Base):
     failed_count: Mapped[int] = mapped_column(Integer, server_default="0")
     paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     blocked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    # First password (first-password design): set until the person chooses their own.
     must_change_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     first_password_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The last first-password email: "sending" until the mail is handed on after the reply, then
-    # "sent" or "failed". Null for accounts that never had one.
     first_password_mail: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -512,9 +471,7 @@ class AuthSession(Base):
     token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ApiToken(Base):
@@ -535,9 +492,7 @@ class PasswordReset(Base):
 
     __tablename__ = "password_resets"
 
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     code_hash: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, server_default="0")

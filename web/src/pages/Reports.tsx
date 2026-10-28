@@ -9,40 +9,20 @@ import { longDate } from "../lib/format";
 
 // Reports (design doc 15, 17). The set-up is live: company, report type, quarter and the input
 // checks read the real data. Writing the Word note and the PowerPoint is still being built, so
-// Generate stays off and the outputs show what they will contain.
 
 type Kind = "quarterly" | "initiating";
 
 const SECTIONS: Record<Kind, { word: string[]; slides: string[] }> = {
   quarterly: {
-    word: [
-      "Results highlights",
-      "Concall highlights",
-      "Risks and future guidance",
-      "Investment rationale",
-    ],
-    slides: [
-      "Results at a glance",
-      "Segment and KPI update",
-      "Concall takeaways",
-      "Outlook and risks",
-    ],
+    word: ["Results highlights", "Concall highlights", "Risks and future guidance", "Investment rationale"],
+    slides: ["Results at a glance", "Segment and KPI update", "Concall takeaways", "Outlook and risks"],
   },
   initiating: {
-    word: [
-      "Investment summary",
-      "MD&A and business",
-      "Financial performance",
-      "Sector performance",
-      "Company outlook",
-      "Strengths and risks",
-      "Investment rationale",
-    ],
+    word: ["Investment summary", "MD&A and business", "Financial performance", "Sector performance", "Company outlook", "Strengths and risks", "Investment rationale"],
     slides: ["Investment summary", "Business model", "Financials", "Valuation context", "Risks"],
   },
 };
 
-// Every input the drafts will read, and where it stands today.
 type InputState = "ready" | "not-linked" | "coming";
 const INPUT_ROWS: { key: string; label: string; icon: IconName; coming?: boolean }[] = [
   { key: "results", label: "Filed results", icon: "table" },
@@ -65,8 +45,6 @@ const TEXT: Record<InputState, string> = {
   coming: "Being built",
 };
 
-// Which figures the drafts use. Standalone first and by default: consolidated figures exist only
-// for a parent with subsidiaries. "Both" puts the two side by side.
 type Basis = "consolidated" | "standalone" | "both";
 const BASIS_OPTIONS: { value: Basis; label: string }[] = [
   { value: "standalone", label: "Standalone" },
@@ -74,17 +52,13 @@ const BASIS_OPTIONS: { value: Basis; label: string }[] = [
   { value: "both", label: "Both" },
 ];
 
-// The whole set-up lives in the URL (?company=TCS&kind=initiating&basis=both&quarter=2026-09-30),
-// so a link reopens it, and Back and refresh keep it. Only the choices are stored, never data.
 export function Reports() {
   const [params, setParams] = useSearchParams();
   const symbol = params.get("company") ?? "";
   const kind: Kind = params.get("kind") === "initiating" ? "initiating" : "quarterly";
   const asked = params.get("basis");
-  const chosenBasis: Basis | null =
-    asked === "standalone" || asked === "consolidated" || asked === "both" ? asked : null;
+  const chosenBasis: Basis | null = asked === "standalone" || asked === "consolidated" || asked === "both" ? asked : null;
   const quarter = params.get("quarter");
-  // Changing one choice keeps the others; changing the company starts the figures afresh.
   const set = (changes: Record<string, string | null>, replace = true) =>
     setParams(
       (prev) => {
@@ -98,7 +72,6 @@ export function Reports() {
       { replace },
     );
 
-  // Each check reads what already exists; nothing here writes anything.
   const filings = useQuery({
     queryKey: ["filings", symbol],
     queryFn: () => api.filings(symbol),
@@ -115,18 +88,13 @@ export function Reports() {
     enabled: !!symbol,
   });
   const models = useQuery({ queryKey: ["models"], queryFn: api.models, enabled: !!symbol });
-  // The bases the company files, as on the company page (no flag counts as consolidated).
   const dated = (filings.data ?? []).filter((f: Filing) => f.period_end);
   const files = {
     consolidated: dated.some((f) => f.consolidated !== false),
     standalone: dated.some((f) => f.consolidated === false),
   };
-  const offered = BASIS_OPTIONS.filter((o) =>
-    o.value === "both" ? files.consolidated && files.standalone : files[o.value],
-  );
-  const basis: Basis | null = offered.some((o) => o.value === chosenBasis)
-    ? chosenBasis
-    : (offered[0]?.value ?? null);
+  const offered = BASIS_OPTIONS.filter((o) => (o.value === "both" ? files.consolidated && files.standalone : files[o.value]));
+  const basis: Basis | null = offered.some((o) => o.value === chosenBasis) ? chosenBasis : (offered[0]?.value ?? null);
   const wantCons = basis === "consolidated" || basis === "both";
   const wantStand = basis === "standalone" || basis === "both";
   const consHistory = useQuery({
@@ -146,7 +114,6 @@ export function Reports() {
     comps: peerLists.data?.some((l) => l.symbols.includes(symbol)) ? "ready" : "not-linked",
     model: models.data?.some((m) => m.company_id === companyId) ? "ready" : "not-linked",
   };
-  // Every quarter either chosen basis has, newest first.
   const byEnd = new Map<string, string>();
   for (const h of [wantCons && consHistory.data, wantStand && standHistory.data]) {
     if (h) h.quarter_ends.forEach((end, i) => byEnd.set(end, h.quarter_labels[i]));
@@ -181,19 +148,13 @@ export function Reports() {
                 <div className="report-pick">
                   <span className="badge-mono">{symbol}</span>
                   <span>{company.data?.name ?? "Loading…"}</span>
-                  <button
-                    type="button"
-                    className="btn-sm"
-                    onClick={() => set({ company: null, basis: null, quarter: null })}
-                  >
+                  <button type="button" className="btn-sm" onClick={() => set({ company: null, basis: null, quarter: null })}>
                     Change
                   </button>
                 </div>
               ) : (
                 <CompanySearch
-                  onPick={(h: Suggestion) =>
-                    set({ company: h.nse_symbol, basis: null, quarter: null }, false)
-                  }
+                  onPick={(h: Suggestion) => set({ company: h.nse_symbol, basis: null, quarter: null }, false)}
                   shortcut
                   label="Company for the report"
                   placeholder="Search a company by name or ticker"
@@ -212,51 +173,28 @@ export function Reports() {
                 value={kind}
                 onChange={(v) => set({ kind: v === "quarterly" ? null : v }, false)}
               />
-              <span className="muted reports-hint">
-                {kind === "quarterly"
-                  ? "A short update on one quarter, for the desk."
-                  : "A full note on the company, with its valuation context."}
-              </span>
+              <span className="muted reports-hint">{kind === "quarterly" ? "A short update on one quarter, for the desk." : "A full note on the company, with its valuation context."}</span>
             </div>
 
             <div className="field">
               Figures
               {offered.length > 1 ? (
-                <Segmented<Basis>
-                  label="Basis of figures"
-                  options={offered}
-                  value={basis ?? offered[0].value}
-                  onChange={(v) => set({ basis: v }, false)}
-                />
+                <Segmented<Basis> label="Basis of figures" options={offered} value={basis ?? offered[0].value} onChange={(v) => set({ basis: v }, false)} />
               ) : (
                 <span>
                   <Badge>
-                    {basis === "consolidated"
-                      ? "Consolidated only"
-                      : basis === "standalone"
-                        ? "Standalone only"
-                        : symbol && filings.isSuccess
-                          ? "No filed results"
-                          : "Pick a company first"}
+                    {basis === "consolidated" ? "Consolidated only" : basis === "standalone" ? "Standalone only" : symbol && filings.isSuccess ? "No filed results" : "Pick a company first"}
                   </Badge>
                 </span>
               )}
               <span className="muted reports-hint">
-                {basis === "both"
-                  ? "Consolidated and standalone figures side by side."
-                  : offered.length === 1
-                    ? "The only basis this company files."
-                    : "The basis every figure in the drafts uses."}
+                {basis === "both" ? "Consolidated and standalone figures side by side." : offered.length === 1 ? "The only basis this company files." : "The basis every figure in the drafts uses."}
               </span>
             </div>
 
             <label className="field">
               Quarter
-              <select
-                value={pickedEnd ?? ""}
-                onChange={(e) => set({ quarter: e.target.value }, false)}
-                disabled={!ends.length}
-              >
+              <select value={pickedEnd ?? ""} onChange={(e) => set({ quarter: e.target.value }, false)} disabled={!ends.length}>
                 {ends.length ? (
                   ends.map((end) => (
                     <option key={end} value={end}>
@@ -267,9 +205,7 @@ export function Reports() {
                   <option value="">{symbol ? "No quarters yet" : "Pick a company first"}</option>
                 )}
               </select>
-              {pickedEnd && (
-                <span className="muted reports-hint">Quarter ended {longDate(pickedEnd)}</span>
-              )}
+              {pickedEnd && <span className="muted reports-hint">Quarter ended {longDate(pickedEnd)}</span>}
             </label>
 
             <div className="reports-actions">
@@ -287,18 +223,11 @@ export function Reports() {
         <section className="card">
           <div className="card-header">
             <h2>Inputs</h2>
-            <span className="muted">
-              {symbol ? `${readyCount} of ${INPUT_ROWS.length} ready` : "Pick a company first"}
-            </span>
+            <span className="muted">{symbol ? `${readyCount} of ${INPUT_ROWS.length} ready` : "Pick a company first"}</span>
           </div>
           <ul className="report-inputs">
             {INPUT_ROWS.map((r) => {
-              // Until a company is picked, only what is still being built has a status.
-              const state: InputState | null = r.coming
-                ? "coming"
-                : symbol
-                  ? (states[r.key] ?? "not-linked")
-                  : null;
+              const state: InputState | null = r.coming ? "coming" : symbol ? (states[r.key] ?? "not-linked") : null;
               return (
                 <li key={r.key}>
                   <Icon name={r.icon} />
@@ -322,16 +251,12 @@ export function Reports() {
         <section className="card">
           <div className="card-header">
             <h2>Word note</h2>
-            <span className="muted">
-              {kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}
-            </span>
+            <span className="muted">{kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}</span>
           </div>
           <div className="slide-deck">
             <div className="slide-main" aria-live="polite">
               <div className="doc-page" data-layout={wcur % 3}>
-                <span className="doc-kicker">
-                  {kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}
-                </span>
+                <span className="doc-kicker">{kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}</span>
                 <span className="doc-heading">{sections[wcur]}</span>
                 <span className="pulse-bar" aria-hidden="true" />
                 <span className="pulse-bar" aria-hidden="true" />
@@ -352,12 +277,7 @@ export function Reports() {
             <ol className="slide-list">
               {sections.map((sec, i) => (
                 <li key={sec}>
-                  <button
-                    type="button"
-                    className="slide-item"
-                    aria-pressed={i === wcur}
-                    onClick={() => setWordActive(i)}
-                  >
+                  <button type="button" className="slide-item" aria-pressed={i === wcur} onClick={() => setWordActive(i)}>
                     <span className="slide-item-no">{i + 1}</span>
                     {sec}
                   </button>
@@ -400,12 +320,7 @@ export function Reports() {
             <ol className="slide-list">
               {slides.map((s, i) => (
                 <li key={s}>
-                  <button
-                    type="button"
-                    className="slide-item"
-                    aria-pressed={i === cur}
-                    onClick={() => setActive(i)}
-                  >
+                  <button type="button" className="slide-item" aria-pressed={i === cur} onClick={() => setActive(i)}>
                     <span className="slide-item-no">{i + 1}</span>
                     {s}
                   </button>

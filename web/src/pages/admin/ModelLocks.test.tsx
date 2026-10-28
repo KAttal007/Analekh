@@ -79,9 +79,7 @@ test("Release frees the model through the admin route, then the list is asked ag
   await screen.findByText("Kaushal Attal");
   fireEvent.click(within(rowOf("Kaushal Attal")).getByRole("button", { name: "Release" }));
   await waitFor(() => expect(screen.queryByText("Kaushal Attal")).toBeNull());
-  expect(calls.filter((c) => c.method === "POST").map((c) => c.url)).toEqual([
-    "/api/admin/locks/1/release",
-  ]);
+  expect(calls.filter((c) => c.method === "POST").map((c) => c.url)).toEqual(["/api/admin/locks/1/release"]);
   expect(calls.filter((c) => c.url === "/api/admin/locks").length).toBe(2);
   expect(screen.getByText("Arjun Shah")).toBeTruthy();
 });

@@ -87,9 +87,7 @@ def test_build(template_id: int, body: schemas.TemplateTestRequest, db: DB, stor
 
 
 @router.post("/templates/{template_id}/activate", response_model=schemas.TemplateOut)
-def activate_template(
-    template_id: int, db: DB, _: AdminUser, make_default: bool = False
-) -> Template:
+def activate_template(template_id: int, db: DB, _: AdminUser, make_default: bool = False) -> Template:
     t = _template(db, template_id)
     try:
         return activate(db, t, make_default)

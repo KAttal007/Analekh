@@ -28,14 +28,9 @@ from analekh.ingest.pipeline import IncompleteXbrl, IngestResult, ingest_results
 from analekh.ingest.storage import ObjectStore
 
 LOOKUP_URL = "https://www.nseindia.com/api/integrated-filing-results"
-PAGE_URL = (
-    "https://www.nseindia.com/companies-listing/corporate-integrated-filing"
-    "?integratedType=integratedfilingfinancials"
-)
+PAGE_URL = "https://www.nseindia.com/companies-listing/corporate-integrated-filing?integratedType=integratedfilingfinancials"
 FINANCIALS = "Integrated Filing- Financials"
-# Results before integrated filings: NSE's corporate financial-results list, one request per company
 # (no paging), XBRL from 2018 (rule 1, owner-approved 2026-10-15). Ends where integrated filings
-# begin (December 2024 / March 2025).
 HISTORY_URL = "https://www.nseindia.com/api/corporates-financial-results"
 HISTORY_PAGE_URL = "https://www.nseindia.com/companies-listing/corporate-filings-financial-results"
 PAGE_SIZE = 50
@@ -67,7 +62,6 @@ class IntegratedFiling:
             period_end=_date(row.get("qe_Date")),
             consolidated=True if "consolidated" in nature else False if nature else None,
             xbrl_url=_url(row.get("xbrl")),
-            # Revisions can come without a broadcast date (seen on Tata Elxsi, March 2026).
             broadcast_at=_ist(row.get("broadcast_Date")) or _ist(row.get("creation_Date")),
             revision=row.get("type_Sub"),
             ixbrl_url=_url(row.get("ixbrl")),
@@ -81,7 +75,6 @@ def _url(raw: str | None) -> str | None:
     url = (raw or "").strip()
     if not url.startswith("http"):  # the financial-results list writes "-" for no file
         return None
-    # ".../corporate/xbrl/-" is the financial-results list's "no XBRL" (most rows before 2018)
     if url.rstrip("/").rsplit("/", 1)[-1].lower() in ("null", "undefined", "none", "-"):
         return None
     return url
@@ -135,18 +128,13 @@ def _history_row(row: dict) -> IntegratedFiling:
         symbol=(row.get("symbol") or "").strip().upper(),
         period_end=_date(row.get("toDate")),
         consolidated=None if not nature else not nature.startswith("non"),
-        # Up to December 2022 the list links "_WEB.xml" files without the main periods (see
-        # pipeline.IncompleteXbrl); from March 2023 complete files. Older ones unreadable, never
-        # fetched.
         xbrl_url=None if (url or "").endswith("_WEB.xml") else url,
         broadcast_at=_ist(filed) or _ist(f"{filed}:00"),  # filingDate has no seconds
         revision=None,  # the list carries no Original / Revision flag
     )
 
 
-def lookup_history(
-    client: PoliteClient, symbol: str, *, sme: bool = False
-) -> list[IntegratedFiling]:
+def lookup_history(client: PoliteClient, symbol: str, *, sme: bool = False) -> list[IntegratedFiling]:
     """Every quarterly results filing NSE's financial-results list holds for one company (back
     to 2005; XBRL from 2018), in one request."""
     query = urlencode(  # verify the SME index name against a live request
@@ -193,9 +181,7 @@ class FetchOutcome:
     listed: int  # integrated financials filings NSE lists for the company
     with_xbrl: int  # of those, how many link an XBRL file
     results: list[IngestResult]
-    # XBRL links NSE lists but answers 404 for, or serves as a broken file (twice)
     missing: list[str] = field(default_factory=list)
-    # Files that failed some other way ("url: error"); fetched again on the next run
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -284,9 +270,7 @@ def _listing(f: IntegratedFiling) -> dict[str, str]:
     return out
 
 
-def unchanged_links(
-    session: Session, listed: list[IntegratedFiling], company_id: int | None = None
-) -> set[str]:
+def unchanged_links(session: Session, listed: list[IntegratedFiling], company_id: int | None = None) -> set[str]:
     """Listed XBRL links already stored and listed as before: nothing to download.
 
     A link NSE lists with new broadcast time or Original/Revision flag is fetched once more (a
@@ -297,9 +281,7 @@ def unchanged_links(
     urls = sorted({f.xbrl_url for f in listed if f.xbrl_url})
     if not urls:
         return set()
-    q = select(Filing.source_url, Filing.filed_at, Filing.meta).where(
-        or_(Filing.source_url.in_(urls), Filing.meta["listed"].has_any(array(urls)))
-    )
+    q = select(Filing.source_url, Filing.filed_at, Filing.meta).where(or_(Filing.source_url.in_(urls), Filing.meta["listed"].has_any(array(urls))))
     if company_id is not None:
         q = q.where(Filing.company_id == company_id)
     seen: dict[str, list[tuple[datetime | None, str | None]]] = {}
@@ -309,18 +291,11 @@ def unchanged_links(
             seen.setdefault(source_url, []).append((filed_at, meta.get("revision")))
         for url, again in (meta.get("listed") or {}).items():
             when = again.get("broadcast_at")
-            seen.setdefault(url, []).append(
-                (datetime.fromisoformat(when) if when else None, again.get("revision"))
-            )
+            seen.setdefault(url, []).append((datetime.fromisoformat(when) if when else None, again.get("revision")))
     return {
         f.xbrl_url
         for f in listed
-        if f.xbrl_url
-        and any(
-            (f.broadcast_at is None or f.broadcast_at == when)
-            and (f.revision is None or f.revision == revision)
-            for when, revision in seen.get(f.xbrl_url, ())
-        )
+        if f.xbrl_url and any((f.broadcast_at is None or f.broadcast_at == when) and (f.revision is None or f.revision == revision) for when, revision in seen.get(f.xbrl_url, ()))
     }
 
 
@@ -372,8 +347,6 @@ def _download_and_ingest(
 
 
 # Results watcher reads NSE's latest-results list in ONE request per run (rule 1). Truncated page
-# (fewer rows than NSE's totalCount): next run asks double, up to latest_max_page_size; full page
-# resets. Sizes from config.py.
 
 
 def next_page_size(last_summary: dict | None) -> int:
@@ -403,10 +376,7 @@ class LatestOutcome:
     def warning(self) -> str | None:
         if not self.capped:
             return None
-        return (
-            f"NSE lists {self.total or 'more than'} rows but a page of {self.page_size} holds "
-            f"{self.listed}: run a bulk fetch (analekh results-backfill) to catch up"
-        )
+        return f"NSE lists {self.total or 'more than'} rows but a page of {self.page_size} holds {self.listed}: run a bulk fetch (analekh results-backfill) to catch up"
 
 
 def is_truncated(returned: int, requested: int, total: int | None) -> bool:
@@ -414,28 +384,19 @@ def is_truncated(returned: int, requested: int, total: int | None) -> bool:
     return returned < total if total is not None else returned >= requested
 
 
-def fetch_latest(
-    session: Session, store: ObjectStore, client: PoliteClient, size: int | None = None
-) -> LatestOutcome:
+def fetch_latest(session: Session, store: ObjectStore, client: PoliteClient, size: int | None = None) -> LatestOutcome:
     """New results filings across all companies from ONE request to NSE's latest-results list
     (the integrated-filing lookup without a ticker), then the XBRL for each filing we lack."""
     s = get_settings()
     size = size or s.latest_page_size
     query = urlencode({"index": "equity", "type": FINANCIALS, "page": 1, "size": size})
-    result = client.get(
-        f"{LOOKUP_URL}?{query}", headers={"Accept": "application/json", "Referer": PAGE_URL}
-    )
+    result = client.get(f"{LOOKUP_URL}?{query}", headers={"Accept": "application/json", "Referer": PAGE_URL})
     body = json.loads(result.content)
     listed = [IntegratedFiling.from_row(r) for r in body.get("data") or []]
     raw_total = body.get("totalCount")
     total = int(raw_total) if str(raw_total or "").isdigit() else None
     known = unchanged_links(session, listed)
-    companies = {
-        c.nse_symbol: c
-        for c in session.scalars(
-            select(Company).where(Company.nse_symbol.in_({f.symbol for f in listed}))
-        )
-    }
+    companies = {c.nse_symbol: c for c in session.scalars(select(Company).where(Company.nse_symbol.in_({f.symbol for f in listed})))}
     out = LatestOutcome(listed=len(listed), new=0, page_size=size, total=total)
     out.truncated = is_truncated(len(listed), size, total)
     out.capped = out.truncated and size >= s.latest_max_page_size
@@ -473,9 +434,7 @@ GAP_FIELDS = [
 ]
 
 
-def record_gap(
-    path: Path, company: Company, reason: str | None, outcome: FetchOutcome | None
-) -> None:
+def record_gap(path: Path, company: Company, reason: str | None, outcome: FetchOutcome | None) -> None:
     """Keep ``path`` (CSV, one row per company) listing companies with no results to store and
     why. A company that later has filings is removed. Rewritten whole: it stays small."""
     rows: dict[str, dict[str, str]] = {}

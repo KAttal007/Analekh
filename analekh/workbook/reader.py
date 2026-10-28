@@ -23,7 +23,6 @@ from analekh.workbook.mapping import PeriodAxis as AxisSpec
 from analekh.workbook.periods import PeriodAxis, detect_axis
 
 DRIVER_SHEET = re.compile(r"driver|assumption|input", re.I)
-# Sheets that never hold period data to map (labels there are not matched to facts).
 NON_DATA_SHEET = re.compile(r"driver|assumption|check|source|cover|index|valuation|sensitiv", re.I)
 CHECK_LABEL = re.compile(r"\bcheck\b|difference|\bdiff\b|balanc", re.I)
 BLUE_FONTS = {"FF0000FF", "FF0070C0", "FF0000CC", "FF1F4E79", "FF0066CC"}
@@ -76,9 +75,7 @@ class StructureMap:
         return {
             "sheets": self.sheets,
             "axis": self.axis.to_dict() if self.axis else None,
-            "rows": [
-                asdict(r) | {"match": asdict(r.match) if r.match else None} for r in self.rows
-            ],
+            "rows": [asdict(r) | {"match": asdict(r.match) if r.match else None} for r in self.rows],
             "drivers": [asdict(d) for d in self.drivers],
             "checks": [asdict(c) for c in self.checks],
             "hygiene": [asdict(h) for h in self.hygiene],
@@ -87,9 +84,7 @@ class StructureMap:
             "unknown_impact": self.unknown_impact,
         }
 
-    def suggest_mapping(
-        self, name: str, sectors: list[str] | None = None, default_transform: str = "div:10000000"
-    ) -> Mapping:
+    def suggest_mapping(self, name: str, sectors: list[str] | None = None, default_transform: str = "div:10000000") -> Mapping:
         """Suggested mapping with a confidence per row; the user confirms it once."""
         if self.axis is None:
             raise ValueError("no period axis found: cannot suggest a mapping")
@@ -98,8 +93,6 @@ class StructureMap:
         for r in self.rows:
             if not r.match or not r.match.source:
                 continue
-            # Writes go only into input cells: rows that are formulas in actual columns are
-            # calculated by the workbook and never mapped.
             if r.actual_kind not in ("input", "empty"):
                 continue
             if r.match.source in seen:  # first occurrence wins; duplicates go to the user
@@ -193,9 +186,7 @@ def load(data: bytes) -> Workbook:
     return load_workbook(io.BytesIO(data), keep_vba=has_macros(data))
 
 
-def read_structure(
-    wb: Workbook, ai: AiResolver | None = None, axis_sheet: str | None = None
-) -> StructureMap:
+def read_structure(wb: Workbook, ai: AiResolver | None = None, axis_sheet: str | None = None) -> StructureMap:
     sheets = wb.sheetnames
     axis: PeriodAxis | None = None
     candidates = [wb[axis_sheet]] if axis_sheet else wb.worksheets
@@ -207,16 +198,9 @@ def read_structure(
     graph = DependencyGraph(wb)
     rows: list[RowInfo] = []
     for ws in wb.worksheets:
-        # Period-aligned sheets share the axis columns (same column = same period).
-        aligned = axis is not None and (
-            ws.title == axis.sheet or not NON_DATA_SHEET.search(ws.title)
-        )
+        aligned = axis is not None and (ws.title == axis.sheet or not NON_DATA_SHEET.search(ws.title))
         label_col = axis.label_column if axis and aligned else 1
-        data_cols = (
-            list(axis.columns)
-            if axis and aligned
-            else list(range(label_col + 1, ws.max_column + 1))
-        )
+        data_cols = list(axis.columns) if axis and aligned else list(range(label_col + 1, ws.max_column + 1))
         est = set(axis.estimate_columns) if axis and aligned else set()
         for r in range(1, ws.max_row + 1):
             if axis and ws.title == axis.sheet and r in (axis.header_row, axis.flag_row):
@@ -231,20 +215,9 @@ def read_structure(
                 row=r,
                 label=label,
                 kind=_combine(kinds),
-                actual_kind=_combine(
-                    [k for c, k in zip(data_cols, kinds, strict=True) if c not in est]
-                ),
-                estimate_kind=_combine(
-                    [k for c, k in zip(data_cols, kinds, strict=True) if c in est]
-                ),
-                blue_inputs=sum(
-                    1
-                    for c in cells
-                    if _cell_kind(c.value) == "input"
-                    and c.font is not None
-                    and c.font.color is not None
-                    and str(c.font.color.rgb) in BLUE_FONTS
-                ),
+                actual_kind=_combine([k for c, k in zip(data_cols, kinds, strict=True) if c not in est]),
+                estimate_kind=_combine([k for c, k in zip(data_cols, kinds, strict=True) if c in est]),
+                blue_inputs=sum(1 for c in cells if _cell_kind(c.value) == "input" and c.font is not None and c.font.color is not None and str(c.font.color.rgb) in BLUE_FONTS),
                 match=match_label(label, ai) if aligned else None,
             )
             rows.append(info)
@@ -285,16 +258,9 @@ def _find_drivers(wb: Workbook, graph: DependencyGraph) -> list[DriverInfo]:
             cells = [c for c in ws[r][1:] if _cell_kind(c.value) == "input"]
             if not cells:
                 continue
-            referencing = sum(
-                1
-                for c in cells
-                for s, _ in graph.dependents.get((ws.title, c.coordinate), ())
-                if s != ws.title
-            )
+            referencing = sum(1 for c in cells for s, _ in graph.dependents.get((ws.title, c.coordinate), ()) if s != ws.title)
             if referencing:
-                drivers.append(
-                    DriverInfo(ws.title, r, label, [c.coordinate for c in cells], referencing)
-                )
+                drivers.append(DriverInfo(ws.title, r, label, [c.coordinate for c in cells], referencing))
     return drivers
 
 
@@ -309,13 +275,7 @@ def _find_checks(wb: Workbook) -> list[CheckInfo]:
                 continue
             if not (on_checks_sheet or CHECK_LABEL.search(label)):
                 continue
-            cells = [
-                c.coordinate
-                for c in ws[r][1:]
-                if isinstance(c.value, str)
-                and c.value.startswith("=")
-                and references(c.value, ws.title)[0]
-            ]
+            cells = [c.coordinate for c in ws[r][1:] if isinstance(c.value, str) and c.value.startswith("=") and references(c.value, ws.title)[0]]
             if cells:
                 checks.append(CheckInfo(ws.title, r, label, cells))
     return checks

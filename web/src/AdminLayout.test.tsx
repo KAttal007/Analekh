@@ -7,7 +7,6 @@ import { Layout } from "./Layout";
 import { ADMIN, ANALYST, mockApi, renderAt } from "./test-utils";
 
 beforeAll(() => {
-  // jsdom has no ResizeObserver; the sidebar highlight uses one.
   globalThis.ResizeObserver ??= class {
     observe() {}
     unobserve() {}
@@ -160,7 +159,6 @@ test("Sign out waits for the server's reply, then goes to the welcome page", asy
     "GET /api/public/auth-status": () => ({ status: 200, body: { auth_enabled: true } }),
     "POST /api/auth/logout": () => ({ status: 204 }),
   });
-  // Hold back only the sign-out reply until the test lets it through.
   const spy = vi.mocked(globalThis.fetch);
   const real = spy.getMockImplementation()!;
   let release: () => void = () => {};

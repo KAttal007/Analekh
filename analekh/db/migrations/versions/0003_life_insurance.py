@@ -27,9 +27,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "UPDATE companies SET results_taxonomy = 'insurance' "
-        "WHERE results_taxonomy = 'life_insurance'"
-    )
+    op.execute("UPDATE companies SET results_taxonomy = 'insurance' WHERE results_taxonomy = 'life_insurance'")
     op.drop_constraint("ck_companies_results_taxonomy", "companies", type_="check")
     op.create_check_constraint("ck_companies_results_taxonomy", "companies", OLD)

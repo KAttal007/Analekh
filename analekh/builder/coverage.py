@@ -125,12 +125,8 @@ def start_coverage(
     return StartResult(model, build, report, proposals)
 
 
-def finalize_build(
-    session: Session, store: ObjectStore, model: Model, created_by: str = "builder"
-) -> FinalizeResult:
-    build = session.scalar(
-        select(ModelBuild).where(ModelBuild.model_id == model.id).order_by(ModelBuild.id.desc())
-    )
+def finalize_build(session: Session, store: ObjectStore, model: Model, created_by: str = "builder") -> FinalizeResult:
+    build = session.scalar(select(ModelBuild).where(ModelBuild.model_id == model.id).order_by(ModelBuild.id.desc()))
     if build is None:
         raise BuildNotReadyError("no build for this model")
     assumptions = list(session.scalars(select(Assumption).where(Assumption.model_id == model.id)))

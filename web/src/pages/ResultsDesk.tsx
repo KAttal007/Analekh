@@ -2,26 +2,9 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { type Desk, type DeskQuery, type DeskRow, type DeskSort } from "../api/client";
-import {
-  BasisCell,
-  BasisHeader,
-  MarketCapCell,
-  ProfitCell,
-  ResultColumns,
-  RevenueCell,
-  YoyCell,
-} from "../components/ResultCells";
+import { BasisCell, BasisHeader, MarketCapCell, ProfitCell, ResultColumns, RevenueCell, YoyCell } from "../components/ResultCells";
 import { Badge, EmptyState, ErrorNote, MissingTip, Segmented, Skeleton } from "../components/ui";
-import {
-  changeTitle,
-  crore,
-  filedAt,
-  scaleFor,
-  shortDate,
-  signedBps,
-  signedPct,
-  tone,
-} from "../lib/format";
+import { changeTitle, crore, filedAt, scaleFor, shortDate, signedBps, signedPct, tone } from "../lib/format";
 import { ResultsCalendar } from "../components/ResultsCalendar";
 import { deskFilters, deskQuery, DESK_PAGE as PAGE } from "../lib/preload";
 import { usePrefs } from "../lib/prefs";
@@ -44,9 +27,8 @@ function basisLink(r: DeskRow) {
 function Coverage({ d }: { d: Desk }) {
   return (
     <p className="desk-coverage">
-      {d.quarter_label} season · <strong>{d.reported.toLocaleString("en-IN")}</strong> of{" "}
-      {d.companies_in_scope.toLocaleString("en-IN")} companies reported ·{" "}
-      {d.filings_total.toLocaleString("en-IN")} filings collected
+      {d.quarter_label} season · <strong>{d.reported.toLocaleString("en-IN")}</strong> of {d.companies_in_scope.toLocaleString("en-IN")} companies reported · {d.filings_total.toLocaleString("en-IN")}{" "}
+      filings collected
       {d.latest_filed_at && <> · latest filing {filedAt(d.latest_filed_at)}</>}
     </p>
   );
@@ -60,37 +42,19 @@ const MARGIN_TITLE = {
   nim: "Net interest margin: (interest earned - interest expense) x 4 / average interest-earning assets. Computed from the filings, not the lender's reported NIM",
 };
 
-// EBITDA margin for most companies, NIM for lenders; a dash for insurers, asset managers and
-// lenders whose NIM can't be worked out yet (a June or December quarter waits for the next
-// half-year's balance sheet).
 function MarginCell({ row: r }: { row: DeskRow }) {
   const kind = r.margin_kind;
   if (r.margin == null || !kind) {
-    const why =
-      kind === "nim"
-        ? "NIM needs interest to be most of the income, and the balance sheets on both sides of the quarter; banks and NBFCs file those in March and September only"
-        : undefined;
-    return (
-      <td className="num d-ebitda">
-        {why ? <MissingTip text={why} /> : <span className="muted">–</span>}
-      </td>
-    );
+    const why = kind === "nim" ? "NIM needs interest to be most of the income, and the balance sheets on both sides of the quarter; banks and NBFCs file those in March and September only" : undefined;
+    return <td className="num d-ebitda">{why ? <MissingTip text={why} /> : <span className="muted">–</span>}</td>;
   }
   const nim = kind === "nim";
-  const basis =
-    r.margin_consolidated == null || r.margin_consolidated === r.consolidated
-      ? ""
-      : r.margin_consolidated
-        ? " (consolidated)"
-        : " (standalone: the consolidated figures don't allow it)";
+  const basis = r.margin_consolidated == null || r.margin_consolidated === r.consolidated ? "" : r.margin_consolidated ? " (consolidated)" : " (standalone: the consolidated figures don't allow it)";
   return (
     <td className="num d-ebitda" title={MARGIN_TITLE[kind] + basis}>
       <span className="desk-kind">{KIND_LABEL[kind]}</span>
       {Number(r.margin).toFixed(nim ? 2 : 1)}%{" "}
-      <span
-        className={`desk-sub ${signedBps(r.margin_yoy) === "n.m." ? "muted" : tone(r.margin_yoy)}`}
-        title={changeTitle(r.margin_yoy, "bps")}
-      >
+      <span className={`desk-sub ${signedBps(r.margin_yoy) === "n.m." ? "muted" : tone(r.margin_yoy)}`} title={changeTitle(r.margin_yoy, "bps")}>
         {r.margin_yoy == null ? <MissingTip text={r.yoy_note} /> : signedBps(r.margin_yoy)}
       </span>
     </td>
@@ -120,11 +84,7 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
           {rows.map((r) => (
             <tr key={r.symbol} className="desk-row" onClick={() => navigate(basisLink(r))}>
               <td className="d-co">
-                <Link
-                  to={basisLink(r)}
-                  className="desk-company"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <Link to={basisLink(r)} className="desk-company" onClick={(e) => e.stopPropagation()}>
                   {r.name}
                 </Link>
                 <span className="desk-ticker">
@@ -143,22 +103,10 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               <MarketCapCell
                 value={r.market_cap}
                 title={r.price_date ? `At the ${shortDate(r.price_date)} close` : undefined}
-                missing={
-                  <MissingTip
-                    text={
-                      r.price_date
-                        ? "No share count in its results filings yet"
-                        : "No closing price loaded yet"
-                    }
-                  />
-                }
+                missing={<MissingTip text={r.price_date ? "No share count in its results filings yet" : "No closing price loaded yet"} />}
               />
               <RevenueCell value={r.revenue} taxonomy={r.taxonomy} scale={scaleFor([r.revenue])} />
-              <YoyCell
-                value={r.revenue_yoy}
-                of="revenue"
-                missing={<MissingTip text={r.yoy_note} />}
-              />
+              <YoyCell value={r.revenue_yoy} of="revenue" missing={<MissingTip text={r.yoy_note} />} />
               <ProfitCell value={r.pat} scale={scaleFor([r.revenue])} />
               <YoyCell value={r.pat_yoy} of="profit" missing={<MissingTip text={r.yoy_note} />} />
               <MarginCell row={r} />
@@ -171,15 +119,7 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
   );
 }
 
-function MoverList({
-  title,
-  rows,
-  metric,
-}: {
-  title: string;
-  rows: DeskRow[];
-  metric: "rev" | "pat";
-}) {
+function MoverList({ title, rows, metric }: { title: string; rows: DeskRow[]; metric: "rev" | "pat" }) {
   if (!rows.length) return null;
   return (
     <div className="mover-group">
@@ -192,9 +132,7 @@ function MoverList({
             <li key={r.symbol}>
               <Link to={basisLink(r)}>{r.name}</Link>
               <span className="muted mover-figure">{crore(figure)}</span>
-              <span className={`num ${tone(change)}`}>
-                {change == null ? "" : signedPct(change)}
-              </span>
+              <span className={`num ${tone(change)}`}>{change == null ? "" : signedPct(change)}</span>
             </li>
           );
         })}
@@ -205,10 +143,7 @@ function MoverList({
 
 function Movers({ d }: { d: Desk }) {
   const [metric, setMetric] = useState<"rev" | "pat">("rev");
-  const empty =
-    metric === "rev"
-      ? !d.revenue_top.length
-      : !d.profit_top.length && !d.turned_profitable.length && !d.turned_loss.length;
+  const empty = metric === "rev" ? !d.revenue_top.length : !d.profit_top.length && !d.turned_profitable.length && !d.turned_loss.length;
   return (
     <section className="card">
       <div className="card-header">
@@ -240,10 +175,7 @@ function Movers({ d }: { d: Desk }) {
           </>
         )}
       </div>
-      <p className="rail-foot">
-        Companies with at least ₹50 cr of quarterly revenue. Profit growth needs a year-ago profit
-        of at least 2% of revenue; sign changes are listed on their own.
-      </p>
+      <p className="rail-foot">Companies with at least ₹50 cr of quarterly revenue. Profit growth needs a year-ago profit of at least 2% of revenue; sign changes are listed on their own.</p>
     </section>
   );
 }
@@ -253,10 +185,7 @@ function Sectors({ d, onPick }: { d: Desk; onPick: (sector: string) => void }) {
     <section className="card">
       <div className="card-header">
         <h2>By sector</h2>
-        <span
-          className="muted"
-          title="Medians over companies with at least ₹50 cr of quarterly revenue"
-        >
+        <span className="muted" title="Medians over companies with at least ₹50 cr of quarterly revenue">
           reported · median YoY
         </span>
       </div>
@@ -270,17 +199,11 @@ function Sectors({ d, onPick }: { d: Desk; onPick: (sector: string) => void }) {
                   {s.reported}/{s.total}
                 </span>
                 <span className="sector-bar" aria-hidden>
-                  <span
-                    style={{ width: `${Math.min(100, (100 * s.reported) / (s.total || 1))}%` }}
-                  />
+                  <span style={{ width: `${Math.min(100, (100 * s.reported) / (s.total || 1))}%` }} />
                 </span>
                 <span className="sector-medians">
-                  <span className={tone(s.median_revenue_yoy)}>
-                    rev {signedPct(s.median_revenue_yoy)}
-                  </span>
-                  <span className={tone(s.median_pat_yoy)}>
-                    profit {signedPct(s.median_pat_yoy)}
-                  </span>
+                  <span className={tone(s.median_revenue_yoy)}>rev {signedPct(s.median_revenue_yoy)}</span>
+                  <span className={tone(s.median_pat_yoy)}>profit {signedPct(s.median_pat_yoy)}</span>
                 </span>
               </button>
             </li>
@@ -293,10 +216,8 @@ function Sectors({ d, onPick }: { d: Desk; onPick: (sector: string) => void }) {
   );
 }
 
-/** Home: the results season at a glance. Filters live in the URL so a view can be shared. */
 export function ResultsDesk() {
   const [params, setParams] = useSearchParams();
-  // The order follows the URL, else the Results desk order preference (Settings).
   const { deskSort } = usePrefs();
   const askedSort = params.get("sort");
   const sort: DeskSort = askedSort === "market_cap" || askedSort === "filed" ? askedSort : deskSort;
@@ -327,11 +248,7 @@ export function ResultsDesk() {
           {first ? <Coverage d={first} /> : <Skeleton width="60%" />}
         </div>
         <div className="desk-filters">
-          <select
-            aria-label="Quarter"
-            value={query.quarter_end ?? ""}
-            onChange={(e) => set("quarter", e.target.value || null)}
-          >
+          <select aria-label="Quarter" value={query.quarter_end ?? ""} onChange={(e) => set("quarter", e.target.value || null)}>
             <option value="">Latest quarter</option>
             {first?.quarters.map((q) => (
               <option key={q.quarter_end} value={q.quarter_end}>
@@ -339,11 +256,7 @@ export function ResultsDesk() {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Sector"
-            value={query.sector ?? ""}
-            onChange={(e) => set("sector", e.target.value || null)}
-          >
+          <select aria-label="Sector" value={query.sector ?? ""} onChange={(e) => set("sector", e.target.value || null)}>
             <option value="">All sectors</option>
             {(first?.all_sectors ?? []).map((s) => (
               <option key={s} value={s}>
@@ -352,11 +265,7 @@ export function ResultsDesk() {
             ))}
           </select>
           <label className="field-inline desk-watch">
-            <input
-              type="checkbox"
-              checked={!!query.watchlist}
-              onChange={(e) => set("watchlist", e.target.checked ? "1" : null)}
-            />
+            <input type="checkbox" checked={!!query.watchlist} onChange={(e) => set("watchlist", e.target.checked ? "1" : null)} />
             Watchlist only
           </label>
         </div>
@@ -366,12 +275,7 @@ export function ResultsDesk() {
         <section className="card desk-main">
           <div className="card-header">
             <h2>Latest results</h2>
-            <select
-              className="desk-sort"
-              aria-label="Sort results"
-              value={sort}
-              onChange={(e) => set("sort", e.target.value === deskSort ? null : e.target.value)}
-            >
+            <select className="desk-sort" aria-label="Sort results" value={sort} onChange={(e) => set("sort", e.target.value === deskSort ? null : e.target.value)}>
               {SORTS.map((s) => (
                 <option key={s.sort} value={s.sort}>
                   {s.label}
@@ -394,28 +298,17 @@ export function ResultsDesk() {
               <ResultsTable rows={rows} />
               <nav className="desk-more" aria-label="Results pages">
                 <span className="muted">
-                  {(page - 1) * PAGE + 1}–{(page - 1) * PAGE + rows.length} of{" "}
-                  {first.rows_total.toLocaleString("en-IN")}
+                  {(page - 1) * PAGE + 1}–{(page - 1) * PAGE + rows.length} of {first.rows_total.toLocaleString("en-IN")}
                 </span>
                 {pages > 1 && (
                   <span className="pager">
-                    <button
-                      type="button"
-                      onClick={() => set("page", page > 2 ? String(page - 1) : null)}
-                      disabled={page <= 1 || desk.isFetching}
-                      aria-label="Previous page"
-                    >
+                    <button type="button" onClick={() => set("page", page > 2 ? String(page - 1) : null)} disabled={page <= 1 || desk.isFetching} aria-label="Previous page">
                       ‹ Prev
                     </button>
                     <span className="muted">
                       Page {page} of {pages}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => set("page", String(page + 1))}
-                      disabled={page >= pages || desk.isFetching}
-                      aria-label="Next page"
-                    >
+                    <button type="button" onClick={() => set("page", String(page + 1))} disabled={page >= pages || desk.isFetching} aria-label="Next page">
                       Next ›
                     </button>
                   </span>
@@ -435,8 +328,7 @@ export function ResultsDesk() {
                 <EmptyState icon="file" title="No results in this view">
                   Nothing filed {query.days ? `in the last ${query.days} day(s)` : "this quarter"}
                   {query.sector ? ` in ${query.sector}` : ""}
-                  {query.watchlist ? " on your watchlist" : ""}. Try a longer period or another
-                  quarter.
+                  {query.watchlist ? " on your watchlist" : ""}. Try a longer period or another quarter.
                 </EmptyState>
               )}
             </div>

@@ -31,9 +31,7 @@ describe("filingLinks", () => {
         },
       },
     });
-    expect(filingLinks(f)).toEqual([
-      { kind: "ixbrl", label: "iXBRL", url: "https://www.nseindia.com/ixbrl/1" },
-    ]);
+    expect(filingLinks(f)).toEqual([{ kind: "ixbrl", label: "iXBRL", url: "https://www.nseindia.com/ixbrl/1" }]);
   });
 });
 

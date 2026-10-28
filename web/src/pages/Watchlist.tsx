@@ -2,25 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type WatchlistEntry } from "../api/client";
 import { ResultsCalendar } from "../components/ResultsCalendar";
-import {
-  BasisCell,
-  BasisHeader,
-  MarketCapCell,
-  ProfitCell,
-  ResultColumns,
-  RevenueCell,
-  YoyCell,
-} from "../components/ResultCells";
+import { BasisCell, BasisHeader, MarketCapCell, ProfitCell, ResultColumns, RevenueCell, YoyCell } from "../components/ResultCells";
 import { Badge, EmptyState, Loading, MissingTip, PageHeader } from "../components/ui";
 import { price, scaleFor, shortDate, signedPct, tone } from "../lib/format";
 
 // The Watchlist (design doc 19.1): the companies under deep coverage, as a day-to-day view: the
-// latest close, the latest quarter's growth, and anything that needs the analyst's attention
-// (a blocked filing, change sets waiting for review). Same table and phone cards as the desk.
 
 function link(w: WatchlistEntry) {
-  const basis =
-    w.consolidated == null ? "" : `?basis=${w.consolidated ? "consolidated" : "standalone"}`;
+  const basis = w.consolidated == null ? "" : `?basis=${w.consolidated ? "consolidated" : "standalone"}`;
   return `/companies/${w.symbol}${basis}`;
 }
 
@@ -49,11 +38,7 @@ function Row({ w }: { w: WatchlistEntry }) {
           </Badge>
         )}
       </td>
-      <td
-        className="num desk-filed d-filed"
-        data-label="Price"
-        title={w.price_date ? `${shortDate(w.price_date)} close` : undefined}
-      >
+      <td className="num desk-filed d-filed" data-label="Price" title={w.price_date ? `${shortDate(w.price_date)} close` : undefined}>
         {w.price == null ? (
           <MissingTip text="No closing price loaded yet" />
         ) : (
@@ -104,8 +89,7 @@ export function Watchlist() {
             </Link>
           }
         >
-          Search for a company above, open it, and press Watch. Its results are then collected and
-          checked as soon as NSE publishes them.
+          Search for a company above, open it, and press Watch. Its results are then collected and checked as soon as NSE publishes them.
         </EmptyState>
       ) : (
         <section className="card desk-main">
@@ -128,8 +112,7 @@ export function Watchlist() {
           </div>
           <p className="rail-foot">
             Latest quarter on record for each company
-            {newest ? `; prices at the ${shortDate(newest)} close` : ""}. Growth is on the same
-            quarter a year earlier.
+            {newest ? `; prices at the ${shortDate(newest)} close` : ""}. Growth is on the same quarter a year earlier.
           </p>
         </section>
       )}

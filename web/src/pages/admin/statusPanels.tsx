@@ -5,7 +5,6 @@ import { Icon, type IconName } from "../../components/Icon";
 import { Badge, ErrorNote, Skeleton } from "../../components/ui";
 import { filedAt, shortDate } from "../../lib/format";
 
-// Data status and alerts: what the scheduled jobs last did and where alerts go. Admin area.
 // NSE schedules are not editable here: they follow the owner's approvals (rule 1).
 
 const STATUS_FRESH_MS = 30_000;
@@ -24,17 +23,7 @@ function bytes(n?: number | null): string {
 
 const count = (n: number) => n.toLocaleString("en-IN");
 
-function StatCard({
-  icon,
-  label,
-  value,
-  children,
-}: {
-  icon: IconName;
-  label: string;
-  value: ReactNode;
-  children?: ReactNode;
-}) {
+function StatCard({ icon, label, value, children }: { icon: IconName; label: string; value: ReactNode; children?: ReactNode }) {
   return (
     <div className="card stat settings-stat">
       <span className="stat-icon">
@@ -49,7 +38,6 @@ function StatCard({
   );
 }
 
-/** "ok" -> what it did; "skipped" -> why; "error" -> the error. */
 function runSummary(run: JobRun): string | null {
   const s = run.last_summary as Record<string, unknown>;
   if (run.last_status === "error") return `Failed: ${String(s.error ?? "unknown error")}`;
@@ -61,11 +49,7 @@ function Watcher({ w }: { w: Status["watcher"] }) {
   const ok = w.run.last_ok_summary as Record<string, unknown> | null | undefined;
   const found = typeof ok?.new === "number" ? ok.new : null;
   return (
-    <StatCard
-      icon="clock"
-      label="Results watcher"
-      value={w.in_season && w.season ? `In season · ${w.season.quarter_label}` : "Off season"}
-    >
+    <StatCard icon="clock" label="Results watcher" value={w.in_season && w.season ? `In season · ${w.season.quarter_label}` : "Off season"}>
       {w.missed_start_at && (
         <Badge tone="warn" title="Nothing was recorded for this start">
           Missed the {filedAt(w.missed_start_at)} run: is the scheduler on?
@@ -101,29 +85,17 @@ function Watcher({ w }: { w: Status["watcher"] }) {
 
 function Prices({ p }: { p: Status["prices"] }) {
   const why = runSummary(p.run);
-  // NSE publishes no file on a market holiday: the job says so for that day, which isn't a fault.
   const summary = p.run.last_summary as Record<string, unknown>;
-  const noFile =
-    p.run.last_status === "skipped" &&
-    summary.day === p.expected_day &&
-    String(summary.skipped ?? "").startsWith("no file");
+  const noFile = p.run.last_status === "skipped" && summary.day === p.expected_day && String(summary.skipped ?? "").startsWith("no file");
   const behind = (!p.latest_day || p.latest_day < p.expected_day) && !noFile;
   return (
-    <StatCard
-      icon="rupee"
-      label="Closing prices"
-      value={p.latest_day ? `${shortDate(p.latest_day)} close` : "None loaded"}
-    >
+    <StatCard icon="rupee" label="Closing prices" value={p.latest_day ? `${shortDate(p.latest_day)} close` : "None loaded"}>
       {behind && (
         <Badge tone="warn" title={why ?? undefined}>
           {shortDate(p.expected_day)} close not loaded yet
         </Badge>
       )}
-      {noFile && (
-        <div className="stat-note">
-          No file for {shortDate(p.expected_day)}: a market holiday, or not published yet
-        </div>
-      )}
+      {noFile && <div className="stat-note">No file for {shortDate(p.expected_day)}: a market holiday, or not published yet</div>}
       <div className="stat-note">
         {count(p.priced)} companies · {count(p.with_market_cap)} with a market cap
       </div>
@@ -151,12 +123,7 @@ export function DataStatus() {
         <h2>Data status</h2>
         <div className="actions">
           {s && <span className="muted settings-checked">checked {filedAt(s.checked_at)}</span>}
-          <button
-            type="button"
-            className="btn-sm"
-            disabled={status.isFetching}
-            onClick={() => void status.refetch()}
-          >
+          <button type="button" className="btn-sm" disabled={status.isFetching} onClick={() => void status.refetch()}>
             Refresh
           </button>
         </div>
@@ -176,24 +143,18 @@ export function DataStatus() {
             <Prices p={s.prices} />
             <StatCard icon="database" label="Stored" value={`${count(s.data.companies)} companies`}>
               <div className="stat-note">
-                {count(s.data.with_sector)} with a sector · {count(s.data.with_results)} with
-                results
+                {count(s.data.with_sector)} with a sector · {count(s.data.with_results)} with results
               </div>
               <div className="stat-note">
                 {count(s.data.filings)} filings · about {count(s.data.values_estimate)} values
               </div>
-              {s.data.latest_filed_at && (
-                <div className="stat-note">Latest filing {filedAt(s.data.latest_filed_at)}</div>
-              )}
+              {s.data.latest_filed_at && <div className="stat-note">Latest filing {filedAt(s.data.latest_filed_at)}</div>}
               <div className="stat-note">
                 Database {bytes(s.data.database_bytes)} · Analekh v{s.version}
               </div>
             </StatCard>
             <StatCard icon="chat" label="AI" value={s.ai_configured ? "Key set" : "No key"}>
-              <div className="stat-note">
-                The Anthropic API key, for document AI and reports (Phase 3). It stays in .env
-                (ANTHROPIC_API_KEY) and never passes through this page.
-              </div>
+              <div className="stat-note">The Anthropic API key, for document AI and reports (Phase 3). It stays in .env (ANTHROPIC_API_KEY) and never passes through this page.</div>
             </StatCard>
           </div>
         )}
@@ -202,17 +163,7 @@ export function DataStatus() {
   );
 }
 
-function ChannelRow({
-  channel,
-  label,
-  ready,
-  detail,
-}: {
-  channel: "telegram" | "email";
-  label: string;
-  ready: boolean;
-  detail?: string | null;
-}) {
+function ChannelRow({ channel, label, ready, detail }: { channel: "telegram" | "email"; label: string; ready: boolean; detail?: string | null }) {
   const [result, setResult] = useState<AlertTest | null>(null);
   const test = useMutation({
     mutationFn: () => api.testAlert(channel),
@@ -223,8 +174,7 @@ function ChannelRow({
   return (
     <li className="settings-row">
       <div className="settings-row-text">
-        <strong>{label}</strong>{" "}
-        {ready ? <Badge tone="ok">Set up</Badge> : <Badge>Not set up</Badge>}
+        <strong>{label}</strong> {ready ? <Badge tone="ok">Set up</Badge> : <Badge>Not set up</Badge>}
         <p className="muted">
           {ready
             ? (detail ?? "Ready")
@@ -238,12 +188,7 @@ function ChannelRow({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        className="btn-sm"
-        disabled={!ready || test.isPending}
-        onClick={() => test.mutate()}
-      >
+      <button type="button" className="btn-sm" disabled={!ready || test.isPending} onClick={() => test.mutate()}>
         {test.isPending ? "Sending…" : "Send test"}
       </button>
     </li>
@@ -268,12 +213,7 @@ export function Alerts() {
         ) : (
           <ul className="settings-rows">
             <ChannelRow channel="telegram" label="Telegram" ready={c.telegram} />
-            <ChannelRow
-              channel="email"
-              label="Email"
-              ready={c.email}
-              detail={c.email_to ? `To ${c.email_to}` : null}
-            />
+            <ChannelRow channel="email" label="Email" ready={c.email} detail={c.email_to ? `To ${c.email_to}` : null} />
           </ul>
         )}
         <h3 className="settings-sub">Recent alerts</h3>

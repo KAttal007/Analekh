@@ -46,8 +46,6 @@ def _decide(cs: ChangeSet, body: schemas.Decisions, db: DB) -> ChangeSet:
     if cs.status not in ("proposed", "approved"):
         raise HTTPException(409, f"change set is {cs.status}")
     items = {i.id: i for i in cs.items}
-    # Only items still pending when the request came in can be decided: a page showing an item
-    # as pending after someone else decided it must not overwrite that decision.
     pending = {i.id for i in cs.items if i.decision == "pending"}
     for kind in body.accept_kinds:
         for i in cs.items:
@@ -62,11 +60,7 @@ def _decide(cs: ChangeSet, body: schemas.Decisions, db: DB) -> ChangeSet:
         if d.decision == "edited" and d.final_value is None:
             raise HTTPException(422, "edited decisions need final_value")
         item.decision = d.decision
-        item.final_value = (
-            d.final_value
-            if d.decision == "edited"
-            else (item.new_value if d.decision == "accepted" else None)
-        )
+        item.final_value = d.final_value if d.decision == "edited" else (item.new_value if d.decision == "accepted" else None)
     if all(i.decision != "pending" for i in cs.items):
         cs.status, cs.decided_at = "approved", datetime.now(UTC)
     db.flush()
@@ -88,33 +82,18 @@ def apply(cs_id: int, db: DB, store: Store, user: User) -> dict:
 def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
     if cs.status != "approved":
         raise HTTPException(409, "decide every item first")
-    latest = (
-        db.scalar(
-            select(ModelVersion.version)
-            .where(ModelVersion.model_id == cs.model_id)
-            .order_by(ModelVersion.version.desc())
-        )
-        or 0
-    )
+    latest = db.scalar(select(ModelVersion.version).where(ModelVersion.model_id == cs.model_id).order_by(ModelVersion.version.desc())) or 0
     if cs.base_version != latest:
-        # Build or other change set saved a newer version since this was drafted. Deriving from old
-        # base would drop that work. Block, never rebase: rebase changes what analyst approved
-        # (owner's ruling).
         raise HTTPException(
             409,
             {
                 "code": "change_set_stale",
-                "message": "The model has changed since this change set was drafted. "
-                "Draft a new update.",
+                "message": "The model has changed since this change set was drafted. Draft a new update.",
                 "base_version": cs.base_version,
                 "latest_version": latest,
             },
         )
-    base = db.scalar(
-        select(ModelVersion).where(
-            ModelVersion.model_id == cs.model_id, ModelVersion.version == cs.base_version
-        )
-    )
+    base = db.scalar(select(ModelVersion).where(ModelVersion.model_id == cs.model_id, ModelVersion.version == cs.base_version))
     if base is None:
         raise HTTPException(404, "base version missing")
     approved = [
@@ -133,8 +112,6 @@ def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
     try:
         out = recalc_file(written, reference=base_bytes)
     except RecalcCannotCompute as err:
-        # LibreOffice cannot run the analyst's own functions (VBA, add-ins), so saving would put
-        # #NAME? where their values were. Nothing is saved; the set stays approved.
         log.error("apply of change set %s refused: cannot compute %s", cs.id, err.cells[:10])
         shown = ", ".join(err.cells[:10]) + (" and more" if len(err.cells) > 10 else "")
         raise HTTPException(
@@ -149,15 +126,12 @@ def _apply(cs: ChangeSet, db: DB, store: Store) -> dict:
             },
         ) from err
     except RecalcUnavailable as err:
-        # Nothing saved without fresh cached values (checks, ModelReader, report tools read them).
-        # Lock released when request ends; change set stays approved, so Apply can be clicked again.
         log.error("apply of change set %s refused: %s", cs.id, err)
         raise HTTPException(
             503,
             {
                 "code": "recalc_unavailable",
-                "message": "Recalculation is unavailable right now. Try Apply again in a few "
-                "minutes, or apply from Excel with the Analekh bridge.",
+                "message": "Recalculation is unavailable right now. Try Apply again in a few minutes, or apply from Excel with the Analekh bridge.",
             },
         ) from err
     suffix, content_type = excel_kind(out)  # an .xlsm model stays an .xlsm
