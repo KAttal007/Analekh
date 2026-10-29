@@ -180,6 +180,17 @@ deploy_production:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml pull
+    # A changed network is recreated by `up`, but containers it only re-attaches (postgres, valkey)
+    # lose their service-name aliases and stop resolving (seen 2026-10-29). Take the stack down
+    # first when the live subnet differs from the compose file; volumes are kept.
+    - |
+      export IMAGE_TAG=$CI_COMMIT_SHA
+      want=$(docker compose -f deploy/compose.production.yml config | grep -m1 'subnet:' | awk '{print $2}')
+      have=$(docker network inspect deploy_default -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)
+      if [ -n "$have" ] && [ "$have" != "$want" ]; then
+        echo "network subnet changed ($have -> $want): taking the stack down first"
+        docker compose -f deploy/compose.production.yml down
+      fi
     - IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml up -d --remove-orphans
     - docker image prune -f
 

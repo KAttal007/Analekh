@@ -3,6 +3,20 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-29** Security audit pair (rule 10) on commit `e0a260b`: run-1 and run-2
+  (`~/security-audit-skill/analekh/run-1`, `run-2`, kept outside the repo). Run-1 found 7
+  confirmed issues, all fixed: STARTTLS certificate checks on mail, test builds admin-only, reset
+  codes (failure counter across codes, 24 hour lockout after 20 wrong codes, migration `0013`),
+  API tokens revoked on any password change, uniform sign-in replies for paused and blocked
+  users, redirect hops checked against the host allow-list, nginx body cap, and the trusted proxy
+  address for the sign-in limit (fixed `10.89.0.0/24` network, web at `10.89.0.10`). Run-2
+  verified the fixes; three leads stay open and unfixed (reset attempt counter race, unbounded
+  discovery hints, runner settings); none accepted in writing. First production deploy of the
+  commit failed: `up -d` recreated the changed network but only re-attached postgres and valkey,
+  which lost their service-name aliases, so `migrate` could not resolve `postgres`. Fixed by
+  `docker compose -p deploy down` (volumes kept) and a retry; `deploy_production` now runs
+  `down` first whenever the live subnet differs from the compose file. Unblocks later network
+  changes without a manual step.
 - **2026-10-28** SEBI added as a source host (`sebi.gov.in`) for DRHP, RHP and prospectus files
   of unlisted companies, limited to three paths: the offer-document listing
   (`/sebiweb/home/HomeAction.do`), entry pages (`/filings/public-issues/`) and PDFs
