@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     lock_poll_seconds: int = 20
     idle_reminder_minutes: int = 30
     session_purge_cron: str = "30 3 * * *"
+    sebi_watch_cron: str = "30 8 * * *"  # SEBI offer-document lists, once a day (IST)
 
     public_cache_seconds: int = 60
     public_cache_max_entries: int = 64

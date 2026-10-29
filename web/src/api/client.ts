@@ -208,4 +208,48 @@ export const api = {
   alertChannels: () => call<AlertChannels>("/alerts/channels"),
   testAlert: (channel: "telegram" | "email") => post<AlertTest>("/alerts/test", { channel }),
   alerts: (limit = 20) => call<AlertEntry[]>(`/alerts?limit=${limit}`),
+  ipoIssues: () => call<IpoIssueRow[]>("/ipo/issues"),
+  ipoIssue: (id: number) => call<IpoDetail>(`/ipo/issues/${id}`),
+  ipoCoverage: (id: number) => call<IpoDraft>(`/ipo/issues/${id}/coverage`),
+  generateIpoCoverage: (id: number) => post<IpoDraft>(`/ipo/issues/${id}/coverage`),
+  setIpoSymbol: (id: number, symbol: string) => post<{ id: number; symbol: string | null; company_id: number | null }>(`/ipo/issues/${id}/symbol`, { symbol }),
+};
+
+// IPO coverage (plan Task 8). The routes return plain dicts, so these are written by hand.
+export type IpoStage = "rhp" | "prospectus";
+export type IpoIssueRow = {
+  id: number;
+  name: string;
+  stages: IpoStage[];
+  current_stage: IpoStage | null;
+  status: string;
+  filed_on: string | null;
+  company_symbol: string | null;
+};
+export type IpoFigure = {
+  period_label: string;
+  period_end: string;
+  is_stub: boolean;
+  line: string;
+  amount: string;
+  unit: string;
+  page: number;
+  flagged: boolean;
+};
+export type IpoRestatement = { basis: string; period_end: string; line: string; old: string; new: string };
+export type IpoDetail = {
+  id: number;
+  name: string;
+  current_stage: IpoStage | null;
+  financials: { consolidated: IpoFigure[]; standalone: IpoFigure[] };
+  restatements: IpoRestatement[];
+  terms: Record<string, unknown> | null;
+};
+export type IpoSection = { key: string; text: string; blocked: boolean; unmatched: string[]; style_issues: string[] };
+export type IpoDraft = {
+  draft_id: number;
+  stage: IpoStage | null;
+  sections: Partial<Record<string, IpoSection>>;
+  rating: string;
+  rationale: string;
 };

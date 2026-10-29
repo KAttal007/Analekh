@@ -32,7 +32,10 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [x] Owner decision: SEBI host for offer documents ([roadmap.md](roadmap.md) 4.1): approved 2026-10-28
 - [ ] Owner decision: NSE paths for announcements and debt filings (4.2, 4.3)
 - [x] Offer documents: abridged prospectus not used (not every company files one); SEBI's website terms accepted by the owner 2026-10-29 (no API, open access)
-- [ ] Offer documents: confirm the row layout of the RHP (smid 11) and Prospectus (smid 12) lists on the first real fetch ([design](superpowers/specs/2026-10-29-ipo-coverage-design.md))
+- [x] Offer documents: row layout of the RHP (smid 11) and Prospectus (smid 12) lists confirmed by a live fetch of Jio Platforms Limited on 2026-10-29 ([design](superpowers/specs/2026-10-29-ipo-coverage-design.md))
+- [ ] IPO coverage: first real run (`analekh ipo-watch`, then `analekh ipo-read`) on the Jio Platforms RHP and Prospectus; hand-check the figures against the PDFs; the owner's marked figures become a golden case
+- [ ] IPO coverage: call `ipo.symbols.link_listed` after the daily prices so listed issues pick up their symbol (built and tested, not yet scheduled)
+- [ ] IPO coverage: Word export of the draft with the rating and rationale placeholders (not built)
 - [ ] Unprocessed feed items: about 290 items from issuers outside the universe (mostly debt-only or unlisted) are never picked up, since the queue needs a matched company. They inflate the "unprocessed" column in `admin/app.py`. Proposed: count only matched items there and leave the rest in "unlinked" (not decided). Review the list in `out/unmatched_feed_items.csv` for companies worth adding to the universe
 
 ## Valuation

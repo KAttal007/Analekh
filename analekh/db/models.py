@@ -391,6 +391,97 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class IpoIssue(Base):
+    """An offer (IPO) before and after listing. Kept apart from `companies`: an unlisted company
+    has no NSE symbol. `company_id` is set once `symbol` exists in `companies`."""
+
+    __tablename__ = "ipo_issues"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    stem: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    symbol: Mapped[str | None] = mapped_column(String(20))
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IpoDocument(Base):
+    """One SEBI offer document: an RHP or a Prospectus. Stored once per file hash."""
+
+    __tablename__ = "ipo_documents"
+    __table_args__ = (
+        CheckConstraint("stage IN ('rhp', 'prospectus')", name="ck_ipo_documents_stage"),
+        CheckConstraint(
+            "status IN ('new', 'read', 'extracted', 'flagged', 'failed')",
+            name="ck_ipo_documents_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("ipo_issues.id"), index=True)
+    stage: Mapped[str] = mapped_column(Text)
+    sebi_id: Mapped[str] = mapped_column(String(32), unique=True)
+    entry_url: Mapped[str] = mapped_column(Text)
+    pdf_url: Mapped[str] = mapped_column(Text)
+    file_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    storage_key: Mapped[str] = mapped_column(Text)
+    filed_on: Mapped[date | None] = mapped_column(Date)
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(Text, default="new")
+    meta: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IpoFinancial(Base):
+    """A figure read from an offer document, in full rupees (or rupees per share for EPS)."""
+
+    __tablename__ = "ipo_financials"
+    __table_args__ = (
+        UniqueConstraint("document_id", "basis", "period_end", "line", name="uq_ipo_financials_figure"),
+        CheckConstraint("basis IN ('consolidated', 'standalone')", name="ck_ipo_financials_basis"),
+        CheckConstraint("unit IN ('INR', 'INR/share')", name="ck_ipo_financials_unit"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("ipo_documents.id"), index=True)
+    basis: Mapped[str] = mapped_column(Text)
+    period_end: Mapped[date] = mapped_column(Date)
+    period_label: Mapped[str] = mapped_column(Text)
+    is_stub: Mapped[bool] = mapped_column(Boolean, default=False)
+    line: Mapped[str] = mapped_column(Text)
+    amount: Mapped[Decimal] = mapped_column(Numeric(24, 4))
+    unit: Mapped[str] = mapped_column(Text)
+    page: Mapped[int] = mapped_column(Integer)
+    flagged: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+
+
+class IpoChunk(Base):
+    """Page text of an offer document, for full-text search by the coverage tools."""
+
+    __tablename__ = "ipo_chunks"
+    __table_args__ = (Index("ix_ipo_chunks_tsv", "tsv", postgresql_using="gin"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("ipo_documents.id"), index=True)
+    page: Mapped[int] = mapped_column(Integer)
+    ord: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    tsv: Mapped[Any] = mapped_column(TSVECTOR, Computed("to_tsvector('english', text)", persisted=True))
+
+
+class IpoDraft(Base):
+    """A generated IPO coverage draft. Sections are grounded text; rating and rationale are blanks."""
+
+    __tablename__ = "ipo_drafts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("ipo_issues.id"), index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("ipo_documents.id"))
+    sections: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_by: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class LlmCall(Base):
     __tablename__ = "llm_calls"
 

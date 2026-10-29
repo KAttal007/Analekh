@@ -377,6 +377,24 @@ def purge_sessions() -> dict:
 
 
 @app.task
+def watch_sebi_offers() -> dict:
+    """RHP and Prospectus lists from SEBI, once a day (IPO coverage, plan Task 3)."""
+    from analekh.ipo.watch import watch
+    from analekh.jobs import status
+
+    store, client = default_store(), PoliteClient()
+    try:
+        with session_scope() as s:
+            result = watch(s, store, client)
+    except Exception as exc:  # noqa: BLE001
+        status.record("ipo_watch", "error", {"error": str(exc)})
+        raise
+    summary = {"new": result.new, "skipped": result.skipped, "failed": result.failed, "stopped": result.stopped}
+    status.record("ipo_watch", "ok" if result.stopped is None else "error", summary)
+    return summary
+
+
+@app.task
 def watch_results(force: bool = False) -> dict:
     """New results filings for every company, from one request to NSE's latest list. Runs only
     when the season schedule says so (analekh.seasons): every hour from 09:00 to 23:00 IST in
@@ -417,3 +435,16 @@ def watch_results(force: bool = False) -> dict:
     }
     status.record("results_watch", "ok", result)
     return result
+
+
+@app.task
+def read_ipo_documents(limit: int = 10) -> dict:
+    """Read SEBI offer documents still `new`: chunks, restated statements, flags (IPO plan Task 5)."""
+    from analekh.genai.client import Claude
+    from analekh.ipo.read import read_pending
+
+    store = default_store()
+    with session_scope() as s:
+        if not get_settings().anthropic_api_key:
+            return {"skipped": "no Claude key configured"}
+        return {"tried": read_pending(s, store, Claude(s), limit=limit)}

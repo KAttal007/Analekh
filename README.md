@@ -208,7 +208,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | Embeddings | 🟡 | Local embedder in `docs/embeddings.py` (`EMBEDDINGS_PROVIDER=local`); open question 28.7 to close |
 | Call recordings to text (Whisper) | ✅ | `analekh transcribe-audio`, GPU when present |
 | Local models (Ollama) for extraction and drafts | 🔲 | [AI.md](AI.md): provider switch, `local_llm` queue, quality gate |
-| Offer documents (DRHP, RHP, Prospectus) | 💬 | Needs the SEBI host approved; [docs/roadmap.md](docs/roadmap.md) section 4.1 |
+| Offer documents (RHP, Prospectus) | 🟡 | Built on synthetic documents, not yet run on a real PDF; the DRHP is not used; [docs/roadmap.md](docs/roadmap.md) section 4.1 |
 
 #### Phase 4 · GenAI outputs
 

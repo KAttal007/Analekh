@@ -569,3 +569,7 @@ class HistoryOut(BaseModel):
 class JobsAvailableOut(BaseModel):
     available: bool
     detail: str | None = None
+
+
+class IpoSymbolIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=40)

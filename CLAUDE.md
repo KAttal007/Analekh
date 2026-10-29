@@ -130,15 +130,24 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    never in a URL, and never logged. Sign-in replies never reveal whether an email has an
    account. Only admins manage users, templates and the upload limit. Limits and timings come
    from `config.py` settings, never literals in code or tests.
-10. **Security audit before every production deploy**: before any change reaches production (the
-    manual `deploy_production` job, or a merge to `main` meant for it), run a full audit with
-    Cloudflare's `security-audit` skill (installed globally, not in the repo) on the exact commit
-    to be deployed, twice: audit, fix, audit again, fix. Output goes outside the repo
-    (`~/security-audit-skill/analekh/run-<N>`); never commit audit reports (public mirror). Do not
-    deploy with an open confirmed finding of medium severity or above unless the owner accepts it
-    in writing in `docs/design/deviations.md` (a line ``Security audit accepted: `FINGERPRINT` ``
-    with the reason). Record each audit pair in `Commit-Info.md` (commit, run numbers, findings
-    fixed, findings accepted).
+10. **Security audits run when the owner decides** (amended 2026-10-29; before, one was required
+    before every production deploy). Do not start one, and do not block a deploy waiting for one,
+    unless the owner asks. When asked, use Cloudflare's `security-audit` skill (installed
+    globally, not in the repo) on the exact commit, audit then fix, ideally twice. Output goes
+    outside the repo (`~/security-audit-skill/analekh/run-<N>`); never commit audit reports
+    (public mirror). An open confirmed finding of medium severity or above that the owner accepts
+    is recorded in `docs/design/deviations.md` (a line ``Security audit accepted: `FINGERPRINT` ``
+    with the reason). Record each audit in `Commit-Info.md` (commit, run numbers, findings fixed,
+    findings accepted).
+11. **Code as if the audit were coming** (Claude's own rule, owner's request 2026-10-29). Treat
+    the security audit as a guiding principle in all new code and edits: validate and bound every
+    input at the boundary; parameterised queries only; no secrets, tokens or personal data in
+    logs, URLs or errors; authorisation on every route (rule 9) and on every object it touches;
+    outbound requests only through `PoliteClient` and its allow-list, with redirects and
+    embedded URLs checked against it; no `eval`, shell strings, unsafe deserialisation or
+    path-joining of user input; size and time limits on files, bodies and loops; fail closed;
+    least privilege; pinned and minimal dependencies. When a change adds a source, a route or a
+    file parser, say in the hand-off how it was kept safe.
 
 ## Where the skeleton stops
 

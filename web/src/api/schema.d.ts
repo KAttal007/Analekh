@@ -821,6 +821,82 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/ipo/issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Issues
+     * @description Newest filing first.
+     */
+    get: operations["list_issues_ipo_issues_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/ipo/issues/{issue_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Issue Detail */
+    get: operations["issue_detail_ipo_issues__issue_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/ipo/issues/{issue_id}/coverage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Latest Coverage */
+    get: operations["latest_coverage_ipo_issues__issue_id__coverage_get"];
+    put?: never;
+    /** Create Coverage */
+    post: operations["create_coverage_ipo_issues__issue_id__coverage_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/ipo/issues/{issue_id}/symbol": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Set Symbol
+     * @description The analyst's NSE symbol for the issue (entered once bids open). Linked to a company when
+     *     that symbol is already listed.
+     */
+    post: operations["set_symbol_ipo_issues__issue_id__symbol_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/status": {
     parameters: {
       query?: never;
@@ -1863,7 +1939,7 @@ export interface components {
       /** Margin */
       margin: string | null;
       /** Margin Kind */
-      margin_kind: ("ebitda" | "nim") | null;
+      margin_kind: ("ebitda" | "nim" | "cpppm") | null;
       /** Margin Yoy */
       margin_yoy: string | null;
       /** Blocked */
@@ -2020,6 +2096,11 @@ export interface components {
       quarter_labels: string[];
       /** Lines */
       lines: components["schemas"]["HistoryLineOut"][];
+    };
+    /** IpoSymbolIn */
+    IpoSymbolIn: {
+      /** Symbol */
+      symbol: string;
     };
     /** JobOut */
     JobOut: {
@@ -4223,6 +4304,164 @@ export interface operations {
         };
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_issues_ipo_issues_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          }[];
+        };
+      };
+    };
+  };
+  issue_detail_ipo_issues__issue_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        issue_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  latest_coverage_ipo_issues__issue_id__coverage_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        issue_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_coverage_ipo_issues__issue_id__coverage_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        issue_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  set_symbol_ipo_issues__issue_id__symbol_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        issue_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IpoSymbolIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
         };
       };
       /** @description Validation Error */
