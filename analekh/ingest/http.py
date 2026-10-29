@@ -137,7 +137,9 @@ class PoliteClient:
             headers={**identity_headers(s.user_agent, s.contact_email), "Accept": "*/*"},
             timeout=s.http_timeout_seconds,
             follow_redirects=True,
+            max_redirects=s.http_max_redirects,
             transport=transport,
+            event_hooks={"request": [lambda request: self._check(request.url)]},  # every hop
         )
         self._get = retry(
             retry=retry_if_exception(_retryable),
@@ -153,12 +155,7 @@ class PoliteClient:
         last_modified: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> FetchResult:
-        parsed = httpx.URL(url)
-        host = parsed.host
-        if host not in self.allowed:
-            raise DisallowedHostError(f"{host} is not an allowed source host")
-        if not path_allowed(host, parsed.path):
-            raise DisallowedHostError(f"{parsed.path} is not an allowed path on {host}")
+        self._check(httpx.URL(url))
         headers = dict(headers or {})
         if etag:
             headers["If-None-Match"] = etag
@@ -166,6 +163,13 @@ class PoliteClient:
             headers["If-Modified-Since"] = last_modified
         result: FetchResult = self._get(url, headers)
         return result
+
+    def _check(self, url: httpx.URL) -> None:
+        """Rule 1 allow-list. Runs before the first request and again on every redirect hop."""
+        if url.host not in self.allowed:
+            raise DisallowedHostError(f"{url.host} is not an allowed source host")
+        if not path_allowed(url.host, url.path):
+            raise DisallowedHostError(f"{url.path} is not an allowed path on {url.host}")
 
     def _get_once(self, url: str, headers: dict[str, str]) -> FetchResult:
         self.limiter.wait()

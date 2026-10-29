@@ -93,20 +93,26 @@ def test_three_failed_logins_over_http_pause_the_account(raw, user, db):
         assert _login(raw, password="wrong one").status_code == 401
     db.expire_all()
     assert db.get(User, user.id).failed_count == 3
-    paused = _login(raw)  # right password, still refused
-    assert paused.status_code == 429
-    assert int(paused.headers["retry-after"]) > 0
+    paused = _login(raw)  # right password, still refused, with the reply an unknown email gets
+    assert paused.status_code == 401 and paused.json() == {"detail": WRONG}
     assert "set-cookie" not in paused.headers
 
 
-def test_five_failed_logins_block_with_reset_message(raw, user, db):
+def test_five_failed_logins_block_with_the_unknown_email_reply(raw, user, db):
     for _ in range(5):
         _login(raw, password="wrong one")
         user.paused_until = None  # skip the pause so the next failure counts
     db.flush()
     res = _login(raw)
-    assert res.status_code == 403
-    assert res.json() == {"detail": "Reset your password to continue.", "blocked": True}
+    assert res.status_code == 401 and res.json() == {"detail": WRONG}
+
+
+def test_paused_and_blocked_replies_match_an_unknown_email(raw, user, db):
+    """Security audit run-1: replies must not reveal which emails have an account (rule 9)."""
+    replies = []
+    for email in ("kaushal@firm.in", "nobody@firm.in"):
+        replies.append([(r.status_code, r.json()) for r in (_login(raw, email=email, password="wrong one") for _ in range(6))])
+    assert replies[0] == replies[1]
 
 
 def test_me_and_logout_round_trip(raw, user, db):

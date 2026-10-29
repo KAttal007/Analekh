@@ -2,9 +2,10 @@
 red-flag event, validation failure."""
 
 import smtplib
+import ssl
 from datetime import UTC, datetime
 from email.message import EmailMessage
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import httpx
 from sqlalchemy.orm import Session
@@ -35,12 +36,12 @@ def send_email(subject: str, body: str) -> bool:
     url = urlparse(s.smtp_url)
     msg = EmailMessage()
     msg["Subject"], msg["To"] = subject, s.alert_email_to
-    msg["From"] = url.username or "analekh@localhost"
+    msg["From"] = unquote(url.username or "") or "analekh@localhost"
     msg.set_content(body)
     with smtplib.SMTP(url.hostname or "localhost", url.port or 587, timeout=15) as smtp:
-        smtp.starttls()
+        smtp.starttls(context=ssl.create_default_context())  # verify cert and host name
         if url.username:
-            smtp.login(url.username, url.password or "")
+            smtp.login(unquote(url.username), unquote(url.password or ""))
         smtp.send_message(msg)
     return True
 

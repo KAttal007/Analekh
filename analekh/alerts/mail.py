@@ -5,6 +5,7 @@ The body can carry a one-time code, so it is never logged; a failure logs only t
 
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 from urllib.parse import unquote, urlparse
 
@@ -29,7 +30,7 @@ def send_mail(to: str, subject: str, body: str) -> bool:
     msg.set_content(body)
     try:
         with smtplib.SMTP(url.hostname or "localhost", url.port or 587, timeout=15) as smtp:
-            smtp.starttls()
+            smtp.starttls(context=ssl.create_default_context())  # verify cert and host name
             if url.username:
                 smtp.login(unquote(url.username), unquote(url.password or ""))
             smtp.send_message(msg)

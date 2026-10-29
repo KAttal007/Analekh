@@ -29,8 +29,10 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [ ] Wire V10 (XBRL wins over AI-extracted values) into `docs/pipeline.py`
 - [ ] Confirm the embeddings provider (open question 28.7; a local embedder is built and is the default)
 - [ ] Local AI stack ([AI.md](../AI.md)): Ollama on the VM and the laptop, speeds recorded, Tailscale link, provider switch in `genai/client.py` with a `local_llm` queue, golden-set gate per job
-- [ ] Owner decision: SEBI host for offer documents ([roadmap.md](roadmap.md) 4.1); NSE paths for announcements and debt filings (4.2, 4.3)
-- [ ] Before building offer documents: check how RHPs and Prospectuses appear in SEBI's listing, and whether the abridged prospectus carries the summary financials; read SEBI's website terms
+- [x] Owner decision: SEBI host for offer documents ([roadmap.md](roadmap.md) 4.1): approved 2026-10-28
+- [ ] Owner decision: NSE paths for announcements and debt filings (4.2, 4.3)
+- [x] Offer documents: abridged prospectus not used (not every company files one); SEBI's website terms accepted by the owner 2026-10-29 (no API, open access)
+- [ ] Offer documents: confirm the row layout of the RHP (smid 11) and Prospectus (smid 12) lists on the first real fetch ([design](superpowers/specs/2026-10-29-ipo-coverage-design.md))
 - [ ] Unprocessed feed items: about 290 items from issuers outside the universe (mostly debt-only or unlisted) are never picked up, since the queue needs a matched company. They inflate the "unprocessed" column in `admin/app.py`. Proposed: count only matched items there and leave the rest in "unlinked" (not decided). Review the list in `out/unmatched_feed_items.csv` for companies worth adding to the universe
 
 ## Valuation

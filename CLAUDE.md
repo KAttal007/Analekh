@@ -130,6 +130,15 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    never in a URL, and never logged. Sign-in replies never reveal whether an email has an
    account. Only admins manage users, templates and the upload limit. Limits and timings come
    from `config.py` settings, never literals in code or tests.
+10. **Security audit before every production deploy**: before any change reaches production (the
+    manual `deploy_production` job, or a merge to `main` meant for it), run a full audit with
+    Cloudflare's `security-audit` skill (installed globally, not in the repo) on the exact commit
+    to be deployed, twice: audit, fix, audit again, fix. Output goes outside the repo
+    (`~/security-audit-skill/analekh/run-<N>`); never commit audit reports (public mirror). Do not
+    deploy with an open confirmed finding of medium severity or above unless the owner accepts it
+    in writing in `docs/design/deviations.md` (a line ``Security audit accepted: `FINGERPRINT` ``
+    with the reason). Record each audit pair in `Commit-Info.md` (commit, run numbers, findings
+    fixed, findings accepted).
 
 ## Where the skeleton stops
 

@@ -21,6 +21,7 @@ from analekh.auth.passwords import (
     validate_new_password,
     verify_password,
 )
+from analekh.auth.tokens import revoke_all_api_tokens
 from analekh.config import get_settings
 from analekh.db.models import AuthSession, User
 
@@ -201,7 +202,7 @@ def create_user_with_first_password(db: Session, email: str, name: str, role: st
 
 def set_password(db: Session, user: User, plain: str) -> None:
     """The person's own choice (or an emailed-code reset): checked against the rules, clears the
-    first-password flag, ends every session."""
+    first-password flag, ends every session and revokes every bridge token."""
     validate_new_password(plain)
     user.password_hash = hash_password(plain)
     user.must_change_password = False
@@ -210,6 +211,7 @@ def set_password(db: Session, user: User, plain: str) -> None:
     user.failed_count = 0
     user.paused_until = None
     revoke_user_sessions(db, user.id)
+    revoke_all_api_tokens(db, user.id)
     db.flush()
 
 

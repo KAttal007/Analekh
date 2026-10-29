@@ -26,6 +26,9 @@ services:
     image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/kaushal-self/kaushal-analekh}/web:${IMAGE_TAG:?set IMAGE_TAG}
     restart: unless-stopped
     depends_on: [api]
+    networks:
+      default:
+        ipv4_address: 10.89.0.10 # the only peer the API trusts for X-Forwarded-For
 
   caddy:
     image: caddy:2
@@ -56,10 +59,14 @@ services:
 
   api:
     <<: *app
-    command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips 10.89.0.10
     ports: ["127.0.0.1:8000:8000"]
     networks: [default, recalc]
-    depends_on: [postgres, valkey, migrate, recalc]
+    depends_on:
+      postgres: { condition: service_started }
+      valkey: { condition: service_started }
+      recalc: { condition: service_started }
+      migrate: { condition: service_completed_successfully } # new code never meets an old schema
 
   worker:
     <<: *app
@@ -73,7 +80,11 @@ services:
     depends_on: [valkey]
 
 networks:
-  default: {}
+  default:
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24 # fixed, so the web container's address is known
+          ip_range: 10.89.0.128/25 # other containers draw from here, never web's 10.89.0.10
   recalc:
     internal: true # no route out
 

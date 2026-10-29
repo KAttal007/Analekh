@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     contact_email: str | None = None
     http_timeout_seconds: float = 30.0
     http_max_attempts: int = 4
+    http_max_redirects: int = 5  # each hop is checked against the allow-list
     integrated_file_attempts: int = 2
     # Results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest day
     latest_page_size: int = 1000
@@ -82,6 +83,8 @@ class Settings(BaseSettings):
     reset_code_minutes: int = 2
     reset_max_attempts: int = 5
     reset_request_cooldown_seconds: int = 120
+    reset_max_failures: int = 20  # wrong codes across codes before reset locks
+    reset_lockout_hours: int = 24  # counted from the last code issued
     max_upload_default_bytes: int = 25 * 1024 * 1024
     min_upload_bytes: int = 1024 * 1024
     max_upload_ceiling_bytes: int = 100 * 1024 * 1024

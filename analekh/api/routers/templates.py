@@ -81,7 +81,7 @@ def confirm(template_id: int, mapping: dict[str, Any], db: DB, _: AdminUser) -> 
 
 
 @router.post("/templates/{template_id}/test", response_model=schemas.TemplateTestOut)
-def test_build(template_id: int, body: schemas.TemplateTestRequest, db: DB, store: Store):
+def test_build(template_id: int, body: schemas.TemplateTestRequest, db: DB, store: Store, _: AdminUser):
     t = _template(db, template_id)
     return run_test_build(db, store, t, company_or_404(db, body.symbol))
 

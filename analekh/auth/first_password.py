@@ -28,7 +28,8 @@ MAIL_FAILED = "failed"
 
 def issue(db: Session, user: User, now: datetime | None = None) -> str:
     """Give the user a new first password: replaces the hash, sets the flag and a fresh expiry,
-    clears any pause or block, and ends their sessions. Returns the plain password."""
+    clears any pause or block, ends their sessions and revokes their bridge tokens. Returns the
+    plain password."""
     hours = get_settings().first_password_hours
     plain = generate_first_password()
     user.password_hash = hash_password(plain)
@@ -39,6 +40,7 @@ def issue(db: Session, user: User, now: datetime | None = None) -> str:
     user.failed_count = 0
     user.first_password_mail = MAIL_SENDING
     service.revoke_user_sessions(db, user.id)
+    service.revoke_all_api_tokens(db, user.id)
     db.flush()
     return plain
 

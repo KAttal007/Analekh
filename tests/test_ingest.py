@@ -90,6 +90,31 @@ def test_client_allows_niftyindices_constituent_lists_only():
         client.get("https://niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString")
 
 
+def test_client_checks_every_redirect_hop():
+    """Security audit run-1: a redirect may not leave the allow-list (rule 1)."""
+    rss = "https://nsearchives.nseindia.com/content/RSS/Financial_Results.xml"
+    targets = {
+        "off-list host": "https://example.com/x",
+        "disallowed nseindia path": "https://www.nseindia.com/api/anything",
+    }
+    for target in targets.values():
+        seen: list[str] = []
+
+        def handler(request: httpx.Request, target: str = target, seen: list[str] = seen) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(302, headers={"Location": target})
+
+        client = PoliteClient(transport=httpx.MockTransport(handler), backoff_base=0)
+        with pytest.raises(DisallowedHostError):
+            client.get(rss)
+        assert seen == [rss]  # the disallowed hop is never requested
+    ok = PoliteClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(302, headers={"Location": rss}) if r.url.host == "archives.nseindia.com" else httpx.Response(200, content=b"ok")),
+        backoff_base=0,
+    )
+    assert ok.get("https://archives.nseindia.com/content/RSS/Financial_Results.xml").content == b"ok"
+
+
 def test_client_retries_then_succeeds():
     calls = {"n": 0}
 

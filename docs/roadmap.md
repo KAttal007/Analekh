@@ -144,3 +144,33 @@ approves every script; outputs are labelled.
 
 Live and intraday prices (paid data); NSE's finer industry classification (licensed data); the
 live earnings-call listener; avatar video.
+
+## 8. Future products: a suite around Analekh 💬
+
+Separate products that could sit beside Analekh, on the same data and engines. Ideas only, none
+planned. Left out because they are already built or planned: the IPO and DRHP analyser (section
+4.1), the transcript library (Whisper, the concall agent, section 4.3), credit monitoring (debt
+filings in 4.2, red flags and alerts), and a standalone Excel model auditor (the `workbook/`
+hygiene and checks).
+
+**Vertical (up and down the research chain)**
+
+| Idea | What it gives | Reuses | Needs |
+|---|---|---|---|
+| Issuer XBRL tagging and pre-filing check | Listed companies' finance and secretarial teams tag and check their results before filing; the errors V11 finds today, caught at the source | `xbrl/`, `validate/` V1 to V11, element tables | XBRL authoring (new); a sales route to issuers |
+| Private-company financials (MCA AOC-4 XBRL) | Unlisted peers for comps; coverage of companies before they list | XBRL pipeline, `facts.py` | MCA's access terms and fees; an owner approval like rule 1; a different taxonomy |
+| Research compliance desk | SEBI Research Analyst Regulations: disclosures, records kept for five years, an audit trail per report | `model_versions`, grounding log, `llm_calls` | Reading the current regulations; a disclosures register per firm |
+| Research distribution portal | Publishing to a firm's clients with access rights and readership counts | `auth/`, report writers | Multi-firm (tenant) separation; client accounts |
+| Consensus estimates | Forecasts pooled from analysts' own models, anonymised; Indian consensus data is thin | `modelsync/` reads forecast columns | Opt-in from each firm; anonymising; checks that pooling is allowed |
+
+**Horizontal (same engines, new users or jobs)**
+
+| Idea | What it gives | Reuses | Needs |
+|---|---|---|---|
+| Excel model auditor (standalone) | Hygiene, dependency graph and checks for any analyst's workbook, sold to FP&A, project finance, PE and audit teams; no NSE data needed | `workbook/` (hygiene, dependency graph, checks), `excel_bridge/` | Packaging the engine apart from Analekh's models and sign-in; a licence for the formulas library (design doc G.9) |
+| Mutual fund portfolio analytics | Fund holdings by company and sector from AMFI's monthly disclosures, for wealth managers and PMS | `ingest/`, `universe/` | An owner approval for the AMFI source |
+| Other XBRL markets | The same stack for exchanges that publish XBRL (for example Saudi Tadawul, other GCC and ASEAN markets) | Whole stack | Element tables per taxonomy; each exchange's access terms |
+
+Before any of these is sold to others: a market data or redistribution licence for exchange-derived
+data (design doc G.9), SEBI registration where research or consensus is sold, and
+rule 8 holds throughout (so no proxy-advisory or rating product).

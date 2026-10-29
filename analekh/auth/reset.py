@@ -1,8 +1,10 @@
 """Emailed one-time reset code (auth design, section 5).
 
 6 digits, stored as SHA-256 only, valid `reset_code_minutes`, single use, replaced by newer
-request, burned after `reset_max_attempts` wrong tries. Nothing here commits: route does, also
-after a failed attempt so the count persists.
+request, burned after `reset_max_attempts` wrong tries. A burned or expired code keeps its row, so
+the request cooldown still applies, and `reset_max_failures` wrong codes across codes stop new
+codes for `reset_lockout_hours`. Nothing here commits: route does, also after a failed attempt so
+the count persists.
 """
 
 import hashlib
@@ -55,6 +57,10 @@ def request_reset(
         issued = row.expires_at - timedelta(minutes=s.reset_code_minutes)
         if now - issued < timedelta(seconds=s.reset_request_cooldown_seconds):
             return False
+        if row.failures >= s.reset_max_failures:
+            if now - issued < timedelta(hours=s.reset_lockout_hours):
+                return False  # too many wrong codes: no new code until the lockout ends
+            row.failures = 0
     code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
     expires = now + timedelta(minutes=s.reset_code_minutes)
     if row is None:
@@ -81,13 +87,10 @@ def confirm_reset(db: Session, email: str, code: str, new_password: str, now: da
         return False
     limit = get_settings().reset_max_attempts
     if service._now(now) > row.expires_at or row.attempts >= limit:
-        db.delete(row)
-        db.flush()
-        return False
+        return False  # the row stays: its cooldown and failure count must outlive the code
     if not hmac.compare_digest(row.code_hash, _hash_code(code.strip())):
         row.attempts += 1
-        if row.attempts >= limit:
-            db.delete(row)
+        row.failures += 1
         db.flush()
         return False
     db.delete(row)

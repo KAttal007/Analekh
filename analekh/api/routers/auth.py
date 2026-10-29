@@ -61,29 +61,17 @@ def login(body: LoginIn, request: Request, db: DB, response: Response) -> object
         )
     result = service.login(db, body.email, body.password)
     db.commit()
-    if result.reason == "bad_credentials":  # unknown emails too: counted, and the same reply
+    # Unknown emails, wrong passwords and paused or blocked accounts all get the same counted
+    # reply: only real accounts can be paused or blocked, so a distinct reply would reveal which
+    # emails have an account (rule 9). A blocked holder recovers with the reset code.
+    if result.reason in ("bad_credentials", "paused", "blocked"):
         ip_limit.record_failure(ip)
         return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
-    cfg = get_settings()
-    if result.reason == "paused":
-        wait = result.retry_after_seconds or cfg.login_pause_minutes * 60
-        minutes = max(1, -(-wait // 60))  # round up to whole minutes
-        headers = {**NO_STORE, "Retry-After": str(wait)}
-        return JSONResponse(
-            {"detail": f"Too many attempts. Try again in {minutes} minute(s)."},
-            status_code=429,
-            headers=headers,
-        )
     if result.reason == "first_password_expired":  # only the holder of the right password sees it
         return JSONResponse({"detail": FIRST_EXPIRED}, status_code=401, headers=NO_STORE)
-    if result.reason == "blocked":
-        return JSONResponse(
-            {"detail": "Reset your password to continue.", "blocked": True},
-            status_code=403,
-            headers=NO_STORE,
-        )
     if result.reason != "ok" or result.user is None or result.token is None:
         return JSONResponse({"detail": BAD_CREDENTIALS}, status_code=401, headers=NO_STORE)
+    cfg = get_settings()
     for name, value in NO_STORE.items():
         response.headers[name] = value
     response.set_cookie(

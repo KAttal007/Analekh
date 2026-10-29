@@ -488,7 +488,8 @@ class ApiToken(Base):
 
 
 class PasswordReset(Base):
-    """The one live reset code of a user: hashed, expiring, with its own attempt count."""
+    """The one live reset code of a user: hashed, expiring, with its own attempt count. The row
+    outlives a spent code so `failures` (wrong codes across codes) and the cooldown hold."""
 
     __tablename__ = "password_resets"
 
@@ -496,6 +497,7 @@ class PasswordReset(Base):
     code_hash: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    failures: Mapped[int] = mapped_column(Integer, server_default="0")
 
 
 class AppSetting(Base):

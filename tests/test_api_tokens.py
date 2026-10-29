@@ -107,3 +107,22 @@ def test_bridge_sends_the_token_in_a_header(monkeypatch):
     finally:
         monkeypatch.undo()
         get_settings.cache_clear()
+
+
+def test_password_reset_revokes_tokens(db, user):
+    """Security audit run-1: a new password (reset or own change) ends every bridge token."""
+    from analekh.auth.service import set_password
+
+    _row, token = create_api_token(db, user, "bridge")
+    assert user_for_api_token(db, token) is not None
+    set_password(db, user, "Brand-New-Passphrase-4")
+    assert user_for_api_token(db, token) is None
+
+
+def test_admin_first_password_reissue_revokes_tokens(db, user):
+    """Security audit run-1: an admin re-issue of the first password ends every bridge token."""
+    from analekh.auth import first_password
+
+    _row, token = create_api_token(db, user, "bridge")
+    first_password.issue(db, user)
+    assert user_for_api_token(db, token) is None

@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import ssl
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -96,6 +97,38 @@ def test_five_wrong_codes_burn_the_reset(db, user, sent):
         assert reset.confirm_reset(db, "kaushal@firm.in", _wrong(code), NEW) is False
     assert reset.confirm_reset(db, "kaushal@firm.in", code, NEW) is False  # right code, too late
     assert service.login(db, "kaushal@firm.in", OLD).user is not None  # password unchanged
+
+
+def test_burned_code_keeps_the_request_cooldown(db, user, sent):
+    """Security audit run-1: burning a code must not let a new one be issued at once."""
+    s = get_settings()
+    t0 = datetime.now(UTC)
+    reset.request_reset(db, "kaushal@firm.in", now=t0)
+    code = _code(sent)
+    for _ in range(s.reset_max_attempts):
+        reset.confirm_reset(db, "kaushal@firm.in", _wrong(code), NEW, now=t0)
+    assert reset.request_reset(db, "kaushal@firm.in", now=t0 + timedelta(seconds=1)) is False
+    assert len(sent) == 1
+
+
+def test_wrong_codes_across_codes_lock_reset(db, user, sent):
+    """Security audit run-1: a per-account cap counts wrong codes across every code issued."""
+    s = get_settings()
+    step = timedelta(seconds=s.reset_request_cooldown_seconds + 1)
+    now = datetime.now(UTC)
+    wrong = 0
+    while wrong < s.reset_max_failures:
+        assert reset.request_reset(db, "kaushal@firm.in", now=now) is True
+        code = _code(sent)
+        for _ in range(min(s.reset_max_attempts, s.reset_max_failures - wrong)):
+            assert reset.confirm_reset(db, "kaushal@firm.in", _wrong(code), NEW, now=now) is False
+            wrong += 1
+        now += step
+    assert reset.request_reset(db, "kaushal@firm.in", now=now) is False
+    issued = db.get(PasswordReset, user.id).expires_at - timedelta(minutes=s.reset_code_minutes)
+    after = issued + timedelta(hours=s.reset_lockout_hours, seconds=1)
+    assert reset.request_reset(db, "kaushal@firm.in", now=after) is True
+    assert reset.confirm_reset(db, "kaushal@firm.in", _code(sent), NEW, now=after) is True
 
 
 def test_code_expires_after_configured_minutes(db, user, sent):
@@ -209,8 +242,8 @@ def test_send_mail_uses_smtp_settings_and_never_logs_body(monkeypatch, caplog):
         def __exit__(self, *args):
             return False
 
-        def starttls(self):
-            pass
+        def starttls(self, context=None):
+            seen["context"] = context
 
         def login(self, user, password):
             seen["user"] = user
@@ -223,6 +256,9 @@ def test_send_mail_uses_smtp_settings_and_never_logs_body(monkeypatch, caplog):
     with caplog.at_level("DEBUG"):
         assert mail.send_mail("to@firm.in", "subj", "SECRETBODY 123456") is False
     assert seen["host"] == "mail.example" and seen["port"] == 2525
+    context = seen["context"]  # security audit run-1: TLS verifies the certificate and host name
+    assert isinstance(context, ssl.SSLContext)
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
     assert seen["to"] == "to@firm.in" and seen["from"] == "sender@firm.in"
     assert "SECRETBODY" not in caplog.text
 

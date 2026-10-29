@@ -59,6 +59,7 @@ def test_analyst_cannot_upload_template_or_list_users(analyst):
     assert up.status_code == 403
     assert analyst.post("/templates/1/mapping", json={}, headers=CSRF).status_code == 403
     assert analyst.post("/templates/1/activate", headers=CSRF).status_code == 403
+    assert analyst.post("/templates/1/test", json={"symbol": "TCS"}, headers=CSRF).status_code == 403
     assert analyst.get("/templates").status_code == 200  # everyone can read the list
 
 
