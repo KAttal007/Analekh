@@ -9,7 +9,7 @@
   <img alt="PostgreSQL 16 + pgvector" src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
-  <img alt="v0.0.5" src="https://img.shields.io/badge/version-v0.0.5-informational">
+  <img alt="v0.0.6" src="https://img.shields.io/badge/version-v0.0.6-informational">
   <img alt="Phase 1 in progress" src="https://img.shields.io/badge/status-Phase%201%20in%20progress-orange">
 </p>
 
@@ -18,10 +18,10 @@ numbers, builds a model from your own template (or updates the model you already
 to Excel only after you approve, and drafts the results flash, earnings note, initiation, slides
 and comps with every number traced to its source.
 
-> **Design document:** *Analekh Technical Design Document v0.0.5*
+> **Design document:** *Analekh Technical Design Document v0.0.6*
 > ([docs/design/technical-design.md](docs/design/technical-design.md); formatted copy
-> `docs/design/Analekh - Technical Design v0.0.5.docx`, diagrams of every workflow
-> `docs/design/Analekh - Architecture v0.0.5.pdf`). Section numbers in code comments (e.g.
+> `docs/design/Analekh - Technical Design v0.0.6.docx`, diagrams of every workflow
+> `docs/design/Analekh - Architecture v0.0.6.pdf`). Section numbers in code comments (e.g.
 > "design doc 12.3") refer to it; departures since are logged in
 > [docs/design/deviations.md](docs/design/deviations.md).
 >
@@ -69,13 +69,16 @@ flowchart LR
 
 ## Status
 
-**v0.0.5, status on 27 October 2026.** The plan, the new ideas and what each one needs are in
-[docs/roadmap.md](docs/roadmap.md); AI without paid APIs is in [AI.md](AI.md).
+**v0.0.6, status on 29 October 2026.** The plan, the new ideas and what each one needs are in
+[docs/roadmap.md](docs/roadmap.md); the AI plan (agentic RAG over official and research sources,
+local models, learning from each firm's accepted reports) is in [AI.md](AI.md).
 
 Since 21 October: sign-in, roles and model locks; the stack runs on the Oracle Cloud Mumbai VM
 (deployed from GitLab, database and files restored, nightly database backup); CI runs on the VM's
 own runners; margins by company type (EBITDA, NIM, core pre-provision profit) and interest ratios
-for lenders; the Excel bridge links and scans a real workbook.
+for lenders; the Excel bridge links and scans a real workbook; IPO coverage from SEBI's RHP and
+Prospectus lists; the security audit's fixes. The v0.0.6 design document is compact: current
+design only, with repository files referenced instead of copied.
 
 The data layer runs on real NSE data (counts as of 21 October 2026, the last full count):
 
@@ -241,7 +244,7 @@ Keep these tables current in the same merge request as the change, and add a lin
 | CI jobs on the VM (no GitLab minutes) | ✅ | Second runner (Docker executor) takes the untagged jobs, with `pull_policy = ["if-not-present"]` so images are not pulled every job; shared runners are off for the project. Container scanning gives no report on Arm64 images yet |
 | Python 3.12 everywhere (`.python-version`, CI, Dockerfile) | ✅ | |
 | Local stack: Docker Desktop (WSL2), PostgreSQL 16 + pgvector, Redis, worker, beat, migrations | ✅ | Migrations at `0012`; Python and web tests run locally (tests use their own `analekh_test` database). A laptop sleeping mid-run can skew Docker's clock briefly (MinIO rejects uploads until it catches up) |
-| Design documents | ✅ | v0.0.5 Markdown, Word copy and a 12-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
+| Design documents | ✅ | v0.0.6 Markdown (compact), Word copy and a 14-page architecture PDF (every workflow's data flow); `scripts/design_docx.py` and `scripts/diagram_panels.py` rebuild them |
 | Front-end toolchain: Node 24 (fnm), pnpm workspace for `web/` and `office-addin/` | ✅ | Lint, tests, both builds and the web Docker image pass |
 | Excel add-in manifest version | 🔲 | Below 1.0, which Microsoft's validator rejects; bump before publishing |
 | Dependency audit (OSV-Scanner, Free tier) | ✅ | Runs on every pipeline, warns on findings |

@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analekh Architecture</title>
 <!--
-  Source of "Analekh - Architecture v0.0.5.pdf" (design doc v0.0.5). Twelve A4 landscape pages, one
+  Source of "Analekh - Architecture v0.0.6.pdf" (design doc v0.0.6). Fourteen A4 landscape pages, one
   diagram each; scripts/diagram_panels.py captures the .panel elements in this order as the Word
-  document's figures 1-12.
+  document's figures 1-14.
   Render: msedge --headless --no-pdf-header-footer --print-to-pdf="<out>.pdf" architecture.html
   Diagrams are drawn by the script at the bottom from plain coordinate lists.
 -->
@@ -102,17 +102,18 @@
 
 <!-- 1. Components and data flow -->
 <section class="page">
-  <div class="kicker">System design v0.0.5 · 21 October 2026 · Phase 0, Phase 1 under way</div>
+  <div class="kicker">System design v0.0.6 · 29 October 2026 · Phase 0, Phase 1 under way</div>
   <h1>Analekh Architecture</h1>
   <p class="tagline">The analyst’s record, kept for you.</p>
   <p class="lead">
     Every NSE-listed company is preloaded. Its results are fetched from NSE’s integrated filings and, back
     to March 2023, its financial-results list, then parsed and validated on both bases for every filer.
-    Closing prices come once a day from NSE’s bhavcopy, and board meetings from NSE’s feeds fill a results
-    calendar. For a company you follow, the system will find and update your Excel model after you approve
-    each change, or build a new model from your sector template, and draft a quarterly update or an
-    initiating coverage note in Word and PowerPoint. Core numbers come from XBRL; the AI writes the
-    analysis and pulls every figure from the database.
+    Closing prices come once a day from NSE’s bhavcopy, board meetings fill a results calendar, and SEBI’s
+    RHP and Prospectus lists start coverage of recent listings. Signed-in analysts update their Excel
+    models after approving each change, or build one from a sector template, and draft reports in Word
+    and PowerPoint. Core numbers come from XBRL; the AI writes the analysis and pulls every figure from
+    the database. Proposed: an agent that reads official and research sources fetched ahead, questions
+    the analyst’s estimates, and learns each firm’s and analyst’s voice.
   </p>
   <h2>Components and data flow</h2>
   <div class="panel"><svg id="flow" viewBox="0 0 1240 548" role="img" aria-label="Components and data flow"></svg></div>
@@ -206,18 +207,16 @@
       and only then is a new model version saved. The original workbook is never overwritten.
     </p>
     <div>
-      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.5</h2>
+      <h2 style="font-size:9.5pt;margin-bottom:1.5mm">What changed in v0.0.6</h2>
       <ul class="changes">
-        <li><b>Unit check (V11):</b> amounts tagged in the wrong unit corrected when two signals agree;
-          28 corrected, 44 suspects held for a PDF check.</li>
-        <li><b>Scheduler:</b> Celery beat in Docker; the watcher follows SEBI’s seasons; the feed watcher
-          runs.</li>
-        <li><b>Results calendar:</b> from board meeting intimations, on the desk and the watchlist.</li>
-        <li><b>Company page:</b> results history whose quarter headings link each filing; the filings box
-          and raw XBRL links are gone.</li>
-        <li><b>Reports:</b> set up a quarterly update or an initiating coverage note (Word and dense
-          PowerPoint); drafting next.</li>
-        <li><b>Ratings:</b> read from the analyst’s own model, never generated (owner’s amendment).</li>
+        <li><b>Sign-in and roles:</b> every route signed in; admin and analyst; first password and
+          reset codes by email; audit fixes in.</li>
+        <li><b>Model locks:</b> one holder per model; others read-only until it frees.</li>
+        <li><b>Recalc:</b> LibreOffice in its own container on an internal network.</li>
+        <li><b>Hosting:</b> Oracle Cloud Mumbai VM with CI runners and nightly backups.</li>
+        <li><b>IPO coverage:</b> SEBI’s RHP and Prospectus to restated figures and section drafts.</li>
+        <li><b>Proposed:</b> agentic RAG over official sources, conflict flags on estimates, local
+          models, learning each analyst’s voice.</li>
       </ul>
     </div>
   </div>
@@ -277,9 +276,38 @@
   </p>
 </section>
 
-<!-- 11. Schedule -->
+<!-- 11. IPO coverage -->
 <section class="page">
-  <h2>When each job runs <span class="tag">built · celery beat in docker</span></h2>
+  <h2>Workflow 10 · IPO coverage from offer documents <span class="tag">built · synthetic tests</span> <span class="tag plan">first real RHP run pending</span></h2>
+  <div class="panel"><svg id="ipo" viewBox="0 0 1240 500" role="img" aria-label="IPO coverage from SEBI offer documents"></svg></div>
+  <p class="note">
+    <b>Coverage before the first quarterly result.</b> Once a day the watcher reads the newest page of SEBI’s
+    RHP and Prospectus lists only (owner-approved host and paths; the DRHP list is never requested), fetches
+    each new entry page once and takes the PDF from its embedded viewer after checking it against the
+    allow-list. An issue is its own record until NSE assigns a symbol. The reader finds the restated
+    statements, price band and peers; figures that do not tie are flagged, never stored clean. The
+    Prospectus supersedes the RHP and changes show as restatements; quarterly XBRL wins once filed. Drafts
+    run one grounded loop per section; the rating and rationale are left for the analyst, with no target price.
+  </p>
+</section>
+
+<!-- 12. Agentic AI -->
+<section class="page">
+  <h2>Workflow 11 · Agentic reports and learning <span class="tag plan">proposed · v0.0.6 · AI.md</span></h2>
+  <div class="panel"><svg id="agentic" viewBox="0 0 1240 520" role="img" aria-label="Agentic RAG, conflict flags and learning loop"></svg></div>
+  <p class="note">
+    <b>Numbers are not the only evidence.</b> Official and research sources are fetched as they publish
+    (by calendar for scheduled events such as RBI’s MPC, by polling otherwise) and tagged by sector, so the
+    agent only retrieves. It asks standing “why” questions of every movement, diffs the analyst’s estimate
+    changes and flags any the evidence contradicts before drafting; the analyst decides, the agent never
+    changes an estimate. Accepted reports and edits train small adapters per firm and per analyst, swapped
+    in only after an automatic check. Each firm hosts its own instance; its data never leaves it.
+  </p>
+</section>
+
+<!-- 13. Schedule -->
+<section class="page">
+  <h2>When each job runs <span class="tag">built · celery beat on the vm</span></h2>
   <div class="panel"><svg id="schedule" viewBox="0 0 1240 500" role="img" aria-label="Job schedule"></svg></div>
   <p class="note">
     <b>Results arrive in four seasons.</b> SEBI requires quarterly results within 45 days of the quarter
@@ -293,17 +321,18 @@
 
 <!-- 12. Deployment -->
 <section class="page">
-  <h2>Where it runs <span class="tag">today</span> <span class="tag plan">planned hosting</span></h2>
-  <div class="panel"><svg id="deploy" viewBox="0 0 1240 500" role="img" aria-label="Deployment today and planned"></svg></div>
+  <h2>Where it runs <span class="tag">oracle cloud mumbai · since 26 oct</span> <span class="tag plan">gpu worker · per-firm instances</span></h2>
+  <div class="panel"><svg id="deploy" viewBox="0 0 1240 500" role="img" aria-label="Deployment on the Oracle VM, the planned GPU worker and per-firm instances"></svg></div>
   <div class="cards">
     <div class="card"><h3>Numbers come from data</h3><p>Figures in drafts are fetched from the database or
       the model through tool calls, and each one carries its XBRL tag or PDF page reference.</p></div>
-    <div class="card"><h3>Data rights</h3><p>NSE’s published RSS feeds and lists, two lookups (owner-approved;
-      per company, plus one request every hour in season), one bhavcopy a day, NSE Indices’ constituent CSVs.
-      Requests identify as Analekh, never as a browser. Written confirmation or a licence before any public
-      release.</p></div>
-    <div class="card"><h3>Stack</h3><p class="mono">Python 3.12 · FastAPI · Celery + Redis · lxml · PyMuPDF ·
-      Claude API · Postgres + pgvector · MinIO · xlwings · React + pnpm · Docker Compose · GitLab CI</p></div>
+    <div class="card"><h3>Data rights</h3><p>NSE’s published feeds and lists, two lookups (owner-approved;
+      per company, plus one request per watcher run), one bhavcopy a day, NSE Indices’ CSVs, SEBI’s RHP and
+      Prospectus lists. Requests identify as Analekh, never as a browser. Each new source needs the owner’s
+      approval.</p></div>
+    <div class="card"><h3>Stack</h3><p class="mono">Python 3.12 · FastAPI · Celery + Valkey · lxml · PyMuPDF ·
+      RapidOCR · Claude API → Ollama · Postgres + pgvector · MinIO · LibreOffice (recalc) · React + pnpm ·
+      Caddy · Docker Compose · GitLab CI</p></div>
   </div>
 </section>
 
@@ -465,6 +494,8 @@ function graph(id) {
   ];
   sources.forEach(([t, s], i) => box(svg, { x: sx, y: 40 + i * 46, w: sw, h: 38, title: t, sub: [s], kind: "source" }));
   box(svg, { x: sx, y: 414, w: sw, h: 42, title: "NSE bhavcopy", sub: ["1 file per trading day"], kind: "source" });
+  box(svg, { x: sx, y: 464, w: sw, h: 34, title: "SEBI offer documents", sub: [], kind: "source" });
+  box(svg, { x: sx, y: 506, w: sw, h: 36, title: "Context sources", sub: ["RBI, GoI, OPEC… (planned)"], kind: "source" });
 
   const [ix, iw] = col.ing;
   box(svg, { x: ix, y: 40, w: iw, h: 42, title: "Scheduler", sub: ["beat · seasons · prices"] });
@@ -473,6 +504,7 @@ function graph(id) {
   box(svg, { x: ix, y: 248, w: iw, h: 42, title: "Universe Loader", sub: ["all NSE cos · weekly"] });
   box(svg, { x: ix, y: 322, w: iw, h: 54, title: "Sector Import", sub: ["user > NSE > LSEG", "per-company source"] });
   box(svg, { x: ix, y: 408, w: iw, h: 54, title: "Price Fetcher", sub: ["close + market cap", "latest day only"] });
+  box(svg, { x: ix, y: 472, w: iw, h: 66, title: "IPO watcher", sub: ["RHP · Prospectus, daily", "context fetcher", "(planned)"] });
 
   const [px, pw] = col.pro;
   box(svg, { x: px, y: 40, w: pw, h: 42, title: "Raw Filing Store", sub: ["MinIO · XBRL + PDF"] });
@@ -483,7 +515,7 @@ function graph(id) {
   const [cx, cw] = col.core;
   box(svg, { x: cx, y: 40, w: cw, h: 422, title: "Core Database", sub: ["Postgres + pgvector"], kind: "core" });
   const tables = ["companies · sectors", "watchlist", "filings · facts (latest)", "kpis", "documents · chunks",
-    "prices (latest day)", "templates", "models · versions", "assumptions", "change_sets", "peer_lists"];
+    "prices (latest day)", "templates", "models · versions", "assumptions · change_sets", "users · model_locks", "ipo_* · peer_lists"];
   tables.forEach((t, i) => {
     const y = 84 + i * 33;
     el(svg, "rect", { x: cx + 10, y, width: cw - 20, height: 24, rx: 3, fill: "#fff", stroke: C.line });
@@ -492,23 +524,23 @@ function graph(id) {
 
   const [ex, ew] = col.eng;
   box(svg, { x: ex, y: 40, w: ew, h: 66, title: "Model Sync Engine", sub: ["workbook reader + mapping", "dependency scan", "roll-forward → change set"], kind: "amberPlan" });
-  box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["update · initiation", "flash, call digest", "red flags, Q&A"], kind: "plan" });
+  box(svg, { x: ex, y: 126, w: ew, h: 66, title: "Analysis + GenAI", sub: ["update · initiation · IPO", "flash, digest, Q&A", "agentic RAG (planned)"], kind: "plan" });
   box(svg, { x: ex, y: 212, w: ew, h: 66, title: "Coverage Builder", sub: ["template → new model", "sourced history", "proposed assumptions"], kind: "amberPlan" });
   box(svg, { x: ex, y: 298, w: ew, h: 54, title: "IB Output Engine", sub: ["comps · market cap", "company profile slide"], kind: "plan" });
   box(svg, { x: ex, y: 372, w: ew, h: 66, title: "Results views", sub: ["desk · calendar · movers", "glance · history · tags", "price · market cap"] });
 
   const [ux, uw] = col.ui;
   box(svg, { x: ux, y: 40, w: uw, h: 54, title: "Excel", sub: ["links your models", "xlwings → Office.js"], kind: "plan" });
-  box(svg, { x: ux, y: 112, w: uw, h: 66, title: "Web App", sub: ["desk · calendar", "company · comps", "reports set-up"] });
+  box(svg, { x: ux, y: 112, w: uw, h: 66, title: "Web App", sub: ["sign-in · desk", "company · comps", "reports · IPO"] });
   box(svg, { x: ux, y: 196, w: uw, h: 42, title: "Word + PPT", sub: ["update, initiation"], kind: "plan" });
   box(svg, { x: ux, y: 268, w: uw, h: 42, title: "Alerts", sub: ["email / Telegram"], kind: "plan" });
 
   // Claude API
   el(svg, "rect", { x: px, y: 496, width: 640, height: 40, rx: 5, fill: C.blueSoft, stroke: C.blue,
     "stroke-width": 1.2, "stroke-dasharray": "5 3" });
-  el(svg, "text", { x: px + 12, y: 513, "font-family": SANS, "font-size": 11.5, "font-weight": 700 }, "Claude API");
+  el(svg, "text", { x: px + 12, y: 513, "font-family": SANS, "font-size": 11.5, "font-weight": 700 }, "Language models");
   el(svg, "text", { x: px + 12, y: 528, "font-family": MONO, "font-size": 9.4, fill: C.muted },
-    "PDF input · tool use · structured JSON · Batch API for backfills (needs a valid key)");
+    "Claude API today · local models via Ollama planned (VM CPU, laptop GPU) · AI.md");
 
   // Sources -> ingestion
   arrow(svg, { d: "M188,59 C212,59 204,172 226,172", label: "lookup", at: [207, 150] });
@@ -520,6 +552,9 @@ function graph(id) {
   arrow(svg, { d: "M188,335 C206,335 206,343 226,343" });
   arrow(svg, { d: "M188,381 C206,381 206,357 226,357", label: "import", at: [207, 398] });
   arrow(svg, { d: "M188,435 H226", label: "1/day", at: [207, 429] });
+  arrow(svg, { d: "M188,481 H226" });
+  arrow(svg, { d: "M188,524 H226", kind: "plan" });
+  arrow(svg, { d: "M388,486 H700 V465", label: "ipo_* · context docs", at: [540, 480] });
 
   // Ingestion internals
   arrow(svg, { d: "M308,82 V98", kind: "control", label: "trigger", at: [314, 94], anchor: "start" });
@@ -899,7 +934,84 @@ sequence("coverage",
   g.text(330, 453, "results come from workflow 1.");
 })();
 
-/* ---------- 11. Schedule ---------- */
+/* ---------- 11. IPO coverage ---------- */
+(function ipo() {
+  const g = graph("ipo");
+  heading(g.svg, 20, 1200, "SEBI (OWNER-APPROVED · ONCE A DAY · NEWEST PAGE ONLY)", 16);
+  g.node("rhp", { x: 20, y: 34, w: 250, h: 54, title: "RHP list (smid 11)", sub: ["/sebiweb/home/HomeAction.do"], kind: "source" });
+  g.node("pros", { x: 290, y: 34, w: 250, h: 54, title: "Prospectus list (smid 12)", sub: ["DRHP list never requested"], kind: "source" });
+  g.node("entry", { x: 600, y: 34, w: 250, h: 54, title: "Entry page, once per issue", sub: ["/filings/public-issues/"], kind: "source" });
+  g.node("pdf", { x: 940, y: 34, w: 280, h: 54, title: "PDF", sub: ["/sebi_data/attachdocs/ · allow-list"], kind: "source" });
+  g.node("watch", { x: 160, y: 130, w: 280, h: 58, title: "IPO watcher (beat 08:30)", sub: ["analekh ipo-watch", "new entries only"] });
+  g.link("rhp.b", "watch.t@0.3");
+  g.link("pros.b", "watch.t@0.7");
+  g.link("watch.r", "entry.b@0.3", { label: "new entry", at: [520, 150] });
+  g.link("entry.r", "pdf.l", { label: "viewer", at: [895, 54] });
+  g.node("store", { x: 940, y: 130, w: 280, h: 58, title: "Hash + store", sub: ["SHA-256 → MinIO", "same hash: skip"] });
+  g.link("pdf.b", "store.t");
+
+  g.node("issue", { x: 20, y: 240, w: 260, h: 70, title: "ipo_issues", sub: ["own record until listed", "symbol: analyst, or one", "name-stem match"], kind: "core" });
+  g.node("read", { x: 330, y: 240, w: 280, h: 70, title: "Reader (analekh ipo-read)", sub: ["page classifier · chunks", "restated statements, both bases", "price band · peers"] });
+  g.node("ai", { x: 660, y: 240, w: 260, h: 70, title: "Model reads the tables", sub: ["JSON schema", "Decimal, full rupees"], kind: "ai" });
+  g.node("check", { x: 960, y: 240, w: 260, h: 70, title: "Figures that must tie", sub: ["power of ten · income − exp.", "= PBT · PBT − tax = PAT", "flagged, never stored clean"], kind: "amber" });
+  g.link("store.b", "read.t@0.8", { mid: 220 });
+  g.link("read.r", "ai.l", { kind: "claude", label: "pages", at: [635, 262] });
+  g.link("ai.r", "check.l");
+  g.link("issue.r", "read.l");
+
+  g.node("ver", { x: 20, y: 360, w: 300, h: 62, title: "Versions", sub: ["Prospectus supersedes RHP", "changes shown as restatements"] });
+  g.node("draft", { x: 360, y: 360, w: 330, h: 62, title: "Per-section grounded drafts", sub: ["MD&A · financials · sector", "strengths and risks · valuation"], kind: "ai" });
+  g.node("blank", { x: 730, y: 360, w: 230, h: 62, title: "Analyst blanks", sub: ["rating and rationale", "no target price"], kind: "amber" });
+  g.node("ui", { x: 1000, y: 360, w: 220, h: 62, title: "Reports · IPO tab", sub: ["/ipo routes"] });
+  g.link("check.b", "ver.t@0.8", { mid: 340 });
+  g.link("ver.r", "draft.l");
+  g.link("draft.r", "blank.l");
+  g.link("blank.r", "ui.l");
+  g.text(20, 460, "Quarterly XBRL wins once the company files (V10). Not built yet: Word export of the draft, linking on listing after the daily prices, a golden case from a real RHP.");
+})();
+
+/* ---------- 12. Agentic reports and learning (proposed) ---------- */
+(function agentic() {
+  const g = graph("agentic");
+  heading(g.svg, 20, 1200, "CONTEXT FETCHED AHEAD (EACH HOST APPROVED UNDER RULE 1 · TERMS READ FIRST)", 16);
+  const srcs = [["rbi", "RBI", "MPC · circulars"], ["goi", "Government of India", "policy · subsidies"], ["opec", "OPEC · World Bank", "oil · outlooks"], ["wef", "WEF · IBEF", "reports"], ["priv", "CRISIL · EY · MBB", "free reports only"], ["up", "Analyst uploads", "Gartner (licensed)"]];
+  srcs.forEach(([k, t, s], i) => g.node(k, { x: 20 + i * 202, y: 34, w: 186, h: 50, title: t, sub: [s], kind: "source" }));
+  g.node("fetch", { x: 20, y: 120, w: 560, h: 54, title: "Context fetcher", sub: ["calendar for scheduled days (MPC) · daily or weekly polls · hash once"], kind: "plan" });
+  g.node("tag", { x: 620, y: 120, w: 600, h: 54, title: "Read · chunk · embed · tag by sector, company, topic", sub: ["local 7B overnight · context documents in Postgres + pgvector"], kind: "plan" });
+  srcs.slice(0, 5).forEach(([k], i) => g.link(`${k}.b`, `fetch.t@${[0.1, 0.35, 0.6, 0.85, 0.98][i]}`, { kind: "plan", mid: 102 }));
+  g.link("up.b", "tag.t@0.9", { kind: "plan" });
+  g.link("fetch.r", "tag.l", { kind: "plan" });
+
+  heading(g.svg, 20, 1200, "AGENTIC REPORT FLOW (PLAN IN CODE)", 200);
+  g.node("approve", { x: 20, y: 218, w: 200, h: 62, title: "1 · Model changes", sub: ["approved (sync)"], kind: "amber" });
+  g.node("why", { x: 250, y: 218, w: 230, h: 62, title: "2 · Why questions", sub: ["macro or company · one-off", "cost direction · guidance"], kind: "aiPlan" });
+  g.node("diff", { x: 510, y: 218, w: 220, h: 62, title: "3 · Estimate diff", sub: ["model versions, line by", "line · growth · margins"], kind: "plan" });
+  g.node("flag", { x: 760, y: 218, w: 220, h: 62, title: "4 · Conflict flags", sub: ["evidence contradicts?", "analyst decides first"], kind: "amberPlan" });
+  g.node("draft", { x: 1010, y: 218, w: 210, h: 62, title: "5 · Draft", sub: ["cited · analyst’s voice", "grounding + style check"], kind: "aiPlan" });
+  g.link("approve.r", "why.l");
+  g.link("why.r", "diff.l", { kind: "plan" });
+  g.link("diff.r", "flag.l", { kind: "plan" });
+  g.link("flag.r", "draft.l", { kind: "approval" });
+  g.link("tag.b@0.2", "why.t@0.6", { kind: "plan", mid: 196, label: "retrieve", at: [520, 194] });
+
+  heading(g.svg, 250, 970, "LEARNING LOOP · PER FIRM, INSIDE ITS OWN INSTANCE (AFTER THE MVP)", 312);
+  g.node("accept", { x: 1010, y: 330, w: 210, h: 62, title: "6 · Analyst accepts", sub: ["edits · conflict answers"], kind: "amber" });
+  g.node("index", { x: 760, y: 330, w: 220, h: 62, title: "Indexed at once", sub: ["retrieval helps the", "next draft"], kind: "plan" });
+  g.node("train", { x: 510, y: 330, w: 220, h: 62, title: "Adapter training", sub: ["QLoRA · laptop GPU", "firm layer + analyst layer"], kind: "plan" });
+  g.node("check", { x: 250, y: 330, w: 230, h: 62, title: "Automatic check", sub: ["grounding · structure", "banned phrasing · rollback"], kind: "amberPlan" });
+  g.node("live", { x: 20, y: 330, w: 200, h: 62, title: "Adapter live", sub: ["only if no worse"], kind: "plan" });
+  g.link("draft.b", "accept.t", { kind: "approval" });
+  g.link("accept.l", "index.r", { kind: "plan" });
+  g.link("index.l", "train.r", { kind: "plan" });
+  g.link("train.l", "check.r", { kind: "plan" });
+  g.link("check.l", "live.r", { kind: "plan" });
+  g.link("live.t", "approve.b", { kind: "plan", label: "voice", at: [140, 302] });
+  g.text(20, 430, "Weights learn how to write; retrieval holds what is true now. Facts, ratings, targets and numbers are never trained in; every number still comes from a tool or calc.");
+  g.text(20, 446, "Guardrails are code in front of every model: grounding check, style check, no generated rating or target price, analyst approval. No training run can remove them.");
+  g.text(20, 462, "Each firm self-hosts: its documents, accepted reports and adapters never leave its instance. Analekh ships the software and the base model only (no knowledge packs).");
+})();
+
+/* ---------- 13. Schedule ---------- */
 (function schedule() {
   const svg = document.getElementById("schedule");
   defs(svg);
@@ -924,10 +1036,11 @@ sequence("coverage",
     ["Daily prices", "weekdays 19:00, until stored", "solid", "weekdays"],
     ["Universe refresh", "weekly, Monday 06:00", "solid", "weekly"],
     ["Feed watcher", "every 5–30 min, all year", "solid", "all"],
+    ["SEBI offer documents", "daily 08:30, newest page", "solid", "all"],
     ["Backfills", "by hand · no nightly run", "plan", "none"],
   ];
   lanes.forEach(([t, s, kind, pattern], i) => {
-    const y = 76 + i * 50;
+    const y = 72 + i * 43;
     el(svg, "text", { x: 16, y: y + 10, "font-family": SANS, "font-size": 10.5, "font-weight": 700, fill: C.ink }, t);
     el(svg, "text", { x: 16, y: y + 23, "font-family": MONO, "font-size": 8.6, fill: C.muted }, s);
     const color = kind === "plan" ? C.plan : C.ink;
@@ -968,37 +1081,34 @@ sequence("coverage",
   el(svg, "text", { x: 16, y: 430, "font-family": MONO, "font-size": 8.6, fill: C.amber }, "16–20 h: 61%");
 })();
 
-/* ---------- 12. Deployment ---------- */
+/* ---------- 14. Deployment ---------- */
 (function deploy() {
   const g = graph("deploy");
-  heading(g.svg, 20, 560, "TODAY · THE OWNER’S LAPTOP (INDIAN HOME CONNECTION)", 16);
-  heading(g.svg, 640, 580, "PLANNED · A SERVER IN INDIA", 16);
-  // Today
-  g.node("lap", { x: 20, y: 34, w: 560, h: 300, title: "Laptop (Windows)", sub: [], kind: "note" });
-  g.node("docker", { x: 40, y: 64, w: 250, h: 74, title: "Docker Desktop · data", sub: ["postgres 16 + pgvector (4.6 GB)", "minio · raw files (0.8 GB)", "data disk on drive E:"], kind: "core" });
-  g.node("apiL", { x: 310, y: 64, w: 250, h: 58, title: "API · uvicorn :8000", sub: ["FastAPI, started by hand"] });
-  g.node("webL", { x: 310, y: 140, w: 250, h: 58, title: "Web · Vite :5173", sub: ["pnpm dev"] });
-  g.node("tasks", { x: 40, y: 160, w: 250, h: 74, title: "Docker · beat, worker, redis", sub: ["results watch by season", "prices · weekdays 19:00", "feeds · every 5–30 min"] });
-  g.node("dog", { x: 310, y: 216, w: 250, h: 58, title: "Backfill watchdog", sub: ["resumes after NSE pauses"] });
-  g.node("nseL", { x: 40, y: 360, w: 540, h: 46, title: "NSE (www.nseindia.com, nsearchives) · honest Analekh requests", sub: [], kind: "source" });
-  g.link("tasks.b", "nseL.t@0.23", { label: "home IP: served", at: [180, 348] });
-  g.link("dog.b", "nseL.t@0.72");
-  g.text(20, 430, "Laptop sleeps or travels → jobs stop; runs resume at the company they stopped on.");
+  heading(g.svg, 20, 700, "PRODUCTION · ORACLE CLOUD FREE TIER, MUMBAI · ARM64, 4 OCPU, 24 GB", 16);
+  heading(g.svg, 760, 460, "PLANNED", 16);
+  g.node("vm", { x: 20, y: 34, w: 700, h: 330, title: "VM · Ubuntu 24.04 · deploy/compose.production.yml", sub: [], kind: "note" });
+  g.node("caddy", { x: 40, y: 70, w: 200, h: 54, title: "caddy :80 :443", sub: ["HTTPS · sslip.io name"] });
+  g.node("web", { x: 270, y: 70, w: 200, h: 54, title: "web · nginx", sub: ["React build · body cap"] });
+  g.node("api", { x: 500, y: 70, w: 200, h: 54, title: "api (+ migrate)", sub: ["FastAPI · sign-in"] });
+  g.node("worker", { x: 40, y: 150, w: 200, h: 54, title: "worker", sub: ["fetch · parse · report"] });
+  g.node("beat", { x: 270, y: 150, w: 200, h: 54, title: "beat", sub: ["seasons · prices · SEBI"] });
+  g.node("recalc", { x: 500, y: 150, w: 200, h: 54, title: "recalc", sub: ["internal network only"] });
+  g.node("pg", { x: 40, y: 230, w: 200, h: 54, title: "postgres 16", sub: ["pgvector · nightly dump"], kind: "core" });
+  g.node("valkey", { x: 270, y: 230, w: 200, h: 54, title: "valkey", sub: ["queue broker"], kind: "core" });
+  g.node("minio", { x: 500, y: 230, w: 200, h: 54, title: "minio", sub: ["raw files · 59,366 moved"], kind: "core" });
+  g.node("runners", { x: 40, y: 300, w: 660, h: 46, title: "GitLab runners on the same VM: shell (india) builds Arm64 images and deploys; Docker runs the rest", sub: [] });
+  g.link("caddy.r", "web.l");
+  g.link("web.r", "api.l");
+  g.node("users", { x: 20, y: 392, w: 330, h: 46, title: "Analysts and admins · browser, signed in", sub: [] });
+  g.node("nse", { x: 390, y: 392, w: 330, h: 46, title: "NSE · SEBI · honest Analekh requests", sub: [], kind: "source" });
+  g.link("users.t", "vm.b@0.24", {});
+  g.link("vm.b@0.79", "nse.t@0.5", { kind: "control" });
 
-  // Planned
-  g.node("gate", { x: 640, y: 34, w: 580, h: 48, title: "Gate: one honest NSE request from the server’s IP address", sub: ["NSE may block data-centre addresses; nothing moves until this passes"], kind: "amberPlan" });
-  g.node("srv", { x: 640, y: 100, w: 580, h: 196, title: "India server: VPS in Mumbai/Bangalore, or an always-on home machine", sub: [], kind: "note" });
-  const svcs = [["api", "api"], ["worker", "worker"], ["beat", "beat (seasonal)"], ["redis", "redis"], ["pg", "postgres"], ["minio", "minio"], ["web", "web · nginx"]];
-  svcs.forEach(([k, t], i) => g.node(k, { x: 660 + (i % 4) * 138, y: 136 + Math.floor(i / 4) * 64, w: 126, h: 48, title: t, sub: [i < 3 ? "app image" : i === 6 ? "React build" : "data"], kind: i === 4 || i === 5 ? "core" : "plan" }));
-  g.node("edge", { x: 640, y: 318, w: 280, h: 58, title: "HTTPS + login", sub: ["Cloudflare Tunnel or reverse", "proxy · domain"], kind: "plan" });
-  g.node("ci", { x: 940, y: 318, w: 280, h: 58, title: "GitLab CI", sub: ["tests · image · registry", "deploy from main / tags"], kind: "plan" });
-  g.node("move", { x: 640, y: 396, w: 580, h: 46, title: "Data moved by pg_dump + MinIO copy, never re-downloaded from NSE", sub: [], kind: "plan" });
-  g.link("edge.t", "web.b", { kind: "plan", mid: 304 });
-  g.link("ci.t", "srv.b@0.76", { kind: "plan" });
-  g.text(640, 460, "Tried: Oracle Cloud (card charged, no account created) · Azure for");
-  g.text(640, 473, "Students (verification failed) · AWS, Google: card needed, credits 3–6 months.");
-  g.text(640, 486, "Next: GitHub Education route, or an always-on home machine with Cloudflare");
-  g.text(640, 499, "Tunnel; a paid VPS in India (~$20–25 a month) once there is a budget.");
+  g.node("gpu", { x: 760, y: 34, w: 460, h: 110, title: "Laptop GPU worker (RTX 4060, 8 GB)", sub: ["Ollama: Qwen2.5 7B / 14B · Whisper", "agentic drafts · adapter training", "over Tailscale; never on the open internet", "VM CPU 7B as the fallback"], kind: "plan" });
+  g.link("gpu.l", "vm.r@0.167", { kind: "plan" });
+  g.node("firm", { x: 760, y: 170, w: 460, h: 110, title: "Each firm’s own instance (platform)", sub: ["same stack, hosted by the firm", "its documents, edits and adapters stay in it", "fetches its own sources · trains its own model", "Analekh ships software + base model only"], kind: "plan" });
+  g.node("left", { x: 760, y: 306, w: 460, h: 74, title: "Left to do", sub: ["backups off the box + test restore", "SSH limited · domain + Cloudflare", "sign-in counts shared across processes"], kind: "plan" });
+  g.text(20, 470, "Data moved from the laptop by pg_dump and a MinIO copy, never downloaded from NSE again. Only ports 80 and 443 are published.");
 })();
 </script>
 </body>

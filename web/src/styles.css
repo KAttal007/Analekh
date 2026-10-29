@@ -4159,3 +4159,98 @@ table.glance tbody tr:last-child > * {
   width: 38%;
   font-weight: 600;
 }
+
+/* ---------- IPO coverage tab (first draft: the layout is still to be decided) ---------- */
+.ipo-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+.ipo-body > * {
+  min-width: 0;
+}
+.ipo-symbol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.ipo-symbol input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.ipo-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.ipo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ipo-table th,
+.ipo-table td {
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.ipo-table thead th:first-child,
+.ipo-table tbody th {
+  text-align: left;
+  white-space: normal;
+  font-weight: 500;
+}
+.ipo-restatements ul {
+  margin: 0;
+  padding-left: var(--s4);
+  overflow-wrap: anywhere;
+}
+.ipo-section {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface-2);
+}
+.ipo-section h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+}
+.ipo-draft-text {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ipo-blank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  overflow-wrap: anywhere;
+}
+.ipo-placeholder {
+  padding: 2px var(--s2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r2);
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .reports-form .segmented,
+  .reports-switch .segmented {
+    display: flex;
+    width: 100%;
+  }
+  .reports-form .segmented button,
+  .reports-switch .segmented button {
+    flex: 1;
+    height: auto;
+    min-height: 28px;
+    padding: 4px var(--s2);
+    line-height: 1.25;
+    white-space: normal;
+  }
+}

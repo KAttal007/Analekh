@@ -7,84 +7,41 @@ Technical Design Document
 | **Field** | **Detail** |
 |---|---|
 | Author | Kaushal Attal |
-| Version | 0.0.5 (design, updated during the build) |
-| Date | 21 October 2026 |
-| Supersedes | Version 0.0.4 (18 October 2026) |
-| Status | Phase 0 nearly complete; Phase 1 (data layer) in progress: results for 2,748 companies from March 2023 with a unit check, daily prices, the scheduler and feed watcher running in Docker, the Results desk, results calendar, watchlist, company pages with results history, comps and settings on real data; the Reports set-up screen built ahead of drafting |
+| Version | 0.0.6 (design, updated during the build) |
+| Date | 29 October 2026 |
+| Supersedes | Version 0.0.5 (21 October 2026) |
+| Status | Phase 0 nearly complete; Phase 1 (data layer) in progress and hosted on Oracle Cloud, Mumbai: results for 2,748 companies from March 2023, daily prices, scheduler and feeds, Results desk, calendar, company pages, comps, settings, sign-in with roles, model locks, IPO coverage from SEBI offer documents. The agentic AI plan (local models, context sources, learning from the analyst) is proposed |
 
-**Purpose of this document.** It records every design decision for Analekh: what the system does, the data it depends on and the rules around that data, the architecture, the workflows, the database schema, each engine's internals, the interfaces and API, packaging and deployment, testing, costs, risks and the build plan. It is written for the engineer building the system and for anyone reviewing the design.
+**Purpose.** Every design decision for Analekh: what it does, the data and the rules around it, architecture, workflows, schema, each engine, interfaces and API, deployment, testing, costs, risks and the build plan. Written for the engineer building it and for reviewers.
 
-### What changed in 0.0.5
+**How this version is kept short.** From 0.0.6 the document states the current design only. Copies of files that live in the repository (the DDL, Compose, CI pipeline, dependency lists, environment file) are replaced by a summary and a pointer to the file, which is the source of truth. History lives in `docs/design/deviations.md` (every departure, folded per version) and `Commit-Info.md` (every major update). Issues fixed since 0.0.5 are dropped; nothing else is.
 
-| **Change** | **Summary** |
-|---|---|
-| Unit check (V11) | Rupee amounts tagged in the wrong unit (crore declared as lakh, and so on) are corrected by the exact power of ten only when two signals agree: the other basis and the company's own neighbouring quarters. One signal alone marks the filing suspect: blocked and kept out of growth, Movers and comps until checked against the PDF. The first sweep corrected 28 filings and left 44 suspects (sections 10.2, 26.1). |
-| Exceptional and extraordinary items | V2 reads both Ind-AS names for exceptional items and adds extraordinary items for Ind-AS filers; the 14 V2-blocked filings now pass (section 10.2). |
-| Scheduler and feeds | Celery beat, the worker and Redis run in Docker and replace the Windows scheduled tasks. The results watcher follows SEBI's results seasons (built, no longer proposed), and the feed watcher polls NSE's published feeds (sections 9.2, 9.6, 22.1). |
-| Results calendar | Board meeting intimations from the Board Meetings feed become a calendar of who reports when, on the desk and the watchlist; past days show the companies that actually filed (workflow 6.9, section 20). |
-| Company page | A results history table (12 quarters in the company's own format, Excel export) replaces the filings box: each quarter's heading links to its filing on NSE (iXBRL), opens its details (filed on, PDF, what a refiling changed, earlier filings) and shows one status mark; filings without a column fold out under the table. Raw XBRL links are no longer shown to users (sections 6.4, 19.1). |
-| Watchlist and Analyse | The watchlist is rebuilt in the desk's style (price, market cap, latest quarter, YoY, status). Analyse says at once when the job queue is down instead of queuing into nothing (sections 19.1, 20). |
-| Reports | A Reports screen sets up two reports, a quarterly update and an initiating coverage note, each as a Word note and a dense IB-style PowerPoint: company, figures (standalone by default, consolidated or both), quarter, and which inputs are ready (filed results, comps, the analyst's Excel model; transcripts, presentations, annual report MD&A and house templates still being built). Drafting itself is still to be built. Drafts must read as an analyst's own work: no em-dashes or other marks of generated text (sections 6.8, 17, 19.1). |
-| Ratings and target prices | Amended by the owner on 21 October 2026: a report may carry the recommendation and target price from the analyst's own Excel model, or leave them for the analyst. Analekh never generates one (section 23). |
-| Speed | A company's first view takes about 0.25 s instead of about 1 s (the basis check uses the latest-value index); Home makes one desk request instead of two; the watchlist reads its companies in one pass; filings carry slim metadata (16 KB instead of 128 KB a company); tests run on their own database (sections 8.3, 20, 24). |
-| Storage | Stored XBRL is compressed (about 12 times smaller); reads return the original bytes, so hashes still match (section 9.3). |
-| Status and next steps | Section 26 updated for 21 October 2026. |
-
-### What changed in 0.0.4
+### What changed in 0.0.6
 
 | **Change** | **Summary** |
 |---|---|
-| Workflows and data flows | Section 6 now describes every workflow, built or planned, step by step, each with its diagram: results collection, daily prices, the company list and sectors, opening the app and reading results, the quarterly model update, start coverage, template onboarding, documents and grounded drafts, and events and alerts. Section 9.6 shows when each job runs; section 22.7 where the system runs today and the hosting plan. Every diagram marks what is built and running on real data and what is not yet. |
-| Results history | NSE's financial-results list (owner-approved on 15 October 2026) adds results from March 2023 to the integrated filings, about 15 quarters and four years of annuals per company. Older files leave out their main contexts and are rejected, never half-stored; a broken file is retried once and then skipped (sections 3.1, 4.1, 9.3, 10.1). |
-| Daily prices | NSE's bhavcopy, one file per trading day after the close (owner-approved on 17 October 2026): close, previous close, open, high, low, volume and a market cap from the latest results filing's share count. Only the latest day is kept (owner's rule, 18 October 2026). Shown on the company page and the Results desk (sections 3.3, 9.5, 19.1, 20). |
-| Sectors | NSE's own taxonomy first: NSE Indices' lists set 22 NSE sector names, which outrank the LSEG groups from the Stocks data type; the LSEG group is kept in its own column (sections 4.2, 8.2). |
-| Results watcher | One request every hour in season (owner's choice, 23 October 2026; every 2 hours from 16 October 2026). A schedule that follows SEBI's results seasons is proposed, backed by a check of when NSE shows filings and when companies file (sections 3.1, 9.6). |
-| Web app | A welcome screen on the first visit of a session; share price and market cap on the company page; a market-cap column and sort on the desk; a scrolling filings box. Motion only on what is clicked (tab highlight, switches); data appears at once and stays fresh in the browser for five minutes (section 19.1). |
-| Hosting | Oracle Cloud and Azure for Students could not be set up; the plan is a server in India (a VPS, or an always-on home machine with Cloudflare Tunnel), after a test that NSE serves its address (section 22.7). |
-| Status and next steps | Section 26 updated for 18 October 2026. |
+| Sign-in and roles | Every route needs a signed-in user, except sign-in, the reset flow and `/public/*`. Admin and analyst roles; first password generated and emailed; reset codes by email; bridge tokens; audit log (sections 19.1, 20, 23). |
+| Model locks | One holder per model while an update, build or report runs; others see it read-only and are told when it frees (sections 16.4, 19.1, 20). |
+| Recalculation | LibreOffice runs in its own `recalc` container on an internal network; Apply refuses cleanly when it is down or cannot compute a cell (sections 16.5, 22.1). |
+| Margins by company type | One Margin column: EBITDA margin, NIM for lenders, core pre-provision profit margin for brokers and asset managers; interest ratios on the company page (sections 10.3, 19.1). |
+| Hosting | Oracle Cloud free tier, Mumbai: the production stack, CI runners and nightly backups on one Arm64 VM (sections 22.1, 22.5, 22.7). |
+| IPO coverage | SEBI's RHP and Prospectus lists (owner-approved host) feed restated statements, text and per-section grounded drafts for recent listings (sections 3, 6.11, 8.2, 17, 20, 23). |
+| Security audit | The audit of 29 October 2026 found 7 issues, all fixed: uniform sign-in replies, redirect hops checked against the allow-list, reset-code lockout, tokens revoked on password change, mail certificate checks, body cap at nginx, the trusted proxy address (section 23). |
+| Excel bridge | Linking patches only the tag parts of the workbook; open workbooks are read from a copy; tested on a real model (sections 13, 19.2). |
+| Agentic AI (proposed) | Agentic RAG over official and research sources fetched ahead of time, conflict flags on the analyst's estimate changes, local models, and adapters trained on each firm's and analyst's accepted reports; Analekh as a platform each firm hosts itself (sections 3.4, 6.12, 17.3 to 17.6, 22.8; plan in `AI.md`). |
+| Format | Compact: current design only; repository files referenced, not copied (Appendices A, D, F, G and section 22.3). |
 
-### What changed in 0.0.3
+### Earlier versions
 
-| **Change** | **Summary** |
-|---|---|
-| Where results come from | NSE's results RSS feed has been frozen since 24 August 2026: SEBI moved quarterly results into integrated filings. Results XBRL now comes from NSE's integrated-filing lookup, queried per company and once a day without a ticker for the latest results; the files still come from nsearchives. The owner amended the exchange-data rule on 14 October 2026 to allow exactly this (sections 3.1, 3.2, 9, 23). |
-| How NSE limits requests | NSE stalls after about 590 requests whatever the pace (20 minutes at one request every 2 seconds, 50 at one every 5) and answers again after a pause of about 10 minutes. Requests identify as Analekh, with the contact in the From header, because NSE's CDN silently stalls a User-Agent that contains an email address or a URL (sections 3.1, 9.3). |
-| History available | Integrated filings start with the March 2025 quarter (Q4 FY25): six quarters to June 2026 per basis, plus each new quarter as it is filed. Both bases (standalone and consolidated) are stored for every quarter (sections 4.1, 9.4). |
-| Results formats | Banks (RBI format), general insurers and life insurers (IRDAI formats) have their own element tables, detected from the line items a filing tags, because integrated filings use one schema for every filer. NBFCs use the Ind-AS names. Validation identities have per-format terms (sections 10.1, 10.2, Appendix A). |
-| Revised results | The value in use for each line of each quarter is the one from the most recently filed filing, whatever order the files were downloaded in; superseded values are kept as history. NSE's Original or Revision flag is stored. The company page labels refiled quarters Restated, Revised or Superseded, with a popup listing the numbers that changed (sections 8.3, 9.3, 10.2, 19.1). |
-| Late filing rule | V8 follows SEBI's results deadlines (LODR 33(3)): 45 days for a quarter, 60 for the year end, plus one day's grace (section 10.2). |
-| Web app | Home is a Results desk: who reported the quarter, revenue, profit and EBITDA margin against a year ago, movers and progress by sector. The company page gains a Consolidated or Standalone switch, a Latest quarter column with QoQ and YoY changes (margins in basis points), amounts in lakhs for companies under Rs 10 crore of revenue, and notes and tags that open on hover or tap (sections 19.1, 20). |
-| Call recordings | Earnings calls can be transcribed locally from the recording (Whisper), since recordings appear within 24 hours and transcripts within five working days (section 11, Appendix G). |
-| Status and next steps | Section 26 records what is built, what blocks each next phase and what to build next. |
+| **Version** | **Date** | **Headline** |
+|---|---|---|
+| 0.0.5 | 21 Oct 2026 | Unit check V11; scheduler in Docker; results calendar; results history; Reports set-up; ratings only from the analyst's model |
+| 0.0.4 | 18 Oct 2026 | Every workflow diagrammed; history from March 2023; bhavcopy prices; NSE sectors first |
+| 0.0.3 | 15 Oct 2026 | Integrated-filing lookup replaces the frozen results feed; per-format element tables; revisions; Results desk |
+| 0.0.2 | 14 Oct 2026 | Kite removed; sector sources with precedence; in-browser search; GitLab Free; pnpm; versioning by phase |
+| 0.0.1 | 12 Oct 2026 | Renamed Analekh; preloaded universe; coverage levels; workbook engine; template onboarding; Coverage Builder |
 
-### What changed in 0.0.2
-
-| **Change** | **Summary** |
-|---|---|
-| Prices | Kite Connect is removed (paid). The price source is undecided: an analyst's workbook can show a current price through Excel's Stocks data type, and NSE's daily bhavcopy can feed closing prices later. Analekh uses one static reference price at a time, never live quotes (section 3.3). |
-| Sector classification | Three sources in a fixed order of precedence: the user's override, then sectors from Excel's Stocks data type (LSEG industry group, via Microsoft 365), then NSE Indices' published constituent lists (niftyindices.com, limited to /IndexConstituent/). companies.sector_source records which one set each sector (sections 4.2, 9.1). |
-| Company search | Tiered type-ahead ranking. The web app downloads the whole universe once and searches it in the browser; trigram similarity is only a fallback for typos (sections 8.3, 19.1, 20). |
-| Source control and CI/CD | GitLab Free instead of Ultimate. OSV-Scanner replaces GitLab's dependency scanning; DAST and security policies wait for a plan that includes them. Commits go straight to main while there is one developer (section 22.5, Appendix F). |
-| Front-end tooling | pnpm workspace for the web app and the add-in instead of npm; Node 24 pinned; Inter font bundled; light and dark themes (sections 19.1, 21, Appendix G). |
-| Schema and API | companies.sector_source, a peer_lists table, and endpoints for the company index and the model and template screens (sections 8, 20, Appendix A). |
-| Phase 0 findings | Spike results recorded: Ind-AS element names confirmed, the feed's date format, duplicate contexts, NSE hosts that stop answering (sections 3.1, 10.1, 26, 28). |
-| Versioning | Versions follow the build phases: v0.0.x while Phase 0 is under way, v0.1.x once Phase 0 is complete, v0.2.x once Phase 1 is complete, and so on (the middle number counts completed phases; the last counts revisions within a phase). The first release for proper testing is v1.0.0-pre-release. The earlier drafts 1.0, 1.0.1 and 1.0.2 are renumbered 0.0.0, 0.0.1 and 0.0.2. |
-
-### What changed in 0.0.1
-
-| **Change** | **Summary** |
-|---|---|
-| Name | The project is renamed from Ticker-to-Report to Analekh, with the tagline "The analyst's record, kept for you." The Python package, command-line tool, database and repository are renamed to analekh. |
-| Preloaded company universe | Every NSE-listed company is loaded from NSE's equity list and refreshed weekly. Entering a ticker is a lookup, not a registration. Results XBRL is parsed for every company that files. |
-| Coverage levels | "Track" is replaced by an optional watchlist. Numbers are collected for all companies; AI extraction, model updates, reports and alerts run for the watchlist or on demand. |
-| Model discovery and recognition | The Excel bridge finds models in watched folders or the open workbook and identifies the company by a hidden tag, the file name or the contents. Mapping is suggested automatically and confirmed once. |
-| Workbook understanding engine | One shared engine reads any workbook's structure (periods, inputs, formulas, labels, drivers, checks). It serves discovery, template onboarding and quarterly updates. |
-| Template onboarding | Users upload their preferred model templates by sector. The system reads the structure, the user confirms the mapping once per template, and a test build must pass before use. |
-| Coverage Builder | New feature: when no model exists, build one from a sector template with sourced history and proposed assumptions, then draft an initiation pack. |
-| Inputs and outputs, interfaces | New sections listing every input and output and every user-facing screen. |
-| Source control and CI/CD | GitLab (Ultimate) is the primary home for code, merge requests, CI/CD, registry, environments and security scanning. A pipeline job mirrors green builds of main and release tags to a public GitHub repository. |
-| Dependencies and requirements files | New Appendix G lists every library by language (Python, TypeScript, PostgreSQL extensions) and the system packages, with version floors, how the files are generated, and licence notes. |
-| Schema, API, build plan | Updated for the above; the Coverage Builder moves into Phase 2. |
+Details of each: `deviations.md` ("Folded into" sections) and `Commit-Info.md`.
 
 ### Contents
 
@@ -121,37 +78,40 @@ Technical Design Document
 
 ## 1. Overview and goals
 
-Research analysts and investment banking analysts spend a large share of their week on the same mechanical loop: find a company's newest results, copy numbers into a model, check what changed, roll forecasts forward, then write it up as a note, a comps table or a pitch page. Starting coverage on a new company is the same work at a larger scale: build the model, fill years of history, set assumptions and write an initiation. Analekh automates both.
+Research and investment banking analysts spend much of their week on the same loop: find the newest results, copy numbers into a model, check what changed, roll forecasts forward, then write a note, a comps table or a pitch page. Starting coverage is the same work at a larger scale. Analekh automates both.
 
 #### 1.1 One-line description
 
-Search any NSE-listed company. If you already have a model, the system finds it, proposes the exact changes from the newest results and applies them after your approval. If you do not, it builds one from your sector template with sourced history and proposed assumptions. Either way it then drafts the results flash or initiation, note, slides and comps.
+Search any NSE-listed company. If you have a model, the system finds it, proposes the exact changes from the newest results and applies them after your approval. If you do not, it builds one from your sector template with sourced history and proposed assumptions. Either way it then drafts the quarterly update or initiation, slides and comps, grounded in the filings and in the current context around the company.
 
 #### 1.2 Users
 
-| **User** | **What they need from the system** |
+| **User** | **What they need** |
 |---|---|
-| Equity research analyst | Fast model updates on results day, variance against own estimates, earnings call digest, draft note, Q&A over filings, and quick model builds when initiating coverage. |
-| Investment banking analyst | Refreshed comps and precedents, company profile slides, pitch page numbers kept current, trigger alerts (fundraises, stake sales), quick models for new names. |
-| Reviewer (associate, PM) | Traceability: every number linked to its XBRL tag or PDF page; an approval trail for every model change and assumption. |
+| Equity research analyst | Fast model updates on results day, variance against own estimates, call digest, draft note in their own voice, Q&A over filings, quick builds when initiating. |
+| Investment banking analyst | Comps, profile slides, pitch pages kept current, trigger alerts, quick models for new names (including recent listings). |
+| Reviewer (associate, PM) | Every number traced to its XBRL tag or PDF page; an approval trail for every change. |
+| Admin | Users, roles, templates, upload limit, model locks. |
 
 #### 1.3 Goals
 
 - Every NSE-listed company available from day one; no per-company setup to see its numbers.
 - Ticker in, model updated: no manual PDF handling for core financials.
-- New coverage in minutes: a sourced model from the analyst's own template plus a draft initiation.
-- Human in the loop: nothing is written to a model without an approved change set or approved assumptions.
-- Grounded GenAI: generated text never contains a number that did not come from the database or the model.
+- New coverage in minutes: a sourced model from the analyst's template plus a draft initiation, including from an RHP before listing.
+- Human in the loop: nothing written to a model without an approved change set or approved assumptions.
+- Grounded GenAI: no number in generated text that did not come from the database, the model or `calc`.
+- First drafts that need no pasted context and read in the analyst's voice (proposed, section 17.3).
 - Traceability: each value carries its source (feed item, file hash, XBRL context or PDF page).
-- One data foundation serving both research and banking workflows.
+- One data foundation for research and banking.
 
 #### 1.4 Non-goals
 
-- No buy, sell or hold ratings or target prices generated by Analekh. A report carries one only when it is read from the analyst's own model or filled in by the analyst (owner's amendment, 21 October 2026; see section 23).
-- No real-time trading data or order execution; prices are a static reference (section 3.3).
-- No BSE-only companies in v1 (they are not in NSE's feeds; see section 4).
-- No crawling of NSE or BSE internal web endpoints.
+- No ratings or target prices generated by Analekh. A report carries one only when read from the analyst's own model or filled in by the analyst (owner's amendment, 21 October 2026; section 23).
+- No real-time trading data or order execution; prices are end of day (section 3.3).
+- No BSE-only companies in v1 (section 4.3).
+- No crawling of exchange or regulator web pages; only owner-approved hosts and paths.
 - The system never writes model formulas with AI; formulas come from templates the analyst controls.
+- No facts trained into model weights: weights learn style, retrieval holds facts (section 17.4).
 
 ## 2. Requirements
 
@@ -159,616 +119,649 @@ Search any NSE-listed company. If you already have a model, the system finds it,
 
 | **ID** | **Requirement** | **Phase** |
 |---|---|---|
-| F1 | Preload every NSE-listed company (symbol, name, ISIN, series, listing date, face value) and refresh weekly. | 1 |
+| F1 | Preload every NSE-listed company (symbol, name, ISIN, series, listing date, face value); refresh weekly. | 1 |
 | F2 | Search companies by symbol or name with autocomplete. | 1 |
-| F2a | Show each results season at a glance (who reported, growth, movers, sectors) and each company's latest quarter with QoQ and YoY change. | 1 |
-| F2b | Load each trading day's closing prices once after the close, with market cap; keep only the latest day. | 1 |
-| F3 | Poll NSE RSS feeds on a schedule and keep a permanent history of feed items. | 1 |
-| F4 | Fetch and parse results XBRL for every company that files, on both bases; store raw files once (hash dedupe); use the most recently filed value when a quarter is refiled. | 1 |
+| F2a | Each results season at a glance (who reported, growth, movers, sectors) and each company's latest quarter with QoQ and YoY. | 1 |
+| F2b | Each trading day's closing prices once after the close, with market cap; keep only the latest day. | 1 |
+| F3 | Poll NSE's published feeds on a schedule; keep a permanent history of items. | 1 |
+| F4 | Fetch and parse results XBRL for every filer, both bases; store raw files once (hash); use the most recently filed value when a quarter is refiled. | 1 |
 | F5 | Validate every filing with accounting identities and sanity rules; flag failures. | 1 |
-| F6 | Backfill results for every company, resumably: integrated filings from the March 2025 quarter and NSE's financial-results list from March 2023; older periods on demand. | 1 |
-| F7 | Maintain a watchlist that controls AI extraction, model updates, reports and alerts. | 1 |
-| F8 | Read any workbook's structure: period axis, input versus formula cells, row labels, drivers, checks, dependencies. | 2 |
-| F9 | Upload model templates by sector; suggest the mapping; confirm once per template; test-build before activation. | 2 |
+| F6 | Backfill results for every company, resumably, from March 2023; older periods on demand. | 1 |
+| F7 | Watchlist that controls AI extraction, updates, reports and alerts. | 1 |
+| F7a | Sign-in for every user, admin and analyst roles, one holder per model at a time. | 1 |
+| F8 | Read any workbook's structure: periods, inputs versus formulas, labels, drivers, checks, dependencies. | 2 |
+| F9 | Upload templates by sector; suggest the mapping; confirm once; test-build before activation. | 2 |
 | F10 | Build a new model from a template with sourced history, a Sources sheet and passing checks. | 2 |
 | F11 | Propose first-pass assumptions with rationale and citations; analyst accepts or edits each. | 2 |
 | F12 | Discover existing models in watched folders or the open workbook; identify the company; link once. | 2 to 5 |
-| F13 | Build a change set for a linked model from new results: writes, dependents, roll-forwards, assumption suggestions. | 2 |
-| F14 | Apply approved changes, recalculate and save a new version; never overwrite the original. | 2 |
-| F15 | Extract sector KPIs and narrative from presentations, annual reports and transcripts with page references. | 3 |
-| F16 | Generate a results flash, variance bridge, call digest, red flags, draft note and slides. | 4 |
-| F17 | Generate a draft initiation report from the built model and sourced research. | 4 |
+| F13 | Change set for a linked model from new results: writes, dependents, roll-forwards, suggestions. | 2 |
+| F14 | Apply approved changes, recalculate, save a new version; never overwrite the original. | 2 |
+| F15 | Extract sector KPIs and narrative from presentations, annual reports and transcripts with pages. | 3 |
+| F15a | Read RHPs and Prospectuses of recent listings: restated statements, price band, peers, text. | 3 |
+| F15b | Fetch official and research context documents as they publish; tag them by sector and topic (proposed). | 3 |
+| F16 | Results flash, variance bridge, call digest, red flags, quarterly update and slides. | 4 |
+| F16a | Explain the analyst's estimate changes with evidence; flag estimates the evidence contradicts before drafting (proposed). | 4 |
+| F17 | Draft initiation from the built model and sourced research; IPO coverage from the RHP or Prospectus. | 4 |
 | F18 | Answer questions over a company's filings with page citations. | 4 |
-| F19 | Refresh comps tables, company profile slides and tagged pitch pages. | 5 |
-| F20 | Alert the analyst when a watchlist company files results or a red-flag event appears. | 5 |
+| F18a | Learn each firm's and analyst's style from accepted reports and edits (proposed, after the MVP). | 5 |
+| F19 | Refresh comps tables, profile slides and tagged pitch pages. | 5 |
+| F20 | Alert the analyst when a watchlist company files results or a red flag appears. | 5 |
 
 #### 2.2 Non-functional requirements
 
 | **Area** | **Target** |
 |---|---|
-| Accuracy | 100% match on mapped XBRL elements against the source file; 95% or better precision on AI-extracted KPIs in the golden set; every AI value carries a page reference. |
-| Recognition | Template and model mapping suggestions correct for 90% or more of rows before user review; zero silent writes to unconfirmed rows. |
-| Latency | Newest filing detected within 15 minutes of publication; change set in under 2 minutes for a cached filing; new model build in under 5 minutes when history is cached. |
-| Traceability | Any value the system writes can be traced to feed item, file hash and XBRL context or PDF page. |
-| Reliability | Idempotent jobs; re-running ingestion never duplicates facts; failed jobs retry with backoff. |
-| Cost | No AI cost for the all-company numbers layer; AI limited to selected pages for watchlist or on-demand work; token use logged per call. |
-| Security | Secrets only in environment variables; uploaded templates and models stay on the user's machine or private storage; macros never executed. |
-| Portability | Server stack runs with one docker compose up; the Excel bridge runs on the analyst's machine. |
+| Accuracy | 100% match on mapped XBRL elements; 95% or better precision on AI KPIs in the golden set; every AI value carries a page. |
+| Recognition | Mapping suggestions correct for 90% or more of rows before review; zero silent writes to unconfirmed rows. |
+| Latency | Newest filing detected within an hour in season; change set under 2 minutes for a cached filing; new build under 5 minutes with history cached. |
+| Traceability | Any written value traces to feed item, file hash and XBRL context or PDF page. |
+| Reliability | Idempotent jobs; re-running ingestion never duplicates facts; retries with backoff. |
+| Cost | No AI cost for the all-company numbers layer; AI only on selected pages; aim for no API cost through local models (AI.md); tokens logged per call. |
+| Security | Secrets only in the environment; sign-in on every route; inputs bounded at the boundary; macros never executed; user files private. |
+| Portability | One `docker compose up` for the server; the Excel bridge on the analyst's machine; each firm can host its own instance (section 22.8). |
 
 ## 3. Data sources and access
 
-Verified while scoping on 11 and 12 October 2026 and extended during the Phase 0 spike and the build (13 to 18 October 2026). These findings drive the main design choice: core numbers come from NSE's published XBRL files, found through its published feeds and one lookup the owner has approved, not from scraping or paid feeds.
+Core numbers come from NSE's published XBRL, found through its published feeds and lookups the owner has approved, not from scraping or paid feeds. Checked from 11 October 2026 through the build.
 
 #### 3.1 Findings
 
-- **No free, official developer API exists for Indian company filings.** NSE has no public developer API.
-- **NSE terms of use** prohibit "systematic or automated data collection" and "scraping, data mining, data extraction and data harvesting" (clause 9), and bar copying or redistributing content without written permission (clause 8).
-- **NSE publishes official RSS feeds** at nsearchives.nseindia.com/content/RSS/, including Financial_Results.xml, Online_announcements.xml, Board_Meetings.xml, Corporate_action.xml, Insider_Trading.xml, Related_Party_Trans.xml, Voting_Results.xml and brsr.xml. Channel TTL is 5 minutes; each feed is a rolling window of recent items. Financial_Results.xml has carried no new filing since 24 August 2026 (below).
-- **The Financial Results feed links directly to XBRL instance files.** A sampled file used the BSE Ind-AS taxonomy (prefix in-bse-fin) and contained the P&L for the quarter and the year to date, balance sheet instants and the full cash flow statement, with values in full INR.
-- **Phase 0 (13 October 2026):** the results feed held two Ind-AS filings, both parsed, and their element names matched the vocabulary. The feed's pubDate is DD-Mon-YYYY HH:MM:SS. One filing gave different values for the same dates under two contexts (OneD and FourD). The SME list writes dates as DD-Mon-YY.
-- **The results feed stopped carrying filings on 24 August 2026** (its last four items are Asian Hotels (West)). SEBI moved quarterly results into integrated filings; the Announcements feed links their PDFs, not their XBRL.
-- **NSE's integrated-filing lookup** (www.nseindia.com/api/integrated-filing-results, the list behind its integrated-filing page) returns every integrated financials filing per company: quarter end, basis, NSE's Original or Revision flag, broadcast time, and links to the XBRL instance, an iXBRL web page and sometimes a results PDF, all on nsearchives. Without a ticker it lists the latest filings across all companies. It answers without the home page's cookies; the home page itself answers 403 to an honest Analekh User-Agent.
-- **Integrated filings start with the March 2025 quarter** (Q4 FY25): six quarters up to June 2026 for a company that files every quarter, on each basis it files. Of the first 1,292 companies stored, 1,036 file both standalone and consolidated results and 255 standalone only. Integrated XBRL carries the quarter and the year to date, but not the prior-year comparison columns of the PDF.
-- **Some companies have no integrated filings listed**, mostly SME and recently listed companies (216 of the first 1,500 or so checked), and about one attached results PDF link in three reads ".../corporate/null"; a few XBRL links answer 404.
-- **Revisions are common.** Of the first 1,292 companies, 564 had filed at least one quarter more than once on the same basis (1,108 quarters); about 4% of the values in those refilings differed from the earlier filing. A company's first results after listing can cover a half-year only, with the quarter added later by a revision (Canara Robeco AMC).
-- **NSE limits the number of requests, not their pace.** The lookup and the archive stop answering (the connection stalls; nothing is refused) after about 590 requests, whether they come every 2 seconds or every 5, and answer again after a pause of about 10 minutes. The CDN also stalls any request whose User-Agent contains an email address or a URL, so the contact goes in the From header.
-- **Integrated filings use one schema for every filer** (in-capmkt-ent, with the Ind-AS element names), so the schema no longer tells banks and insurers apart; their line items do. Banks file the RBI format, general and life insurers IRDAI's formats.
-- **NSE's financial-results list** (www.nseindia.com/api/corporates-financial-results; owner-approved on 15 October 2026) returns, per company in one request, every results filing back to 2005 with XBRL links from 2018: period, basis, audited flag, the filing time (filingDate, broadCastDate) and NSE's dissemination time (exchdisstime). TCS lists 26 quarters from September 2018 to December 2024, ICICI Bank 28; the list ends where integrated filings start. Files up to December 2022 (the _WEB.xml publications) and some early-2023 bank files leave out the quarter, year-to-date and balance-sheet contexts most values point to, so their basis and main figures can't be placed; complete files start in March 2023. A link of "-" means NSE has no XBRL for that row.
-- **When NSE shows a filing, and when companies file** (checked on 18 October 2026 for 24 established companies through the two lookups): integrated filings appear a median of 1 second after the company files (94% within a minute, 299 filings; the slowest, Maruti's December 2025 quarter, after 23.5 hours, within the 24 hours SEBI allows after the board meeting's outcome); the older list showed a median of 3 minutes. Since 2023 every first filing of a quarter came between day 8 and day 59 after the quarter end, none after SEBI's deadline. 61% are filed between 16:00 and 21:00 IST and under 1% between midnight and 09:00.
-- **NSE's request limit varies:** runs stalled after 565 to 590 requests most often, but also after 1,504 and 4,195; NSE always answered again after about 10 minutes.
-- **NSE's daily bhavcopy** (nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_YYYYMMDD_F_0000.csv.zip) is one zip per trading day with every traded security: trade date, ISIN, symbol, series, open, high, low, close, previous close and volume. The 16 October 2026 file matched 3,044 of Analekh's companies by ISIN. A day without a file (a holiday, or not yet published) answers 404.
-- **NSE's own sector taxonomy** has four levels: 12 macro-economic sectors, 22 sectors, 58 industries and about 200 basic industries. Company-level values appear only on NSE's quote pages and their API, which answer 403 to honest requests (and to one browser-like test request the owner allowed once); NSE Indices' published lists carry the 22 sector names for their constituents.
-- **BSE's results API** refuses automated requests and changes its address; about 250 companies with nothing on NSE file their results only with BSE.
-- **NSE's corporate announcements list** (www.nseindia.com/api/corporate-announcements) can be filtered by subject, for example "Investor Presentation", and links each PDF on nsearchives: one request on 14 October 2026 returned 1,211 presentations from 1,046 companies for the previous three months, almost all from the June 2026 quarter's results season. It is not used; linking each quarter's presentation is a proposal that needs the owner's approval (section 28).
-- **The Announcements feed links to PDFs** (presentations, orders, management changes) with company, subject and summary; it holds only about 12 hours of items.
-- **NSE publishes its equity list** as a CSV (EQUITY_L.csv) with columns SYMBOL, NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE, MARKET LOT, ISIN NUMBER, FACE VALUE. It has no sector or industry column. SME companies are listed separately.
-- **NSE Indices publishes index constituent lists** as CSVs on niftyindices.com (/IndexConstituent/), with an industry for each constituent. Eleven broad lists (Total Market, SME Emerge, IPO, Microcap 250, Smallcap 500 and others) plus the bank indices give NSE sector names for 1,430 companies (16 October 2026); a list that answers with an HTML page instead of a CSV is reported, not read.
-- **BSE's List of Securities** (a free download) has security code, issuer, ISIN, status, group and instrument, but no industry column and no industry filter.
-- **Excel's Stocks data type** (Microsoft 365 only; Office 2024 does not have it) turns an exchange ID such as XBOM:500325 or XNSE:RELIANCE into a record with fields including Industry (LSEG industry group) and Price (a delayed quote). Filled for BSE's 4,748 active equities in Excel for the web, it gave a sector for 2,458 of the 2,606 NSE main-board companies.
-- **BSE sells corporate data feeds**: Corporate Announcements INR 5 to 9 lakh a year, Financial Results INR 3 to 5 lakh, Annual Report EOD INR 75,000, bhavcopy INR 35,000 for individual use (prices exclude taxes). No free RSS equivalent was found.
-- **Zerodha Kite Connect** costs INR 2,000 a month and, since 8 February 2025, includes historical data (up to 10 years of intraday) and live WebSocket quotes. Not used in v1: a paid dependency, and its pinned autobahn release had known vulnerabilities (section 3.3).
-- **Screener.in** has no API; premium users can export screen results as CSV. **EODHD** lists fundamentals for NSE tickers on paid plans; depth of Indian history not verified.
-- **SEBI LODR** requires listed companies to post earnings call transcripts on their website and submit them to the exchanges within five working days; audio within 24 hours.
-- **NSE's main website was geo-blocked** from the cloud region used for testing; the RSS and archive hosts were reachable. During the build the archive hosts and niftyindices.com also stopped answering an Indian home connection for hours while other sites worked; fetchers retry later with single requests and never work around a block.
-- **Claude API PDF support**: 32 MB per request, up to 600 pages (100 when the context window is under 1M tokens), roughly 1,500 to 3,000 text tokens per page plus image tokens; Files API and batch processing available.
+| **Topic** | **Finding** |
+|---|---|
+| APIs | No free official developer API for Indian filings; NSE has none. BSE's results API refuses automated requests; about 250 companies with nothing on NSE file only with BSE. |
+| NSE terms | Prohibit systematic or automated collection and scraping (clause 9) and redistribution without permission (clause 8). |
+| RSS feeds | nsearchives.nseindia.com/content/RSS/: Financial_Results, Online_announcements, Board_Meetings, Corporate_action, Insider_Trading, Related_Party_Trans, Voting_Results, brsr and others; TTL 5 minutes; rolling windows. Financial_Results has carried no filing since 24 August 2026. Announcements link PDFs and hold about 12 hours of items. Feed pubDate is DD-Mon-YYYY HH:MM:SS (IST). |
+| Integrated filings | SEBI moved quarterly results into integrated filings. NSE's lookup (`/api/integrated-filing-results`) lists each company's filings (quarter, basis, Original or Revision, broadcast time, links to XBRL, iXBRL, sometimes a PDF); without a ticker, the latest across companies. Answers without the home page's cookies; the home page answers 403 to an honest User-Agent. One schema (`in-capmkt-ent`, Ind-AS names) for every filer. Starts with the March 2025 quarter; quarter and year to date, no prior-year columns. Of the first 1,292 companies, 1,036 file both bases, 255 standalone only. |
+| Results history | NSE's financial-results list (`/api/corporates-financial-results`, approved 15 October 2026): every filing back to 2005, XBRL from 2018 (TCS 26 quarters, ICICI Bank 28), ending where integrated filings start. Files up to December 2022 (`_WEB.xml`) and some early-2023 bank files lack their main contexts; complete files start March 2023. A link of "-" means no XBRL. |
+| Gaps and revisions | 216 of the first ~1,500 companies had no integrated filings (mostly SME, recent listings); about one PDF link in three reads ".../corporate/null"; a few XBRL links answer 404. 564 of 1,292 companies refiled at least one quarter (1,108 quarters; about 4% of values differed); a first result after listing can cover a half-year only. |
+| Request limit | NSE limits the number of requests, not their pace: lookups and archives stall (nothing refused) after about 565 to 590 requests most often (sometimes 1,504 or 4,195) and answer again after about 10 minutes. The CDN stalls a User-Agent containing an email or URL, so the contact goes in the From header. |
+| Timing | Integrated filings appear a median of 1 second after filing (94% within a minute; 299 filings, 24 companies, 18 October 2026). Since 2023 every first filing of a quarter came between day 8 and day 59; 61% between 16:00 and 21:00 IST, under 1% between midnight and 09:00. |
+| Bhavcopy | nsearchives `/content/cm/BhavCopy_NSE_CM_0_0_0_YYYYMMDD_F_0000.csv.zip`: one zip per trading day, every traded security (ISIN, symbol, series, OHLC, previous close, volume); 404 on a day without a file. Matched 3,044 companies by ISIN on 16 October 2026. |
+| Equity lists | EQUITY_L.csv (symbol, name, series, listing date, paid-up value, lot, ISIN, face value); no sector column; SME listed separately with DD-Mon-YY dates. |
+| Sectors | NSE's taxonomy: 12 macro sectors, 22 sectors, 58 industries, ~200 basic industries; company values only on quote pages, which refuse honest requests. NSE Indices' constituent CSVs (niftyindices.com `/IndexConstituent/`) give the 22 sector names for 1,430 companies. BSE's List of Securities has no industry. Excel's Stocks data type (Microsoft 365) gives LSEG industry groups: 2,458 of 2,606 main-board companies. |
+| Announcements list | `/api/corporate-announcements` can filter by subject ("Investor Presentation": 1,211 from 1,046 companies in three months). Not used; needs approval (section 28). |
+| SEBI offer documents | `sebi.gov.in` lists DRHPs (smid 10), RHPs (11) and Prospectuses (12), 25 a page, newest first, no API. Each entry page (`/filings/public-issues/`) embeds its PDF from `/sebi_data/attachdocs/<month>/<id>.pdf`; `/sebi_data/` itself answers 403. Approved 28 October 2026; layout confirmed on Jio Platforms, 29 October 2026. |
+| Paid alternatives | BSE corporate feeds INR 3 to 9 lakh a year each; Kite Connect INR 2,000 a month (historical and live data; not used); Screener exports (no API); EODHD (paid, depth unverified). |
+| Transcripts | SEBI LODR: audio within 24 hours, transcript within five working days. |
+| Reachability | NSE's main site was geo-blocked from a foreign cloud region; archive hosts and niftyindices.com sometimes stopped answering an Indian connection for hours. From the Oracle Mumbai VM the lookup, feeds and bhavcopy answer. Fetchers retry later with single requests and never work around a block. |
+| Claude PDF input | 32 MB and up to 600 pages a request (100 under a 1M context), about 1,500 to 3,000 text tokens a page plus images; Files API and batches. |
 
 #### 3.2 Source matrix
 
 | **Need** | **Chosen source** | **Alternative** | **Notes** |
 |---|---|---|---|
-| Company universe | NSE EQUITY_L.csv (plus SME list), weekly | BSE scrip master (paid) | No sector column; classification needs a separate source |
-| Sector | NSE Indices constituent lists (NSE's 22 sector names), then the Excel Stocks data type (LSEG industry group via Microsoft 365); a user override wins | Curated map; company disclosures | Precedence recorded per company; the LSEG group kept separately (section 4.2) |
-| Results numbers | NSE integrated-filing lookup to XBRL: per company, plus one request every hour in season for the latest filings | BSE results feed (paid) | Structured; no AI needed for core statements. The results RSS feed has been frozen since 24 August 2026 |
-| Presentations, transcripts, annual reports | NSE Online_announcements RSS to PDF; company IR pages | BSE announcements feed (paid) | AI extraction on selected pages |
-| Results calendar and events | Board_Meetings, Insider_Trading, Related_Party_Trans RSS | None free | Alerts and red flags |
-| Historical backfill | Integrated-filing lookup (from the March 2025 quarter) and NSE's financial-results list (complete XBRL from March 2023), per company; company IR pages or the import folder for older periods | Licensed data | About 15 quarters and four years of annuals per company |
-| Prices and market cap | NSE's daily bhavcopy, one file per trading day after the close; market cap from the latest results filing's share count | Excel Stocks data type in the analyst's own workbook; Kite Connect (paid, not used) | End of day only; only the latest day kept (section 3.3) |
-| Embeddings for search | Hosted embedding API or local open-source model |  | Anthropic does not offer an embeddings model |
+| Company universe | NSE EQUITY_L.csv plus SME list, weekly | BSE scrip master (paid) | No sector column |
+| Sector | NSE Indices lists (22 NSE sectors), then Excel Stocks data type (LSEG group); user override wins | Curated map | Precedence per company (section 4.2) |
+| Results numbers | Integrated-filing lookup to XBRL: per company, plus one request without a ticker per watcher run | BSE feed (paid) | No AI for core statements |
+| Results history | Financial-results list, per company, complete XBRL from March 2023 | Licensed data; IR pages | About 15 quarters and 4 years per company |
+| Presentations, transcripts, annual reports | Announcements RSS to PDF; IR pages; import folder | BSE (paid) | AI on selected pages |
+| Calendar and events | Board_Meetings, Insider_Trading, Related_Party_Trans, encumbrance RSS | None free | Calendar, red flags, alerts |
+| Prices | NSE bhavcopy, one file per trading day; market cap from the latest filing's share count | Stocks data type in the analyst's workbook; Kite (paid) | Latest day only (section 3.3) |
+| Recent listings | SEBI RHP and Prospectus lists, entry pages and PDFs, once a day | NSE side (not approved) | DRHP not used (section 6.11) |
+| Current context | Official and research publishers (section 3.4) | None | Proposed; each host needs approval |
+| Embeddings | Local model (default) | Hosted API | Anthropic has no embeddings model |
 
-Design rule: poll published RSS feeds at their stated refresh interval and fetch the files they link to. NSE Indices' constituent CSVs are fetched the same way, and the HTTP client allows only the /IndexConstituent/ path on that host. On www.nseindia.com the client allows only the home page, /api/integrated-filing-results (approved by the owner on 14 October 2026, because the results feed stopped carrying filings) and /api/corporates-financial-results (approved on 15 October 2026, for history before integrated filings): both queried per company, plus one request every 2 hours without a ticker for the latest results. On nsearchives, besides the files the lookups link to, ONE bhavcopy per trading day after the close (approved on 17 October 2026; no price history, no live prices). Requests always identify as Analekh and are never disguised as a browser; widening the allow-list needs the owner's approval. No other NSE internal endpoint is called and no exchange page is crawled. Obtain written confirmation from NSE (nsewebmaster@nse.co.in) or license a feed before any public or commercial release.
+**Access rule (CLAUDE.md rule 1).** Published RSS feeds at their interval and the files they link to; the equity list CSVs; NSE Indices' `/IndexConstituent/` CSVs; on www.nseindia.com only `/`, `/api/integrated-filing-results` (14 October 2026) and `/api/corporates-financial-results` (15 October 2026), per company plus one request without a ticker per watcher run (hourly 09:00 to 23:00 in season, 21:00 otherwise); ONE bhavcopy per trading day (17 October 2026); on sebi.gov.in the three list pages (once a day, newest page only), entry pages and `/sebi_data/attachdocs/` PDFs (28 October 2026). Requests identify as Analekh, never as a browser. No other page or internal API; widening `ALLOWED_HOSTS` or `ALLOWED_PATHS` needs the owner's approval. Written confirmation from NSE or a licensed feed before any public or commercial release.
 
 #### 3.3 Prices
 
-Prices feed market cap, comps, the profile slide and valuation pages. Decided on 17 October 2026: end of day only, from NSE's bhavcopy; no live feed (no budget for one) and no price history.
+Decided 17 October 2026: end of day only, from the bhavcopy; no live feed and no price history.
 
-- **Source.** NSE's daily bhavcopy (section 3.1): ONE file per trading day, fetched after the close (analekh prices; section 9.5). Equity series only (EQ, BE, BZ on the main board; SM, ST, SZ on SME), one row per ISIN, the main series first.
-- **What is stored.** For each company the file matches by ISIN: trade date, open, high, low, close, previous close and volume, and a market cap: the close times the shares in issue, worked out as paid-up equity capital from the results filings divided by the face value in NSE's equity list. Filed face values are unreliable (tagged as 0, as the capital itself, or from before a split), and some filers tag paid-up capital 1,000 to 1,00,000 times too large, so: when the latest quarter and the one before differ by more than 50 times, the smaller is used; capital above 100 times total assets is ignored (Ind-AS and banks); a market cap above Rs 30 lakh crore is not shown. The results watcher recomputes market caps when new filings arrive (analekh prices --recompute does it by hand). On 16 October 2026, 3,044 companies matched and 2,624 had a market cap; Reliance came to Rs 16,39,117 crore.
-- **Only the latest day** (owner's rule, 18 October 2026). Each new file replaces the previous day's prices; the day's change comes from the previous close in the same file. A company missing from the day's file (suspended, not traded) has no price rather than a stale one. An older day is never loaded over a newer one.
-- **In Excel.** An analyst's workbook can still show a delayed price with the Stocks data type (=FIELDVALUE(cell,"Price")) on Microsoft 365; it stays in that workbook.
-- **Not used:** Kite Connect (INR 2,000 a month), live quotes, and any NSE website page or internal API.
+- **Source:** ONE bhavcopy per trading day after the close (section 9.5). Equity series only (EQ, BE, BZ; SM, ST, SZ on SME), one row per ISIN, main series first.
+- **Stored:** trade date, OHLC, previous close, volume and market cap = close x shares in issue (paid-up equity capital from the results filings / face value from the equity list). Guards for tagging errors: when the latest two quarters' capital differ more than 50 times the smaller is used; capital above 100 times total assets is ignored; a market cap above Rs 30 lakh crore is not shown. The results watcher recomputes market caps when filings arrive (`analekh prices --recompute` by hand).
+- **Only the latest day** (owner's rule, 18 October 2026): each file replaces the previous day; a company missing from the file has no price rather than a stale one; an older day never replaces a newer one.
+- **In Excel:** the Stocks data type can still show a delayed price inside the analyst's workbook.
+- **Not used:** Kite Connect, live quotes, any NSE page or internal API.
+
+#### 3.4 Context sources (proposed, not built)
+
+For agentic drafting (section 17.3) each instance fetches official and research documents as soon as they publish, so the agent retrieves rather than searches. Owner's direction, 29 October 2026: official sites over media; no Bloomberg or news channels; leading private research included.
+
+| **Source** | **Kind** | **Content** | **Cadence** |
+|---|---|---|---|
+| RBI | Official | MPC statements and minutes, circulars, notifications | Calendar for MPC days (schedule published ahead; statement on the meeting's last day), daily poll otherwise |
+| Government of India | Official | Policies, schemes, subsidies, mandates, gazette notifications; ministries chosen per sector | Daily poll |
+| OPEC, World Bank | Intergovernmental | Oil market reports; outlooks, commodity reports | Calendar plus weekly poll |
+| World Economic Forum, IBEF | Public research, industry body | Reports, sector reports | Weekly poll |
+| CRISIL, EY, McKinsey, BCG, Bain | Private research | Free public reports only | Weekly poll |
+| Gartner | Private, paywalled | Reports a firm licenses | Analyst upload only, never fetched |
+
+Conditions: each host and path set approved by the owner and recorded in `deviations.md` before code; site terms read first; listing pages and linked files only, through `PoliteClient`; no logins, paywalls or crawling. Documents are stored once by hash, read, chunked, embedded and tagged with sectors, companies and topics at ingest. Each firm's instance fetches for itself; nothing is shipped centrally (no knowledge packs). Details: AI.md section 3.
 
 ## 4. Company universe and coverage levels
 
-Version 0.0.0 required each company to be added before anything happened. That was wrong: knowing a company exists and covering it deeply are different things. 0.0.1 separates them into three levels.
+Knowing a company exists and covering it deeply are different things, so there are three levels.
 
 | **Level** | **What happens** | **Cost and trigger** |
 |---|---|---|
-| 1. Universe | Every NSE-listed company preloaded from EQUITY_L.csv and the SME list; new listings and delistings picked up weekly. | Free; automatic |
-| 2. Numbers for everyone | Every results filing NSE lists is parsed and validated, for every company that files, from March 2023; closing prices daily. | Local parsing only; automatic |
-| 3. Deep coverage | AI extraction of presentations and transcripts, model updates, Coverage Builder, reports, alerts. | AI and compute cost; watchlist or one-click Analyse on any company |
+| 1. Universe | Every NSE-listed company preloaded from EQUITY_L.csv and the SME list; listings and delistings weekly. | Free; automatic |
+| 2. Numbers for everyone | Every results filing NSE lists parsed and validated from March 2023; closing prices daily. | Local parsing; automatic |
+| 3. Deep coverage | AI extraction, model updates, Coverage Builder, reports, alerts. | AI and compute; watchlist or one-click Analyse |
+
+Recent listings without quarterly history are covered from their offer documents (section 6.11), as their own records until NSE assigns a symbol.
 
 #### 4.1 History
 
-- **Integrated filings** (from the March 2025 quarter) come through the integrated-filing lookup; **March 2023 to December 2024** through NSE's financial-results list. Together they give about 15 quarters and four years of annuals (FY23 to FY26) per company, on each basis it files. 1,567 companies had 14 or more quarters on 18 October 2026.
-- **Full backfill:** analekh results-backfill fetches every company with a sector, one company per transaction, both bases; --history reads the financial-results list instead, by sector (--sector). Runs resume at the company they stopped on, skip companies listed as having no filings, and run at one request every 2 seconds, waiting 10 minutes each time NSE stops answering (section 9.4). The integrated backfill finished on 15 October 2026 and the history backfill on 17 October 2026.
-- **Older periods:** files before March 2023 leave out their main contexts and are rejected (section 10.1). Rebuilding the missing contexts from the files' declared dates was considered and declined: it would match contexts by id, against the parsing rule. Older periods come from the company's IR site or the import folder, on demand.
+- **Integrated filings** (from March 2025) through the lookup; **March 2023 to December 2024** through the financial-results list: about 15 quarters and four years (FY23 to FY26) per company and basis. 1,567 companies had 14 or more quarters on 18 October 2026.
+- **Backfill:** `analekh results-backfill` covers every company with a sector, both bases, one company per transaction, one request every 2 s, waiting 10 minutes when NSE stops; `--history` reads the list instead, by sector. Integrated backfill finished 15 October, history 17 October 2026.
+- **Older periods:** files before March 2023 lack their main contexts and are rejected (rebuilding contexts by id was declined: rule 5). Older periods come from IR sites or the import folder, on demand.
 
 #### 4.2 Sector classification
 
-Neither the equity list nor the results XBRL carries a sector, and sector picks templates and peers. Three sources, in order of precedence (owner's choice on 16 October 2026: NSE's own taxonomy first); a lower source never overwrites a higher one, and companies.sector_source records which one set each sector:
+Neither the equity list nor the XBRL carries a sector, and sector picks templates and peers. Precedence (owner, 16 October 2026: NSE's taxonomy first); a lower source never overwrites a higher one; `companies.sector_source` records which set it:
 
-- **User override** per company (the editing screen is still to be built).
-- **NSE Indices constituent lists** (eleven broad lists and the bank indices), fetched by analekh universe sectors: NSE's 22 sector names. Older uppercase labels some lists still carry are ignored.
-- **Excel's Stocks data type:** start from BSE's List of Securities, convert XBOM:<BSE code> IDs to the Stocks data type in Microsoft 365 and fill an Industry column (=FIELDVALUE(B2,"Industry")); analekh universe sectors --stocks-file imports the workbook by ISIN. It gives LSEG industry groups for dual-listed companies; SME companies are not on BSE's list. The LSEG group is always stored in companies.sector_lseg, and becomes the sector only where nothing better exists.
+- **User override** (editing screen still to build).
+- **NSE Indices lists** (eleven broad lists and the bank indices): the 22 NSE sector names; stale uppercase labels ignored.
+- **Excel Stocks data type:** BSE's List of Securities converted to `XBOM:<code>` records in Microsoft 365, `=FIELDVALUE(B2,"Industry")`, imported by ISIN (`analekh universe sectors --stocks-file`). The LSEG group is always kept in `sector_lseg` and becomes the sector only where nothing better exists.
 
-On 18 October 2026: 1,430 companies had an NSE sector, 1,587 an LSEG group only and 169 none. A mapping from LSEG groups to NSE sector names (28 clear groups covering 973 companies, 25 groups and 614 companies to decide) waits for the owner. NSE's basic industries can't be read: they appear only on NSE's quote pages, which refuse honest requests.
+On 18 October 2026: 1,430 companies with an NSE sector, 1,587 with an LSEG group only, 169 with none. The LSEG-to-NSE mapping (28 clear groups covering 973 companies; 25 groups and 614 companies to decide) waits for the owner.
 
-The results taxonomy (indas, banking, nbfc, insurance or life_insurance) is first guessed only on strong signals: membership of a bank index, or an NSE Indices industry that names NBFCs or insurance. LSEG groups never set it, because LSEG's Banking Services group includes NBFCs. The line items a filing tags then decide it, and correct an earlier guess (section 10.1).
+The results taxonomy (indas, banking, nbfc, insurance, life_insurance) is guessed only from strong signals (bank index membership, NBFC or insurer industries; never LSEG groups, whose Banking Services includes NBFCs); a filing's line items decide it and correct a guess (section 10.1).
 
 #### 4.3 Limit
 
-BSE-only companies (not listed on NSE) are not in NSE's feeds and BSE does not publish a free RSS equivalent. v1 covers every NSE-listed company, including dual-listed ones; BSE-only coverage would need a licensed BSE feed.
+BSE-only companies are not in NSE's feeds and BSE has no free equivalent. v1 covers every NSE-listed company, dual-listed included; BSE-only coverage needs a licensed feed.
 
 ## 5. System architecture
 
-Six layers read left to right: sources, ingestion, processing, core data, engines and interfaces. The Claude API is an external service used by the document pipeline and the engines.
+Six layers left to right: sources, ingestion, processing, core data, engines, interfaces. Language models (Claude today; local models planned) serve the document pipeline and the engines.
 
-*Figure 1. Components and data flow (v0.0.1). Solid lines carry data, dashed lines are control or return paths, amber lines are the analyst approval path, dotted blue lines are Claude API calls. Amber-bordered engines are the two that write to Excel. Updated in 0.0.2: Kite Connect and the Price Fetcher's live quotes are superseded (the price source is undecided, section 3.3), and sectors also come from the Stocks data type and NSE Indices (section 4.2). Updated in 0.0.3: results XBRL comes from NSE's integrated-filing lookup instead of the results feed, the Results Fetcher runs per company and once a day, validation decides which of several filings of a quarter is in use, and the Results desk and Latest quarter views read the latest values (sections 3.1, 9, 10, 19.1). Updated in 0.0.4: the financial-results list adds history from March 2023, the bhavcopy feeds the prices table with the latest close only, sectors follow NSE's taxonomy first, the watcher runs every 2 hours, and dashed boxes mark components whose core is built but which do not run on real data yet. Updated in 0.0.5: Celery beat schedules the jobs in Docker, the feed watcher runs, validation runs V1 to V11, the results views add the results history and the calendar, and the web app adds the Reports set-up.*
+*Figure 1. Components and data flow (v0.0.6). Solid lines carry data, dashed lines are control or return paths, amber lines the analyst's approval path, dotted blue lines language-model calls. Solid boxes are built and running on real data; dashed boxes are built cores not yet running, or planned.*
 
 #### 5.1 Layers and components
 
 | **Layer** | **Component** | **Responsibility** |
 |---|---|---|
-| Sources | NSE integrated-filing lookup | Every integrated financials filing per company (quarter, basis, Original or Revision, links to XBRL, iXBRL and PDF); the latest filings across all companies without a ticker. |
-| Sources | NSE financial-results list | Every results filing per company back to 2005; complete XBRL from March 2023 (history before integrated filings). |
-| Sources | NSE RSS feeds | Announcements (PDF), board meetings and event feeds. The results feed has carried nothing since 24 August 2026. |
-| Sources | NSE equity list | Every listed company, refreshed weekly. |
-| Sources | Sector sources | NSE Indices constituent lists and the Excel Stocks data type workbook import (section 4.2). |
-| Sources | Company IR pages | Fallback for missing documents and historical backfill. |
-| Sources | NSE bhavcopy | One file per trading day after the close: every traded security's prices (section 3.3). |
-| Ingestion | Scheduler | Celery beat (in Docker since 21 October 2026): the results watcher by SEBI's results seasons, the price download after the close on weekdays, the weekly universe refresh and feed polling every 5 to 30 minutes (section 9.6). |
-| Ingestion | Feed Watcher | Fetches NSE's published feeds for all companies, dedupes items, stores them permanently, links items to companies; the Board Meetings items feed the results calendar. |
-| Ingestion | Results Fetcher | Reads the integrated-filing lookup per company (refresh, backfill) and every hour in season without a ticker, and the financial-results list per company for history; downloads each XBRL file once, hashes it, stores it in MinIO, with NSE's revision flag and source links. |
-| Ingestion | Filing Fetcher | Downloads announcement PDFs once, hashes them, stores them in MinIO. |
-| Ingestion | Universe Loader | Loads and refreshes the company universe; assigns sector by source precedence and the results taxonomy from strong signals (section 4.2). |
-| Ingestion | Price Fetcher | Downloads the day's bhavcopy once, matches companies by ISIN, works out market cap from the latest filing's share count and replaces the previous day's prices (section 9.5). |
-| Processing | Raw Filing Store | Immutable object storage keyed by hash; XBRL stored compressed, read back as the original bytes. |
-| Processing | XBRL Parser | Turns every filer's XBRL into normalised facts; detects the results format (Ind-AS, bank, general or life insurer) from the line items; no AI. |
-| Processing | Document Pipeline | For watchlist or on-demand companies: reads PDFs locally, classifies pages, sends selected pages to Claude, stores KPIs and text chunks. |
-| Processing | Validation | Accounting identities with per-format terms, period checks, SEBI deadlines, swing flags, AI versus XBRL conflicts and the unit check (V11). Decides which filing's value of each line is in use: the most recently filed. |
-| Core data | PostgreSQL + pgvector | Companies, watchlist, filings, facts, KPIs, documents, prices, templates, models, versions, assumptions, change sets. |
-| Engines | Model Sync Engine | Uses the workbook understanding engine to update linked models: mapping, write plan, dependency scan, roll-forward, change sets, versioned saves. |
-| Engines | Analysis + GenAI Engine | Quarterly update and initiating coverage reports (Word and PowerPoint), results flash, variance bridge, call digest, red flags, Q&A with citations. |
-| Engines | Coverage Builder | Builds new models from sector templates with sourced history and proposed assumptions. |
-| Engines | IB Output Engine | Comps, company profile slide, tagged pitch page refresh. |
-| Interfaces | Excel | Bridge that finds and links models (xlwings now; Office.js add-in later). |
-| Engines | Results views | Results desk (the quarter's reporters, YoY changes, market cap, movers, sector progress), the results calendar, each company's latest quarter at a glance (QoQ and YoY, derived lines, revision status), its results history and last close, read from the latest values. |
-| Interfaces | Web App | Welcome screen, Results desk and calendar, search, watchlist, company pages, review queue, templates, reports, Q&A, comps, settings. |
-| Interfaces | Word and PowerPoint | Quarterly update and initiating coverage notes, IB-style slides. |
-| Interfaces | Alerts | Email or Telegram for watchlist events. |
+| Sources | NSE integrated-filing lookup | Integrated filings per company; the latest across companies without a ticker. |
+| Sources | NSE financial-results list | Results per company back to 2005; complete XBRL from March 2023. |
+| Sources | NSE RSS feeds | Announcements (PDF), board meetings, event feeds. |
+| Sources | NSE equity list; sector sources | Every listed company weekly; NSE Indices lists and the Stocks data type import. |
+| Sources | NSE bhavcopy | One file per trading day (section 3.3). |
+| Sources | SEBI offer documents | RHP and Prospectus lists, entry pages, PDFs (section 6.11). |
+| Sources | Context publishers (proposed) | RBI, Government of India, OPEC, World Bank, WEF, IBEF, private research (section 3.4). |
+| Sources | Company IR pages, import folder | Fallback for missing documents and older history; analyst uploads (Gartner). |
+| Ingestion | Scheduler | Celery beat: results watcher by season, prices after the close, weekly universe, feeds every 5 to 30 minutes, SEBI lists daily, session purge (section 9.6). |
+| Ingestion | Feed Watcher | Fetches the published feeds, dedupes, keeps every item, links items to companies. |
+| Ingestion | Results Fetcher | Lookups per company and per watcher run; each XBRL downloaded once, hashed, stored with NSE's revision flag. |
+| Ingestion | Filing Fetcher, IPO watcher | Announcement PDFs and offer documents downloaded once, hashed, stored. |
+| Ingestion | Context Fetcher (proposed) | Calendar plus polling per publisher; stores, reads and tags each document once. |
+| Ingestion | Universe Loader, Price Fetcher | Company list and sectors; the day's bhavcopy and market caps. |
+| Processing | Raw Filing Store | Immutable object storage keyed by hash; XBRL compressed. |
+| Processing | XBRL Parser | Normalised facts for every filer; results format from the line items; no AI. |
+| Processing | Document Pipeline | PDFs read locally, pages classified, selected pages to the model; KPIs, chunks, embeddings; offer-document statements. |
+| Processing | Validation | V1 to V11 per format; decides the value in use (the most recently filed). |
+| Core data | PostgreSQL + pgvector | Companies, filings, facts, KPIs, documents, prices, users, templates, models, versions, locks, change sets, IPO records. |
+| Engines | Model Sync Engine | Updates linked models: mapping, write plan, dependencies, roll-forward, change sets, versions. |
+| Engines | Analysis + GenAI Engine | Reports, Q&A, IPO coverage; proposed: agentic RAG, estimate conflicts, learning per firm and analyst. |
+| Engines | Coverage Builder | New models from sector templates with sourced history and proposed assumptions. |
+| Engines | IB Output Engine | Comps, profile slide, pitch refresh. |
+| Engines | Results views | Desk, calendar, latest quarter, history, margins by company type, prices. |
+| Interfaces | Web App | Welcome and sign-in, desk, search, watchlist, company pages, IPO coverage, reviews, templates, reports, Q&A, comps, settings, admin. |
+| Interfaces | Excel | Bridge that finds and links models (xlwings; Office.js later). |
+| Interfaces | Word, PowerPoint, Alerts | Notes and slides; email or Telegram. |
 
 ## 6. Workflows
 
-Nine workflows, each with its data flow. The first four are built and run on real data, and so do the feed watcher and results calendar of the ninth; the rest have working cores with synthetic tests, or are planned. The eighth has its set-up screen built. In every diagram solid boxes are built and running, dashed boxes are not running yet, grey boxes are external sources and amber marks the analyst's approval.
+Twelve workflows. The first four run on real data, as do the feed watcher and calendar of the ninth and the IPO watcher and reader of the eleventh. Others have working cores with synthetic tests, or are planned. In every diagram solid boxes are built and running, dashed are not running yet, grey are external sources, amber is the analyst's approval.
 
 ### 6.1 Results collection (built)
 
 *Figure 2. Results collection: four triggers, two NSE lookups, one pipeline (sections 9.3, 9.4, 10).*
 
-1. **A trigger starts a run:** the results watcher (one request without a ticker, every hour in season, for the latest 500 filings), a refresh of one company (analekh refresh, or the API), the backfill of every company with a sector, or the history backfill (--history, by sector).
-2. **The lookup answers:** the integrated-filing lookup for the watcher, refreshes and the backfill; NSE's financial-results list for history. Each row gives the quarter end, basis, NSE's Original or Revision flag, the filing time and links.
-3. **Files to fetch are chosen:** links of "-", null or undefined are no links; _WEB.xml files are never fetched; files already stored are skipped. Originals come before revisions, oldest first.
-4. **Each XBRL file is downloaded once** from nsearchives through the polite client (host and path allow-list, honest headers, one request every 2 seconds in bulk). A refusal or a stall stops the run at once.
-5. **The file is hashed and stored** in MinIO at kind/yyyy/mm/sha256.xml; a file with a known hash is skipped.
-6. **A guard checks it:** a file whose main contexts are missing is rejected and noted (never half-stored); broken XML is fetched once more, then skipped and noted.
-7. **The parser** reads the facts, resolving contexts by their dates, and decides the results format from the line items.
-8. **Validation** runs V1 to V11 with the format's own terms and sets the block flag on failure; V11 corrects amounts tagged in the wrong unit when two signals agree.
-9. **Facts are inserted as history** and the newest filed value of each line becomes the one in use, whatever order files arrived in; refiled quarters get a revision status and the list of what changed.
-10. **One transaction per company:** a stopped run keeps what it stored. When NSE stops answering, the watchdog waits 10 minutes and resumes at the company it stopped on. Each company's outcome is one JSON line in the run log.
+1. **A trigger starts a run:** the results watcher (one request without a ticker, latest 500 filings), a refresh of one company (`analekh refresh`, the API), the backfill of every company with a sector, or the history backfill (`--history`, by sector).
+2. **The lookup answers** (integrated-filing lookup, or the financial-results list for history): quarter end, basis, Original or Revision, filing time, links.
+3. **Files are chosen:** links of "-", null or undefined are no links; `_WEB.xml` never fetched; stored files skipped; originals before revisions, oldest first.
+4. **Each XBRL is downloaded once** from nsearchives through the polite client (allow-list, honest headers, 2 s pace in bulk); a refusal or stall stops the run.
+5. **Hashed and stored** in MinIO at kind/yyyy/mm/sha256.xml; a known hash is skipped.
+6. **Guard:** missing main contexts are rejected and noted; broken XML is retried once, then skipped and noted.
+7. **Parsed:** contexts resolved by dates; results format from the line items.
+8. **Validated:** V1 to V11 with the format's terms; block flag on failure; V11 corrects wrong units when two signals agree.
+9. **Inserted as history:** the newest filed value of each line is in use, whatever the arrival order; refiled quarters get a revision status and what changed.
+10. **One transaction per company;** a stopped run keeps what it stored; the watchdog resumes 10 minutes later at the company it stopped on; one JSON log line per company.
 
 ### 6.2 Daily closing prices (built)
 
 *Figure 3. Daily prices: one bhavcopy per trading day, the latest close only (sections 3.3, 9.5).*
 
-1. **The job runs** on weekdays from 19:00 to 23:00 IST, hourly, until the day is stored (analekh prices).
-2. **It picks the trading day:** today after 18:00 IST, otherwise the day before; weekends roll back to Friday.
-3. **It skips** if that day, or a later one, is already stored; no request is made.
-4. **ONE request** fetches the bhavcopy from nsearchives; 404 means a holiday or not published yet.
-5. **The file is parsed:** equity series only, one row per ISIN, the main series first.
-6. **Companies are matched by ISIN**; shares in issue are paid-up equity capital from the results filings divided by the face value in NSE's equity list (with the guards above) and market cap is the close times the shares.
-7. **Today's rows are upserted and every older day deleted:** the table holds one day, about 3,000 rows.
-8. **Read by** GET /companies/{symbol}/price, the company page's share price and market cap tiles, the desk's market-cap column and sort, and the comps export; the AI's get_prices tool will use it in Phase 4.
+1. **Runs** on weekdays hourly 19:00 to 23:00 IST until the day is stored (`analekh prices`).
+2. **Picks the trading day:** today after 18:00 IST, else the day before; weekends roll back to Friday.
+3. **Skips** without a request if that day or a later one is stored.
+4. **ONE request** for the bhavcopy; 404 means a holiday or not yet published.
+5. **Parses** equity series, one row per ISIN, main series first.
+6. **Matches by ISIN;** shares = paid-up capital / face value (with the guards); market cap = close x shares.
+7. **Upserts today and deletes every older day:** about 3,000 rows.
+8. **Read by** the price endpoint, the company page tiles, the desk's market-cap column and sort, comps, and later the AI's `get_prices`.
 
 ### 6.3 Company list and sectors (built)
 
 *Figure 4. Company list and sectors: the universe weekly, sectors by precedence, the results format from the filings (sections 4, 9.1).*
 
-1. **The universe loader** reads NSE's equity and SME lists weekly, upserts companies by ISIN and marks companies missing from the lists inactive.
-2. **Sectors are imported by precedence** (analekh universe sectors): a user's value, then NSE Indices' lists (NSE's 22 sector names), then the LSEG group from a Stocks data type workbook. A lower source never overwrites a higher one; the LSEG group is always kept in sector_lseg.
-3. **The results format is guessed** only from strong signals (bank indices, NBFC and insurer industries); the line items of the company's filings then decide it.
-4. **The web app downloads the whole universe once** (GET /companies/index, with ETag and gzip) and searches it in the browser.
+1. **The universe loader** reads the equity and SME lists weekly, upserts by ISIN, marks missing companies inactive.
+2. **Sectors by precedence** (`analekh universe sectors`): user, then NSE Indices, then LSEG; the LSEG group is always kept.
+3. **Results format** guessed from strong signals only; filings' line items decide it.
+4. **The web app downloads the universe once** (`GET /companies/index`, ETag, gzip) and searches it in the browser.
 5. **Companies with a sector** are the desk's and the backfill's scope.
-6. **Planned:** the mapping of LSEG groups to NSE sector names (owner's decision) and a sector editing screen.
+6. **Planned:** the LSEG-to-NSE mapping and a sector editing screen.
 
 ### 6.4 Opening Analekh and reading results (built)
 
-*Figure 5. Opening Analekh: the welcome screen, then the desk and company pages, over the read models (sections 19.1, 20).*
+*Figure 5. Opening Analekh: welcome and sign-in, then the desk and company pages, over the read models (sections 19.1, 20).*
 
-1. **The first visit of a browser session** to the home page shows the welcome screen with live counts (companies tracked, results filings, reporters this quarter). A link to any other page goes straight there.
-2. **A scroll, swipe or tap unlocks it:** the mark flies to the sidebar and the Results desk settles in.
-3. **The desk** (GET /desk, one request with the sector list) lists the quarter's reporters ten per page, newest filing or largest market cap first, with filters for quarter, sector, watchlist and filing date in the URL; movers and sector progress beside it, and the results calendar (GET /calendar) of who reports when.
-4. **Search** ranks the universe in the browser; the server answers only before it loads and as a typo fallback. The top search bar shows on the desk, the watchlist and company pages; screens with their own company picker (Reports, Comps, where "/" focuses that picker) and screens that are not about one company (Models, Templates, Settings) leave it out.
-5. **The company page** reads the company, its filings, the latest quarter at a glance, its results history (GET /companies/{symbol}/history, shared by the tiles, the chart and the history table) and the last close; a Consolidated or Standalone switch sits in the URL. Each quarter's heading in the history table links to the filing in use on NSE (iXBRL; after a refiling, the newest), and its details button lists the filing date, the results PDF, what a refiling changed and the earlier filings. Filings without a column (older quarters, full-year filings) are listed under the table. Raw XBRL files are never linked: they are machine files, not something to read.
-6. **The watchlist** shows the same columns as the desk for the companies followed, with the calendar of their coming results.
-7. **Data stays fresh in the browser for five minutes,** so moving between tabs shows it at once. Motion is only on what is clicked: the sidebar highlight and the switches' thumbs glide; figures and screens appear immediately.
+1. **Signed out,** Analekh opens on the welcome screen with live counts (`/public/welcome`); a scroll, swipe, tap, drag or Enter hands off to sign-in. A live session opens the Results desk directly.
+2. **After sign-in** the desk's data loads first, then a short unlock (about 0.35 s) plays, so the table never fills in mid-animation.
+3. **The desk** (`GET /desk`, one request) lists the quarter's reporters ten per page by filing time or market cap, filters in the URL; movers, sector progress and the results calendar (`GET /calendar`) beside it.
+4. **Search** ranks the universe in the browser; the server answers before it loads and for typos. Screens with their own company picker, or not about one company, hide the top search.
+5. **The company page** reads the company, filings, latest quarter, results history (one request for tiles, chart and table) and the last close, with a basis switch in the URL. Each quarter heading links the filing in use on NSE (iXBRL) and opens its details; filings without a column fold out below. Raw XBRL is never linked.
+6. **The watchlist** shows the desk's columns for the companies followed, with their coming results.
+7. **Data stays fresh five minutes** in the browser; motion only on what is clicked.
 
-### 6.5 Quarterly model update (planned, Phase 2)
+### 6.5 Quarterly model update (core built, Phase 2)
 
 *Figure 6. Quarterly update. Steps 6 and 7 form the approval gate.*
 
-1. **Search ticker** in the web app or Excel; the company is already in the universe.
-2. **Newest filing?** The database returns the latest results filing for that company (collected automatically for every filer by workflow 6.1).
-3. **Fetch if missing:** if the file was not yet fetched, it is downloaded, parsed and validated.
-4. **Validated facts** are stored with source references.
-5. **New-period facts plus the linked model** go to Model Sync. The model is located by discovery (section 13).
-6. **Change set:** proposed writes, dependent-cell counts, roll-forwards and suggested assumption changes.
+1. **Search the ticker** in the web app or Excel; the company is already in the universe.
+2. **Newest filing?** The database returns it (collected by workflow 6.1); only the newest filing drafts an update, and when it is blocked nothing is drafted and the analyst is told.
+3. **Fetch if missing:** download, parse, validate.
+4. **Validated facts** stored with source references.
+5. **New-period facts and the linked model** go to Model Sync, which takes the model's lock; the model is located by discovery (section 13).
+6. **Change set:** writes, dependent-cell counts, roll-forwards, suggested assumption changes.
 7. **Approve or edit** each item; nothing is written before this.
-8. **Apply:** write, recalculate, save a new version; compute actuals versus estimates.
-9. **Outputs:** flash, draft note, slides, with citations.
+8. **Apply:** write, recalculate (recalc service or Excel), save a new version; a set drafted on an older version is refused (409); actuals versus estimates computed.
+9. **Outputs:** flash, quarterly update, slides, with citations (and, proposed, the agentic flow of 6.12).
 
-### 6.6 Start coverage (planned, Phase 2)
+### 6.6 Start coverage (core built, Phase 2)
 
 *Figure 7. Start coverage with the Coverage Builder. Steps 6 and 7 form the approval gate.*
 
-1. **Start coverage** on any company and pick a template (the analyst's upload for that sector, or a built-in one).
-2. **Build request** goes to the Coverage Builder.
-3. **History and KPIs** are pulled from the database; anything missing is backfilled and run through the document pipeline.
+1. **Start coverage** on any company; pick a template (the analyst's upload for the sector, or built-in).
+2. **Build request** to the Coverage Builder (holds the model's lock).
+3. **History and KPIs** from the database; anything missing backfilled and run through the document pipeline.
 4. **Sourced actuals** return with references.
-5. **Propose drivers:** the GenAI engine suggests first-pass assumptions from history and management guidance.
-6. **Assumptions with citations** are shown to the analyst.
-7. **Accept or edit** each assumption.
-8. **Tagged model** is written to Excel; checks must pass.
-9. **Initiation draft, comps and slides** are generated. From the next results the quarterly update takes over.
+5. **Propose drivers** from history and management guidance.
+6. **Assumptions with citations** shown to the analyst.
+7. **Accept or edit** each.
+8. **Tagged model** written; checks must pass.
+9. **Initiation draft, comps and slides;** from the next results the quarterly update takes over.
 
-### 6.7 Template onboarding (planned, Phase 2)
+### 6.7 Template onboarding (core built, Phase 2)
 
 *Figure 8. Template onboarding: read, suggest, confirm once, test build.*
 
-1. **Upload a workbook** (blank template or a model for another company) and tag it with sectors.
-2. **The workbook understanding engine** reads its structure: periods, inputs versus formulas, labels, drivers, checks and the formula graph (section 12).
-3. **A mapping is suggested** with a confidence per row: synonyms first, then fuzzy matching, then a small Claude model for labels neither can place.
-4. **The analyst confirms or fixes the mapping** once per template.
-5. **A test build** with one real company fills and recalculates the template.
+1. **Upload** a workbook (blank template or another company's model), tagged with sectors; admins only.
+2. **The workbook engine** reads periods, inputs, formulas, labels, drivers, checks and the formula graph (section 12).
+3. **A mapping is suggested** per row with confidence: synonyms, then fuzzy, then a small model for labels neither places.
+4. **The analyst confirms or fixes it** once per template.
+5. **A test build** with one real company fills and recalculates it (admins only).
 6. **The test report** lists checks, blank rows, unmapped facts and broken formulas; a failure goes back to the mapping.
-7. **On a pass the template becomes active**, versioned, for the Coverage Builder and Model Sync.
+7. **On a pass the template becomes active,** versioned, for the Coverage Builder and Model Sync.
 
 ### 6.8 Documents, KPIs and reports (set-up built; drafting planned, Phases 3 and 4)
 
 *Figure 9. Documents to KPIs, and reports that only use numbers from the data (sections 11, 17).*
 
-1. **Documents arrive** from the announcements feed (PDFs), company IR pages or the import folder; call recordings are transcribed locally.
+1. **Documents arrive** from the announcements feed, IR pages or the import folder; call recordings are transcribed locally.
 2. **Each file is fetched once** and hashed into MinIO; only watchlist or on-demand companies' documents are read further.
-3. **Pages are read locally** (PyMuPDF, RapidOCR for scans) and classified; only the top pages per category are selected.
-4. **Claude extracts** KPIs, guidance and red flags against a JSON schema, each value with its page, quote and confidence.
-5. **V10 compares** them with XBRL: XBRL wins and the AI value is flagged.
-6. **KPIs and text chunks** (with embeddings) are stored for search and Q&A.
-7. **The analyst sets up a report** on the Reports screen (built): the company, the report (a quarterly update or an initiating coverage note), the figures (standalone by default; consolidated, or both side by side, when the company files both) and the quarter. The set-up lives in the URL, so a link reopens it. The screen shows which inputs are ready: filed results, comps that include the company, and the analyst's linked Excel model (its rating and target price); concall transcripts, investor presentations, the annual report's MD&A and the house template are marked as still being built. Generate stays off until drafting exists.
-8. **A report or question** runs a tool loop: Claude calls tools for facts, KPIs, prices, comps, filings and the model, and calc for all arithmetic.
-9. **Two checks** run before anything is shown: the grounding check blocks any number that did not come from a tool result or calc, and a style check blocks marks of generated text (em-dashes, stock phrases), so the draft reads as the analyst's own.
-10. **The drafts** are a Word note and a dense IB-style PowerPoint (as much as fits on as few slides as possible), with citations. The recommendation and target price come from the analyst's Excel model, or are left for the analyst to fill in; Analekh never makes one up (section 23).
+3. **Pages are read locally** (PyMuPDF, RapidOCR for scans) and classified; only top pages per category are selected.
+4. **A model extracts** KPIs, guidance and red flags against a JSON schema, each with page, quote and confidence.
+5. **V10 compares** with XBRL: XBRL wins, the AI value is flagged.
+6. **KPIs and chunks** (with embeddings) are stored for search and Q&A.
+7. **The analyst sets up a report** on the Reports screen (built): company, report (quarterly update, initiating coverage or IPO coverage), basis and quarter, in the URL; input readiness shown (filed results, comps, the linked model and its rating; transcripts, presentations, MD&A and house template marked as being built).
+8. **A report or question** runs a tool loop over facts, KPIs, prices, comps, filings and the model, with `calc` for arithmetic.
+9. **Two checks** before anything is shown: grounding (every number from a tool or `calc`) and style (no em-dashes or stock phrases).
+10. **Drafts:** a Word note and a dense IB-style PowerPoint, with citations; the recommendation and target price come from the analyst's model or are left blank (section 23).
 
-### 6.9 Events, results calendar and alerts (feed watcher and calendar built; red flags and alerts planned, Phase 5)
+### 6.9 Events, results calendar and alerts (feeds and calendar built; red flags and alerts planned, Phase 5)
 
 *Figure 10. Events from NSE's published feeds: results calendar, red flags and alerts (sections 9.2, 26.2).*
 
-1. **The feed watcher polls** NSE's Board Meetings, insider trading, related-party, encumbrance and announcements feeds at their stated intervals (5 to 30 minutes) and keeps every item (built; Celery beat since 21 October 2026).
+1. **The feed watcher polls** Board Meetings, insider trading, related-party, encumbrance and announcements feeds every 5 to 30 minutes and keeps every item.
 2. **Items are linked to companies** by name, symbol or ISIN; unmatched items wait for review.
-3. **Board meeting intimations** (at least two working days ahead, SEBI LODR 29) build the results calendar (built, GET /calendar): each intimation's purpose and meeting date are read from the item, results meetings are told apart from other board meetings, and a past day shows the companies that actually filed results that day instead of the announcement. The desk shows it in a day strip, a week or a month; the watchlist shows its companies' coming results and those not yet announced. Nothing is stored beyond the feed items: the calendar is a read over them. Earnings calls have a place in it but no source yet (that needs the owner's approval under rule 1). Later, the same dates can tell the results watcher which days matter.
-4. **Red flags** (pledges, insider trades, related-party deals, auditor changes) are picked out.
-5. **Watchlist companies** get alerts, by email or Telegram, when they file results (workflow 6.1) or a red flag appears.
+3. **Board meeting intimations** (at least two working days ahead, SEBI LODR 29) build the results calendar (`GET /calendar`): purpose and meeting date read from each item; results meetings told apart; a past day shows who actually filed. Shown as a day strip, week or month on the desk and watchlist. A read over the feed items; nothing else stored. Earnings calls have no source yet (rule 1).
+4. **Red flags** (pledges, insider trades, related-party deals, auditor changes) picked out.
+5. **Watchlist companies** get alerts by email or Telegram when they file or a red flag appears.
 
 ### 6.10 Exceptions
 
 | **Situation** | **Handling** |
 |---|---|
-| Filing not listed by NSE (old or missed) | IR-page fallback or import folder. |
-| Restated or refiled period | Both versions kept; the most recently filed is in use, whatever order the files arrived in; the company page tags the quarter Restated or Revised and lists what changed. |
-| File missing its main contexts (most files before March 2023) | Rejected and noted, never half-stored. |
-| Broken XBRL file (XML cut off) | Fetched once more, then skipped and noted; the company's other filings are kept. |
-| Amounts tagged in the wrong unit | V11: corrected by the exact power of ten when both signals agree, the factor recorded on the filing; with one signal, suspect: blocked and kept out of growth figures until checked against the PDF. |
-| NSE stops answering partway | The run stops at once; the watchdog resumes 10 minutes later at the company it stopped on. |
-| Year-ago quarter never filed on its own (first results after listing covered a half-year) | YoY shown as a dash with a note saying why. |
-| No bhavcopy for the day (holiday, not published yet) | Nothing stored; the next hourly run tries again. |
-| Company missing from the day's bhavcopy | No price shown rather than a stale one. |
-| No share count in a company's filings | Close shown, market cap left blank with a note. |
-| Validation failure | Filing flagged; automatic changes blocked; report explains the rule. |
-| Low-confidence AI value | Flagged in the change set with the source page side by side. |
-| Model edited by the analyst since last sync | Fingerprint mismatch detected; structure and dependencies rescanned before planning. |
-| Template row the company does not report | Left blank and flagged. |
-| Company reports an item the template lacks | Listed as unmapped; analyst chooses a target row or skips. |
+| Filing not listed by NSE | IR-page fallback or import folder. |
+| Restated or refiled period | Both kept; the most recently filed is in use; the quarter tagged Restated or Revised with what changed. |
+| File missing its main contexts | Rejected and noted, never half-stored. |
+| Broken XBRL file | Fetched once more, then skipped and noted. |
+| Amounts in the wrong unit | V11: corrected by the exact power of ten when both signals agree; one signal: suspect, blocked, out of growth figures until the PDF is checked. |
+| NSE stops answering | The run stops; the watchdog resumes 10 minutes later. |
+| Year-ago quarter never filed on its own | YoY shown as a dash with the reason. |
+| No bhavcopy for the day; company missing from it; no share count | Nothing stored, retried hourly; no price shown; market cap blank with a note. |
+| Validation failure | Filing flagged; automatic changes blocked; the rule explained. |
+| Low-confidence AI value | Flagged in the change set with the source page beside it. |
+| Model edited outside the system | Fingerprint mismatch; structure and dependencies rescanned before planning. |
+| Template row the company lacks; item the template lacks | Left blank and flagged; listed as unmapped for the analyst. |
 | Model or template contains macros | Kept, never executed. |
+| Model held by a colleague | Start refused (423); read-only view naming the holder; told when it frees. |
+| Recalculation service down, or a cell it cannot compute | Apply refused (503 or 422), nothing saved, lock released; the Excel bridge is the way round. |
+| Offer-document figures that do not tie | Flagged, never stored clean (section 6.11). |
+| Evidence contradicts an analyst's estimate (proposed) | Flagged to the analyst before drafting; the estimate is never changed (section 6.12). |
+
+### 6.11 IPO coverage from offer documents (built; first real run pending)
+
+*Figure 11. IPO coverage: SEBI's RHP and Prospectus lists to restated statements and per-section grounded drafts (sections 3.1, 17, 20).*
+
+1. **Once a day** (beat `sebi_watch_cron`, 08:30 IST; `analekh ipo-watch`) the watcher reads the newest page of SEBI's RHP (smid 11) and Prospectus (smid 12) lists only. The DRHP list is never requested; the abridged prospectus is not used.
+2. **For each new entry** it fetches the entry page once, takes the PDF from the embedded viewer (`?file=<attachdocs URL>`, checked against the host and path allow-list) and stores it once by hash.
+3. **An IPO issue is its own record** (`ipo_issues` with documents, financials, chunks and drafts), not a row in `companies`. It gets an NSE symbol when the analyst enters it, or after listing when exactly one listed company has the same name stem (`ipo/symbols.py`).
+4. **The reader** (`analekh ipo-read`) chunks the text for search and has the model read the restated statements (three years plus the stub period, both bases, Decimal, full rupees), the price band and the peers. Figures that disagree (a power of ten off; total income less expenses against PBT; PBT less tax against PAT) are flagged, never stored clean.
+5. **The Prospectus supersedes the RHP** for display; changes between them show as restatements. Quarterly XBRL wins once the company files (V10; offer figures live in their own tables).
+6. **Coverage drafts** run one grounded loop per section (MD&A, financial performance, sector, strengths and risks, valuation) against IPO-only tools; a section with an unmatched number comes back blocked with the numbers. Rating and rationale are marked blanks for the analyst; no target price anywhere.
+7. **Shown** on the Reports screen's IPO coverage tab (`/ipo` routes). Not built: Word export of the draft, linking to the listed company after the daily prices, a golden case from a real RHP.
+
+### 6.12 Agentic report flow (proposed, not built)
+
+*Figure 12. Agentic RAG: context fetched ahead, "why" questions on every movement, conflict flags on the analyst's estimates, and learning from what the analyst accepts (sections 3.4, 17.3 to 17.6).*
+
+1. **Context arrives ahead of time:** the context fetcher stores, reads and tags official and research documents as they publish (section 3.4).
+2. **Results arrive** and the analyst approves the model changes (workflow 6.5).
+3. **The agent explains the movement** in the approved numbers with standing "why" questions (macro, sector or company; one-off or structural; cost direction and timing; does management agree), each answer citing a retrieved document or saying the evidence is missing.
+4. **The analyst tweaks next year's estimates;** the agent diffs the approved model versions line by line (growth rates, costs, margins, drivers).
+5. **Each changed assumption is tested** against the evidence. Where the evidence points the other way, the conflict is flagged to the analyst before drafting; the analyst keeps the estimate, changes the model or adds a note. The agent never changes an estimate.
+6. **The draft** explains the analyst's estimates and reasoning with cited evidence, section by section, in the analyst's voice (the firm's and analyst's adapters, section 17.4); grounding and style checks follow.
+7. **The analyst reviews and accepts.** The accepted version, the edits and the conflict answers are indexed for retrieval at once and feed adapter training later.
+
+Numbers are not the only evidence: every report weighs the numbers against macro, policy, sector and management evidence.
 
 ## 7. Inputs and outputs
 
 #### 7.1 Inputs from the analyst
 
-| **Input** | **How it is supplied** | **Used for** |
+| **Input** | **How** | **Used for** |
 |---|---|---|
-| Company | Search box (web app or Excel) | Everything; the company already exists in the universe |
-| Watchlist | Add or remove in the web app | Deep coverage, alerts, background work |
+| Sign-in | Email and password; first password by email | Every route |
+| Company | Search (web app or Excel) | Everything |
+| Watchlist | Web app | Deep coverage, alerts |
 | Existing models | Watched folders or the open workbook; confirmed once | Quarterly updates |
-| Templates by sector | Upload in the web app | Coverage Builder |
+| Templates by sector | Upload (admins) | Coverage Builder |
 | Mapping confirmation | Once per template or model | Where each number goes |
-| Own estimates | Already in the model's estimate columns | Actual versus estimate; assumption suggestions |
-| Approvals | Accept, edit or skip per item | Every write and every assumption |
-| Peer lists, alert settings | Web app settings | Comps; notifications |
+| Own estimates and their changes | The model's estimate columns | Variance; suggestions; estimate diff and conflict flags (proposed) |
+| Approvals; conflict answers | Accept, edit or skip per item; keep, change or note per flag | Every write; drafts |
+| Accepted reports and edits | Final version of each report (proposed) | Retrieval and adapter training |
+| Licensed research | Upload (for example Gartner) | Context retrieval |
+| Peer lists, alerts, IPO symbol | Web app | Comps; notifications; linking an issue |
 
 #### 7.2 Inputs collected automatically
 
 | **Input** | **Source and method** | **Lands in** |
 |---|---|---|
 | Company universe | EQUITY_L.csv and SME list, weekly | companies |
-| Sectors | NSE Indices constituent lists; Stocks data type workbook import | companies (sector, sector_source, sector_lseg) |
-| Results numbers (all filers) | Integrated-filing lookup to XBRL: per company on refresh and backfill, every hour in season for the latest filings; the financial-results list for history | filings, facts |
-| Presentations, annual reports, transcripts | Online_announcements RSS to PDF; IR pages fallback | filings, documents, chunks, kpis |
-| Events | Board meeting, insider, related party, encumbrance feeds | feed_items, alerts |
-| Prices | NSE's daily bhavcopy, once per trading day after the close (section 3.3) | prices (latest day only) |
-| History | On-demand and background backfill | Same tables |
+| Sectors | NSE Indices lists; Stocks data type import | companies (sector, sector_source, sector_lseg) |
+| Results numbers | Integrated-filing lookup per company and per watcher run; financial-results list for history | filings, facts |
+| Presentations, annual reports, transcripts | Announcements RSS to PDF; IR pages | documents, chunks, kpis |
+| Events | Board meeting, insider, related-party, encumbrance feeds | feed_items, alerts |
+| Prices | Bhavcopy, once per trading day | prices (latest day only) |
+| Offer documents | SEBI RHP and Prospectus lists, daily | ipo_* tables |
+| Context documents (proposed) | Publishers in section 3.4 | context documents and chunks |
 
 #### 7.3 Outputs
 
 | **Output** | **Format** | **Delivered to** | **Produced by** |
 |---|---|---|---|
-| Change set | Review screen; JSON | Web app or Excel pane | Model Sync |
-| Updated model version | .xlsx | Analyst's folder or storage | Model Sync |
-| New model from template | .xlsx with Sources and Checks sheets | Analyst's folder | Coverage Builder |
-| Proposed assumptions | Review list with citations | Web app | Coverage Builder and GenAI |
-| Results flash | 1 page | Web app; export | GenAI |
-| Variance bridge | Table and text | Web app; note | GenAI |
-| Call digest | Text with page references | Web app | GenAI |
-| Red flags | List with sources | Web app and alerts | GenAI and feeds |
-| Quarterly update | .docx: results highlights, concall highlights, risks and guidance, investment rationale | Download from Reports | GenAI |
-| Initiating coverage note | .docx: investment summary, MD&A and business, financial and sector performance, outlook, strengths and risks, investment rationale | Download from Reports | GenAI |
-| IB-style slides | .pptx, dense: as much as fits on as few slides as possible | Download from Reports | GenAI |
-| Results history | .xlsx: up to 12 quarters in the company's own format | Company page | Results views |
+| Change set; updated model version | Review screen; .xlsx | Web app or Excel; analyst's folder | Model Sync |
+| New model; proposed assumptions | .xlsx with Sources and Checks; review list | Analyst's folder; web app | Coverage Builder, GenAI |
+| Results flash, variance bridge, call digest, red flags | Page, table, text | Web app, alerts | GenAI, feeds |
+| Quarterly update | .docx: results and concall highlights, risks and guidance, investment rationale | Reports | GenAI |
+| Initiating coverage note | .docx: investment summary, MD&A and business, financial and sector performance, outlook, strengths and risks, rationale | Reports | GenAI |
+| IPO coverage draft | Sections (MD&A, financials, sector, strengths and risks, valuation); Word export planned | Reports, IPO tab | GenAI |
+| IB-style slides | Dense .pptx | Reports | GenAI |
+| Conflict flags (proposed) | List of estimates the evidence contradicts, with sources | Web app, before drafting | GenAI |
+| Results history | .xlsx, up to 12 quarters | Company page | Results views |
 | Q&A answers | Text with citations | Web app | GenAI |
-| Comps table | .xlsx | Download | IB Output |
-| Company profile slide | .pptx | Download | IB Output |
-| Refreshed pitch pages | .pptx and change log | Download | IB Output |
-| Alerts | Email or Telegram | Phone or inbox | Feed watcher |
-| Validation and template test reports | Pass or fail per rule | Web app | Validation; template onboarding |
+| Comps table; profile slide; pitch pages | .xlsx; .pptx; .pptx and change log | Download | IB Output |
+| Alerts | Email or Telegram | Inbox or phone | Feed watcher |
+| Validation and template test reports | Pass or fail per rule | Web app | Validation; onboarding |
 
 ## 8. Data model (PostgreSQL)
 
-PostgreSQL with pgvector is the single source of truth. Raw files live in MinIO; Redis holds the job queue only. Monetary values use NUMERIC. Full DDL in Appendix A.
+PostgreSQL with pgvector is the single source of truth. Raw files live in MinIO; Redis (Valkey in production) holds the job queue only. Money is NUMERIC, never float, except at the Excel boundary. Schema: Appendix A.
 
 #### 8.1 Why PostgreSQL
 
-- Relational integrity across companies, filings, facts, templates, models, assumptions and change sets.
-- Exact arithmetic with NUMERIC; proper DATE columns for periods.
-- JSONB for irregular payloads (XBRL dimensions, AI output, workbook structure maps).
-- pgvector for filing search and Q&A without a separate vector database.
-- Full audit trail of every write and every approved assumption.
-- Standard tooling: SQLAlchemy, Alembic, one container.
+Relational integrity across companies, filings, facts, templates, models and change sets; exact NUMERIC arithmetic and DATE periods; JSONB for irregular payloads (XBRL dimensions, AI output, structure maps); pgvector for search and Q&A without a separate vector database; a full audit trail; standard tooling (SQLAlchemy, Alembic, one container).
 
 #### 8.2 Tables
 
 | **Table** | **Purpose and key columns** |
 |---|---|
-| companies | Whole NSE universe: nse_symbol, isin, name, series, listing_date, face_value, sector, industry, sector_source, sector_lseg (the LSEG group, kept whatever sets the sector), results_taxonomy, is_sme, is_active, source, refreshed_at. |
-| watchlist | user_id, company_id, added_at, settings (alerts, auto-analyse). Replaces is_tracked. |
-| feed_items | Every RSS item: feed, item_key, title, link, description, pub_date, company_id, processed_at. |
-| filings | company_id, kind, period_start, period_end, period_type, consolidated, audited, source_url, file_sha256, storage_key, filed_at, status, meta (validation report, source links, NSE's revision flag: Original or Revision). |
-| facts | Normalised XBRL facts: element, period, instant flag, consolidated, value NUMERIC, unit, context, dimensions, is_latest (true for the value from the most recently filed filing of that line). |
+| companies | Whole NSE universe: nse_symbol, isin, name, series, listing_date, face_value, sector, industry, sector_source, sector_lseg, results_taxonomy, is_sme, is_active, source, refreshed_at. |
+| watchlist | user_id, company_id, added_at, settings (alerts, auto-analyse). |
+| feed_items | Every RSS item: feed, item_key, title, link, description, pub_date, company_id, processed_at, fetch attempts. |
+| filings | company_id, kind, period_start, period_end, period_type, consolidated, audited, source_url, file_sha256, storage_key, filed_at, status, meta (validation report, links, revision flag, V11 scale). |
+| facts | Normalised XBRL facts: element, period, instant flag, consolidated, value NUMERIC, unit, context, dimensions, is_latest. |
 | kpis | AI or table-extracted metrics with page, quote, confidence, method, verified. |
 | documents, chunks | PDF metadata; text chunks with embeddings and full-text search. |
-| prices | The latest trading day only: open, high, low, close, previous close, volume and market cap per company (section 3.3). |
-| templates | owner, name, sectors, version, storage_key, structure (JSONB), mapping (JSONB), driver_cells, check_cells, status (draft, tested, active). |
-| template_tests | template_id, company_id, result, issues (JSONB), created_at. |
-| models | company_id, template_id (null for user-built models), name, doc_tag (hidden workbook tag), file_path, fingerprint, last_seen, structure, mapping, origin (discovered, built). |
-| model_builds | model_id, template_id, history range, status, created_at. |
+| prices | The latest trading day only: OHLC, previous close, volume, market cap. |
+| templates, template_tests | Templates (owner, sectors, version, storage_key, structure, mapping, driver and check cells, status) and their test builds. |
+| models, model_builds, model_versions | Linked or built models (doc_tag, file_path, fingerprint, structure, mapping, origin), build history, every saved version with parent, author and time. |
+| model_locks | One holder per model while an update, build or report runs (migration 0012). |
 | assumptions | model_id, driver, proposed_value, rationale, citations, decision, final_value. |
-| model_versions | Every saved workbook version with parent version, storage key, author, time. |
-| change_sets, change_items | Proposed changes per sync with decision per item. |
-| reports, initiation_reports | Generated outputs with citations and prompt hash. |
-| llm_calls, alerts | Token and cost tracking; sent notifications. |
-| peer_lists | Saved peer lists for comps: name, symbols. |
-| job_status | When each scheduled job (results_watch, prices) last ran and last did its work, for Settings (migration 0006). |
+| change_sets, change_items | Proposed changes per sync, decision per item. |
+| reports | Generated outputs with citations and prompt hash. |
+| ipo_issues, ipo_documents, ipo_financials, ipo_chunks, ipo_drafts | Offer-document coverage: issue (symbol, company once listed), each RHP or Prospectus, restated figures per version with flags, text chunks, per-section drafts (migration 0014). |
+| users, auth_sessions, api_tokens, password_resets | Accounts and roles, sessions, hashed bridge tokens, hashed reset codes with failure counts (migrations 0009 to 0013). |
+| app_settings, audit_log | Admin settings (upload limit); every admin and lock action. |
+| llm_calls, alerts, peer_lists, job_status | Token use per call; sent notifications; saved peer lists; when each scheduled job last ran and last worked. |
+| Proposed | Context documents and chunks (source, published date, tags); report drafts and accepted versions with edits; adapters per firm and analyst (sections 17.3, 17.4). |
 
 #### 8.3 Indexes and constraints
 
-- companies: unique nse_symbol and isin; check constraints on results_taxonomy and sector_source; trigram index on name, used when ranked search finds nothing (section 19.1).
+- companies: unique nse_symbol and isin; checks on results_taxonomy and sector_source; trigram index on name (search fallback).
 - facts: (company_id, element, period_end) partial index where is_latest.
-- filings: (company_id, period_end DESC); unique file_sha256.
-- feed_items: unique (feed, item_key); index on pub_date.
-- models: unique doc_tag.
-- chunks: HNSW on embedding; GIN on full-text column.
-- A refiled period inserts its facts and is_latest is re-decided for the company: for each line (element, dates, basis, dimensions) the value from the most recently filed filing wins, and a filing without a date counts as the oldest. Nothing is deleted; superseded values are history.
+- filings: (company_id, period_end DESC); unique file_sha256; read indexes for the desk (migration 0007).
+- feed_items: unique (feed, item_key); index on pub_date. models: unique doc_tag. chunks: HNSW on embedding; GIN on full text.
+- A refiled period inserts its facts and is_latest is re-decided for the company: per line (element, dates, basis, dimensions) the value from the most recently filed filing wins; a filing without a date counts as oldest. Nothing is deleted.
 
 ## 9. Ingestion layer
 
 #### 9.1 Universe loader
 
-- Downloads EQUITY_L.csv and the SME list weekly; upserts by ISIN; marks companies missing from the list as inactive. Listing dates come as DD-Mon-YYYY (main board) or DD-Mon-YY (SME).
-- Sector comes from the sources in section 4.2, in order of precedence (analekh universe sectors): NSE Indices' lists outrank the Stocks data type import, and the LSEG group is kept in sector_lseg. results_taxonomy is guessed from strong signals only, and the filings' line items decide it.
+- Downloads EQUITY_L.csv and the SME list weekly; upserts by ISIN; marks missing companies inactive. Dates as DD-Mon-YYYY (main board) or DD-Mon-YY (SME).
+- Sector by the precedence in section 4.2; results_taxonomy guessed from strong signals, decided by the filings.
 
 #### 9.2 Feed polling
 
-- Feeds: Financial_Results, Online_announcements, Board_Meetings, Insider_Trading, Related_Party_Trans, Sast_ReasonForEncumbrance. Corporate_action is not polled (dropped 22 October 2026: its items are dividend and other ex-date notices that link to an NSE web page, not a file, and nothing reads them). Financial_Results has carried nothing since 24 August 2026; results come from the integrated-filing lookup (section 9.3).
-- Running since 21 October 2026 (Celery beat, task poll_feed). Board_Meetings items feed the results calendar (workflow 6.9); each description holds the purpose and then `|Meeting Date: DD-Mon-YYYY`.
-- Interval: 5 minutes (published TTL) for results and announcements; 30 minutes for event feeds (FEED_POLL_SECONDS, EVENT_FEED_POLL_SECONDS).
-- Conditional requests where supported, descriptive User-Agent, timeouts, exponential backoff.
-- Item key = SHA-256 of link plus pubDate; upsert on (feed, item_key).
-- pubDate arrives as DD-Mon-YYYY HH:MM:SS (India time), not the RFC 822 form; it must be parsed in that format or V8 cannot run.
-- Company linking by normalised name, then symbol or ISIN when present; unmatched items queued for review.
-- Announcement PDFs are fetched for every company (cheap) but only processed by the document pipeline for watchlist or on-demand companies.
+- Feeds: Financial_Results, Online_announcements, Board_Meetings, Insider_Trading, Related_Party_Trans, Sast_ReasonForEncumbrance. Corporate_action is not polled (its items link an NSE web page, which rule 1 does not allow, and nothing read them; 22 October 2026). Financial_Results has carried nothing since 24 August 2026.
+- Celery beat task poll_feed: every 5 minutes (published TTL) for results and announcements, 30 minutes for event feeds (FEED_POLL_SECONDS, EVENT_FEED_POLL_SECONDS). Board_Meetings descriptions hold the purpose, then `|Meeting Date: DD-Mon-YYYY`.
+- Conditional requests where supported, honest User-Agent, timeouts, exponential backoff. Item key = SHA-256 of link plus pubDate; upsert on (feed, item_key). pubDate parsed as DD-Mon-YYYY HH:MM:SS IST.
+- Company linking by normalised name, then symbol or ISIN; unmatched items queued for review. Announcement PDFs fetched for every company, read only for watchlist or on-demand companies.
 
 #### 9.3 Fetching and storage
 
-- **Results:** the integrated-filing lookup (type "Integrated Filing- Financials", index equity or sme, pages of 50) lists a company's filings; each XBRL file not yet stored is downloaded, oldest first, original before revision. A link ending in null, undefined or none is no link; a file NSE lists but answers 404 or 410 for is skipped and noted, not fatal.
-- **Results history:** NSE's financial-results list (one request per company) lists results back to 2005; only rows from March 2023 with a real XBRL link are fetched (section 4.1).
-- **Results watcher** (watch_results, by SEBI's results seasons since 18 October 2026): ONE request to the lookup without a ticker (a page of 500), then the XBRL for every filing not yet stored. If every row is new, it logs a warning instead of asking for a second page. analekh/seasons.py decides each run (section 9.6); analekh results-watch --force asks regardless.
-- **Guard:** a file whose main contexts are missing is rejected before it is stored (pipeline.IncompleteXbrl); broken XML is fetched once more, then skipped and noted like a 404.
-- Each file downloaded once; SHA-256 computed; stored at kind/yyyy/mm/sha256.ext, XBRL gzipped (about 12 times smaller; reads return the original bytes, so the key and file_sha256 still match; PDFs and workbooks stored as they are). Same hash: skip. Same period with a different hash: a revision, and the most recently filed value of each line is used (section 8.3).
-- Requests identify as Analekh: User-Agent "Analekh/0.1", the contact in the From header (CONTACT_EMAIL), Accept and Referer headers. The client allows only listed hosts and, on www.nseindia.com and niftyindices.com, listed paths.
-- Rate limited (default 1 request per second; the bulk backfill runs at one every 2 seconds) with retries. A 401, 403 or 429, a timeout or a stall stops a run at once instead of retrying into a block.
+- **Results:** the integrated-filing lookup (type "Integrated Filing- Financials", equity or sme, pages of 50) per company; each new XBRL downloaded oldest first, original before revision. Null, undefined or none links are no links; a listed file answering 404 or 410 is skipped and noted.
+- **History:** the financial-results list, one request per company; only rows from March 2023 with a real XBRL link.
+- **Watcher** (watch_results): ONE request without a ticker (page of 500), then each new XBRL; a page of all-new rows logs a warning rather than asking again. `analekh/seasons.py` decides each run; `analekh results-watch --force` asks regardless.
+- **Guard:** missing main contexts raise IncompleteXbrl before storage; broken XML is retried once, then skipped.
+- **Storage:** each file once; SHA-256; kind/yyyy/mm/sha256.ext; XBRL gzipped (about 12 times smaller; reads return the original bytes, so key and hash match); PDFs and workbooks as they are. Same hash: skip. Same period, new hash: a revision.
+- **Client:** `PoliteClient` identifies as Analekh (User-Agent "Analekh/0.1", contact in From, Accept, Referer); allows only listed hosts and, where set, listed paths; checks every redirect hop and every embedded URL against the allow-list. 1 request a second by default, one every 2 s in bulk. A 401, 403, 429, timeout or stall stops a run instead of retrying into a block.
 
 #### 9.4 Backfill
 
-- **Results, every company:** analekh results-backfill fetches the integrated filings of every company with a sector (newest eight quarter ends by default, both bases), one company per transaction so a stopped run keeps what it stored. With --history it reads the financial-results list instead (quarters from March 2023), optionally one sector at a time (--sector, repeatable). Options: --start-at resumes at a ticker (the company a run stopped on had its transaction rolled back, so it is fetched again in full); companies listed in out/bulk/no-filings.csv as having nothing on NSE are skipped unless --recheck-no-filings is given; --symbols, --limit, --quarters, --one-basis and --interval narrow it. Each company's outcome is logged as one JSON line.
-- **Unattended runs:** a local watchdog script restarts the backfill 10 minutes after each NSE stop, at the company it stopped on, keeps a tracker file up to date, and backs off for longer (1, 2 and 3 hours) if NSE stalls after only a few requests several times in a row, which would mean a block rather than the usual limit. Both full backfills have finished: integrated filings on 15 October 2026, history on 17 October 2026.
-- **Older periods:** on demand when a company is first analysed in depth (3 to 5 years), from IR sites or the import folder, through the same parser and validation path; AI extraction for backfills uses the Batch API.
-- After the element tables or the rules change, analekh revalidate re-reads stored files and analekh recompute-latest re-decides the values in use; neither downloads anything.
-- **No nightly backfill:** the beat entry for the Nifty 500 background backfill was removed on 21 October 2026, since both history backfills are done and the Nifty 500 list is still empty; the task stays, to be scheduled again when new constituents need history.
+- `analekh results-backfill`: integrated filings of every company with a sector (newest eight quarter ends, both bases), one company per transaction; `--history` reads the list (quarters from March 2023), optionally `--sector`. `--start-at` resumes (the stopped company is fetched again in full); companies in out/bulk/no-filings.csv are skipped unless `--recheck-no-filings`; `--symbols`, `--limit`, `--quarters`, `--one-basis`, `--interval` narrow it.
+- A local watchdog restarts 10 minutes after each NSE stop and backs off 1, 2, then 3 hours if NSE stalls quickly several times in a row.
+- Older periods on demand from IR sites or the import folder, through the same parser and validation; AI extraction for backfills uses the Batch API.
+- After element tables or rules change: `analekh revalidate` (re-reads stored files) and `analekh recompute-latest`; neither downloads.
+- No nightly backfill (removed 21 October 2026; the task stays for when new Nifty 500 constituents need history).
 
 #### 9.5 Daily prices
 
-- analekh prices (Celery task fetch_prices, beat entry fetch-prices; PRICES_CRON=0 19-23 * * 1-5) loads the latest trading day's bhavcopy: today after 18:00 IST, otherwise the day before, weekends rolled back to Friday; --date loads a given day.
-- A day already stored, or older than the stored day, is skipped without a request. A 404 means a holiday or not published yet; the next hourly run tries again.
-- Rows are parsed (equity series only, one per ISIN), matched to companies by ISIN, given a market cap from the latest filing's share count, upserted, and every older day is deleted in the same transaction (section 3.3).
+- `analekh prices` (task fetch_prices; PRICES_CRON=0 19-23 * * 1-5) loads the latest trading day; `--date` loads a given day.
+- A stored or older day is skipped without a request; 404 means retry next hour.
+- Rows parsed, matched by ISIN, given a market cap, upserted; every older day deleted in the same transaction.
 
 #### 9.6 When each job runs
 
-*Figure 11. The year's results seasons and each job's schedule, with the hours companies file.*
+*Figure 13. The year's results seasons and each job's schedule, with the hours companies file.*
 
-Every job runs from Celery beat in Docker (since 21 October 2026; the Windows scheduled tasks that stood in for it are disabled). Times are IST.
+Every job runs from Celery beat in Docker on the VM. Times IST.
 
 | **Job** | **Now** | **Planned** |
 |---|---|---|
-| Results watcher | Every hour from 09:00 to 23:00 during the four results seasons, once a day at 21:00 otherwise (by season 18 October 2026; hourly in season 23 October 2026) | Narrow to the days board meetings are announced for (workflow 6.9) |
-| Daily prices | Weekdays, hourly from 19:00 to 23:00 until the day is stored | Unchanged |
-| Universe refresh | Weekly, Monday 06:00 | Unchanged |
-| Feed watcher | Every 5 minutes (announcements) or 30 minutes (event feeds) | Unchanged |
-| Backfills | By hand, with the watchdog; no nightly backfill | New listings through the watcher |
+| Results watcher | Hourly 09:00 to 23:00 in the four results seasons; 21:00 daily otherwise | Narrow to announced board-meeting days (workflow 6.9) |
+| Daily prices | Weekdays, hourly 19:00 to 23:00 until stored | Unchanged |
+| Universe refresh | Monday 06:00 | Unchanged |
+| Feed watcher | Every 5 or 30 minutes; pending items every 2 minutes; documents every 10 | Unchanged |
+| SEBI offer documents | Daily 08:30 (`sebi_watch_cron`) | Unchanged |
+| Session purge | Daily 03:30 | Unchanged |
+| Context fetcher | Not built | Calendar days more often; daily or weekly polls (section 3.4) |
+| Local-model jobs, adapter training | Not built | Overnight on the `local_llm` queue; training nightly on the GPU (AI.md) |
+| Backfills | By hand, with the watchdog | New listings through the watcher |
 
-**Results seasons.** SEBI requires quarterly results within 45 days of the quarter end and the year's results within 60 days (LODR 33). The windows run from day 5 to two days past each deadline, so last-day filers' XBRL, which can follow the board meeting by up to 24 hours, is still caught:
+**Results seasons.** SEBI requires quarterly results within 45 days and the year's within 60 (LODR 33). Windows run from day 5 to two days past each deadline, so last-day filers' XBRL (up to 24 hours after the board meeting) is caught:
 
 | **Season** | **Quarter ends** | **Deadline** | **Window** |
 |---|---|---|---|
 | Q1 | 30 June | 14 August | 5 July to 16 August |
-| Q2 (and SME first half) | 30 September | 14 November | 5 October to 16 November |
+| Q2 (SME first half) | 30 September | 14 November | 5 October to 16 November |
 | Q3 | 31 December | 14 February | 5 January to 16 February |
-| Q4 and the year (and SME second half) | 31 March | 30 May | 5 April to 1 June |
+| Q4 and the year (SME second half) | 31 March | 30 May | 5 April to 1 June |
 
-The check in section 3.1 supports it: NSE shows a filing about a second after it is filed, so any delay is the watcher's interval; since 2023 every first filing of the 24 companies sampled fell inside these windows; and under 1% of filings come between midnight and 09:00. The schedule makes about 1,650 requests a year instead of about 4,400. Smaller companies file late more often, which the daily off-season run covers, as it does revisions. Later, the results calendar (workflow 6.9) can narrow polling to the days board meetings are announced for.
+NSE shows a filing about a second after it is filed, so any delay is the watcher's interval; every sampled first filing since 2023 fell inside these windows. About 3,000 requests a year. Late filers and revisions are caught by the daily off-season run.
 
 ## 10. XBRL parsing and validation
 
 #### 10.1 Parsing
 
-- Arelle for full taxonomy support; lxml for fast extraction from plain instance files.
-- Contexts resolved from actual start and end dates (duration for quarter and year to date; instant for balance sheet), never from context names.
-- Values stored in full INR; display transforms (for example INR crore) live in mappings.
-- Consolidated and standalone stored separately; mappings choose the basis.
-- Dimensions stored in JSONB and hashed into the uniqueness key.
-- Element names form a fixed vocabulary, so mapping to models is configuration, not AI. Integrated filings use the in-capmkt taxonomy with the Ind-AS names; typed dimensions are read from their child element.
-- **Results format from the line items:** a filing that tags RevenueFromOperations is Ind-AS (NBFCs included, though they also tag InterestEarned); InterestEarned and InterestExpended without it mark a bank; GrossPremiumIncome, NetPremiumIncome or persistency ratios mark a life insurer; PremiumEarned or premiums written mark a general insurer. Each format has its own element table (banks: interest earned as the top line, provisions; general insurers: premium earned, operating profit through the shareholders' account; life insurers: net premium income, solvency, persistency, expenses of management).
-- When two contexts carry the same dates but different values (seen in Phase 0: OneD and FourD), the parser keeps the first for now; how to flag the conflict is an open question (section 28).
-- **Incomplete files are rejected:** a file whose main contexts (the quarter, year to date and balance sheet date) are not defined, and which has no metadata to place them, raises IncompleteXbrl before it is stored. Most files before March 2023 are like this.
+- lxml for plain instance files (Arelle available for full taxonomy work).
+- Contexts resolved from actual dates (duration for quarter and year to date; instant for the balance sheet), never from context names (rule 5).
+- Values in full INR (V11 corrections recorded on the filing); display transforms live in mappings. Consolidated and standalone stored separately; dimensions in JSONB and in the uniqueness key; typed dimensions read from their child element.
+- Element names are a fixed vocabulary per format, so mapping is configuration, not AI.
+- **Results format from the line items:** RevenueFromOperations means Ind-AS (NBFCs included, though they also tag InterestEarned); InterestEarned and InterestExpended without it, a bank; GrossPremiumIncome, NetPremiumIncome or persistency, a life insurer; PremiumEarned or premiums written, a general insurer. Each format has its own element table.
+- Two contexts with the same dates and different values (OneD and FourD, seen once): the first is kept; how to flag it is open (section 28).
+- Files whose main contexts are undefined raise IncompleteXbrl before storage.
 
 #### 10.2 Validation rules
 
 | **ID** | **Rule** | **On failure** |
 |---|---|---|
-| V1 | Revenue from operations plus other income equals total income (insurers add investment income; life insurers also the transfer from the shareholders' account). | Flag; block auto-apply |
-| V2 | Profit before tax equals total income less total expenses, plus exceptional items as tagged (a charge is negative; either Ind-AS name, ExceptionalItemsBeforeTax or ExceptionalItems) and, for Ind-AS filers only, extraordinary items (banks' are net of tax and stay out). Banks deduct provisions; general insurers go through the shareholders' account and deduct any transfer to reserves (seen at GIC Re); for life insurers PBT is the shareholders' account income less its expenses. | Flag; block auto-apply |
-| V3 | Profit after tax equals profit before tax less tax. | Flag |
-| V4 | Total assets equal equity plus liabilities for each instant. | Flag; block auto-apply |
-| V5 | Quarter equals year to date less prior year to date where both exist. | Flag |
-| V6 | Context dates agree with the declared reporting period. | Use declared period; warn |
+| V1 | Revenue from operations + other income = total income (insurers add investment income; life insurers the transfer from the shareholders' account). | Flag; block auto-apply |
+| V2 | PBT = total income - total expenses + exceptional items as tagged (either Ind-AS name; a charge is negative) + extraordinary items for Ind-AS filers only. Banks deduct provisions; general insurers go through the shareholders' account and deduct any transfer to reserves; life insurers: shareholders' account income less its expenses. | Flag; block auto-apply |
+| V3 | PAT = PBT - tax. | Flag |
+| V4 | Total assets = equity + liabilities at each instant (insurers skipped: balance sheet not mapped). | Flag; block auto-apply |
+| V5 | Quarter = year to date - prior year to date where both exist. | Flag |
+| V6 | Context dates agree with the declared period. | Use declared; warn |
 | V7 | Quarter-on-quarter change above 50% in revenue or profit. | Highlight |
-| V8 | Filed after SEBI's results deadline (LODR 33(3)): 45 days after a quarter (or an SME half-year), 60 days when the filing closes the financial year, plus one day's grace for the XBRL; filing date in IST. | Label late |
-| V9 | Same period refiled with different values. | Keep both; the most recently filed is in use; tag the quarter and show what changed |
-| V10 | AI value conflicts with XBRL for the same item. | XBRL wins; AI value flagged |
-| V11 | Rupee amounts tagged in the wrong unit (100 to 1 crore times off; Metro Brands' consolidated September 2025 filing gave revenue as Rs 6.51 crore for Rs 651.14 crore, and V1 to V3 still passed). Two signals: the other basis (consolidated cannot be far below standalone, nor standalone far above consolidated) and the median of at least three neighbouring quarters. | Both agree on the same power of ten: amounts corrected by that exact factor, per-share values and ratios left as filed, the factor recorded on the filing. One signal alone: suspect, block auto-apply, kept out of growth, Movers and comps until the PDF is checked. In line with its own quarters: pass, whatever the other basis shows |
+| V8 | Filed after SEBI's deadline (LODR 33(3)): 45 days after a quarter or SME half-year, 60 when closing the year, plus one day's grace; date in IST. | Label late |
+| V9 | Same period refiled with different values. | Keep both; most recently filed in use; tag and show changes |
+| V10 | AI value conflicts with XBRL. | XBRL wins; AI value flagged |
+| V11 | Rupee amounts in the wrong unit (100 to 1 crore times off; Metro Brands' September 2025 consolidated revenue Rs 6.51 crore for Rs 651.14 crore, with V1 to V3 passing). Signals: the other basis, and the median of at least three neighbouring quarters. | Both agree on one power of ten: amounts corrected by it, per-share values and ratios as filed, factor recorded. One signal: suspect, blocked, out of growth, Movers and comps until checked. In line with its own quarters: pass |
 
-Insurers' balance sheets are not mapped yet, so V4 skips for them. A filing where an identity's elements are not tagged records the rule as skipped.
+A filing whose identity elements are not tagged records the rule as skipped.
+
+#### 10.3 Margins and ratios by company type
+
+The desk's Margin column and the company page follow the company type (owner, 26 October 2026):
+
+| **Type** | **Shown** | **How** |
+|---|---|---|
+| Companies outside finance | EBITDA margin | EBITDA derived from the filed lines (with exceptional items) / revenue |
+| Banks and NBFCs (LSEG Banking Services, the bank format, named primary dealers and finance companies) | NIM; on the company page yield, cost of borrowing and spread ("Interest ratios") | NIM = (interest earned - interest expense) x 4 / average interest-earning assets (advances or loans, investments, bank and call balances); yield = interest earned x 4 / the same; cost = interest expense x 4 / average deposits, borrowings, debt securities and subordinated liabilities; spread = yield - cost. Interest expense is InterestExpended (banks) or FinanceCosts (NBFCs). Averages of opening and closing balances; balance sheets come in March and September, so June and December are interpolated by days, and those quarters show a dash until the next half-year is filed. Consolidated when it allows, else standalone. A dash when interest is under 40% of revenue or balance sheets are missing |
+| Brokers, wealth and asset managers (`interest.FEE_FINANCE`, by symbol) | Core pre-provision profit margin; operating leverage on the company page | (revenue from operations - operating expenses) / revenue; operating expenses = total expenses - finance costs - impairment on financial instruments; leverage = revenue growth - opex growth, year on year, in points |
+| Exchanges | EBITDA margin | |
+| Holding and investment companies | Operating income (rupees) on the company page; no desk margin | |
+
+EBITDA is hidden for every financial sector. A ratio above 100% is dropped as a tagging problem. Computed figures, not the lender's reported NIM (which uses daily averages).
 
 ## 11. Document pipeline
 
-XBRL covers statutory statements but not sector KPIs or management commentary. Those come from presentations, annual reports and transcripts, processed for watchlist or on-demand companies. The user never selects pages.
+XBRL covers statutory statements but not sector KPIs or commentary. Those come from presentations, annual reports and transcripts, for watchlist or on-demand companies, and from offer documents for recent listings. The user never selects pages.
 
-- **Local read** of every page with PyMuPDF; RapidOCR (ONNX, no system binary) for scanned pages.
-- **Page classification** by keyword patterns, table density and position; ambiguous pages may go to a smaller Claude model as text.
-- **Selection** of the top pages per category (typically 10 to 25 of a 300-page annual report).
-- **Extraction** by Claude against a JSON schema; each value with page, quote and confidence.
-- **Chunking and embedding** for search and Q&A.
-- **Validation** of units, periods and conflicts with XBRL.
+#### 11.1 Read and select
+
+- **Local read** of every page with PyMuPDF; RapidOCR (bundled ONNX models, no system binary; settings in `analekh/docs/rapidocr.yaml`) for scanned pages.
+- **Page classification** by keyword patterns, table density and position; ambiguous pages may go to a small model as text.
+- **Selection** of the top pages per category (typically 10 to 25 of a 300-page annual report; the restated statements, price band and peers of an offer document).
+
+#### 11.2 Extract and store
+
+- **Extraction** against a JSON schema; each value with page, quote and confidence.
+- **Chunking and embedding** (local embedder by default) for search and Q&A; **validation** of units, periods and conflicts with XBRL.
 
 ```
-{
-"company": "MUTHOOTFIN",
-"period_end": "2026-06-30",
-"kpis": [{"name": "gold_loan_aum", "value": 0, "unit": "INR crore",
-"page": 7, "quote": "...", "confidence": 0.0}],
-"guidance": [{"topic": "...", "statement": "...", "page": 0}],
-"red_flags": [{"type": "...", "detail": "...", "page": 0}]
-}
+{"company": "MUTHOOTFIN", "period_end": "2026-06-30",
+ "kpis": [{"name": "gold_loan_aum", "value": 0, "unit": "INR crore", "page": 7, "quote": "...", "confidence": 0.0}],
+ "guidance": [{"topic": "...", "statement": "...", "page": 0}],
+ "red_flags": [{"type": "...", "detail": "...", "page": 0}]}
 ```
 
-Zeros are schema placeholders. Sector KPI lists are defined per sector (banks, NBFCs, consumer, industrials, IT services). Transcripts get speaker-aware parsing and outputs for guidance changes, analyst concerns and deflected topics, each with page references.
+Zeros are placeholders. KPI lists are per sector (banks, NBFCs, consumer, industrials, IT services). Transcripts get speaker-aware parsing for guidance changes, analyst concerns and deflected topics, with pages.
 
-**Call recordings.** Companies post the call's audio within 24 hours but the transcript only within five working days (SEBI LODR). analekh transcribe-audio turns recordings placed in the import folder into timestamped text locally (Whisper large-v3 through faster-whisper, on the GPU when there is one; optional dependency group audio). Notes are generated from this text first and regenerated from the official transcript once it is filed, so each quarter's call highlights are written once and updated only when a new quarter's results and call arrive. Future scope (section 26.3): a listener that joins the call as it happens and transcribes it live, marked unverified, until the filed recording replaces it; Workflow 8 in the architecture diagrams shows where it fits.
+#### 11.3 Call recordings
+
+Audio is posted within 24 hours, the transcript within five working days. `analekh transcribe-audio` turns recordings in the import folder into timestamped text locally (Whisper large-v3 through faster-whisper, GPU when present; optional group `audio`). Notes come from this text first and are regenerated from the official transcript once filed. Future scope: a live listener (section 26.3).
 
 ## 12. Workbook understanding engine
 
-One engine reads any workbook. Model discovery, template onboarding, the Coverage Builder and quarterly updates all depend on it, which keeps the codebase small and makes it the technical core of the system.
+One engine reads any workbook; discovery, onboarding, the Coverage Builder and quarterly updates depend on it. It also finds the drivers whose changes the agentic flow explains (section 6.12).
 
 | **Capability** | **Method** |
 |---|---|
-| Period axis | Find header rows with period patterns (Q2FY27, 2QFY27, Sep-26, FY27E, dates); detect an A/E row; infer the last actual column. |
+| Period axis | Header rows with period patterns (Q2FY27, 2QFY27, Sep-26, FY27E, dates); an A/E row; the last actual column. |
 | Inputs versus formulas | Cell types from the file; colour convention (blue inputs, black formulas, green links) as a secondary signal. |
-| Row labels to standard fields | Synonym dictionary first ("Net sales", "Revenue from operations", "Income from operations"); AI for ambiguous labels; confidence score per row. |
+| Row labels to standard fields | Synonyms first, then fuzzy matching, then a small model; confidence per row. |
 | Drivers | Input cells on assumption sheets referenced by forecast formulas. |
-| Checks | Cells comparing totals (assets versus liabilities, cash flow versus cash) or labelled checks. |
-| Dependencies | Formula graph across sheets (formulas or pycel library); dependents of every input; INDIRECT and OFFSET reported as unknown impact. |
-| Hygiene | External links, macros, hardcodes inside formula areas, inconsistent formulas across a row. |
+| Checks | Cells comparing totals or labelled checks. |
+| Dependencies | Formula graph across sheets (formulas or pycel); dependents of every input; INDIRECT and OFFSET reported as unknown impact. |
+| Hygiene | External links, macros, hardcodes in formula areas, inconsistent formulas across a row. |
 | Fingerprint | Hash of structure and values to detect edits made outside the system. |
 
-Output is a structure map (JSONB) stored with the template or model, plus a suggested mapping the user confirms.
+Output: a structure map (JSONB) stored with the template or model, plus a suggested mapping the user confirms.
 
 ## 13. Model discovery and recognition
 
 #### 13.1 Finding models
 
-- The Excel bridge watches folders the user chooses (for example ~/Models or a OneDrive folder) and indexes .xlsx and .xlsm files.
-- If a workbook is open in Excel, the bridge attaches to the live workbook rather than the file on disk.
-- Later: cloud files on OneDrive or SharePoint through Microsoft Graph.
+- The Excel bridge watches folders the user chooses and indexes .xlsx and .xlsm files. A file open in Excel is read from a copy of the saved file; anything unreadable is listed with its reason, never skipped silently.
+- Later: OneDrive or SharePoint through Microsoft Graph.
 
 #### 13.2 Identifying the company
 
-- **Hidden tag:** after the first link, the system writes the company symbol and a model ID into the workbook's custom document properties. Renames and moves keep working.
-- **File name:** matched against the universe ("Muthoot_Model_FY27.xlsx" to MUTHOOTFIN).
-- **Contents:** company name, ISIN or symbol on a cover sheet or headers.
+- **Hidden tag:** after the first link, the symbol and a model ID go into the workbook's custom document properties, written by patching only `docProps/custom.xml`, `[Content_Types].xml` and `_rels/.rels` inside the zip; every other part is copied byte for byte and the swap is atomic. For an open workbook the tag goes in through Excel and the analyst saves.
+- **File name** matched against the universe; **contents** (name, ISIN or symbol on a cover sheet).
 
-For a new file the system suggests the match ("This looks like your MUTHOOTFIN model. Link it?") and the user confirms once.
+New files get a suggested match that the user confirms once (rule 2).
 
 #### 13.3 Staying in step
 
-- Before planning a change set, the current fingerprint and modified time are compared with the last seen version; any difference triggers a rescan.
-- Save options: new versioned copy (default) or in place with automatic backup.
-- With the Office.js add-in the task pane works on the open workbook directly and reads its tag, so no lookup is needed.
+- Before planning a change set, the fingerprint and modified time are compared; any difference triggers a rescan.
+- Save options: new versioned copy (default) or in place with backup. With Office.js the pane reads the open workbook's tag directly.
 
 ## 14. Template onboarding
 
 #### 14.1 Upload
 
-- Upload a blank template or an existing model for another company; tag sectors, name and version.
-- For an existing model, historical hardcoded inputs are identified and cleared while formulas are kept; uncertain cells are shown, not deleted.
+Admins upload a blank template or another company's model, with sectors, name and version. For a model, historical hardcoded inputs are cleared while formulas are kept; uncertain cells are shown, not deleted.
 
 #### 14.2 Structure and mapping
 
-- The workbook understanding engine reads periods, inputs, labels, drivers and checks.
-- Suggested mapping with confidence per row; the user confirms once per template; reused for every company built from it.
+The workbook engine reads periods, inputs, labels, drivers and checks; a suggested mapping with confidence per row is confirmed once per template and reused for every company.
 
 #### 14.3 Test build
 
-The template is filled with one real company's history and recalculated. The report lists: checks passing or failing, template rows the company does not report, reported items with no template row, and broken formulas. Only after acceptance is the template active.
+The template is filled with one real company's history and recalculated. The report lists checks passing or failing, rows the company does not report, items with no row, and broken formulas. Only after acceptance is the template active. Admins only.
 
 #### 14.4 Requirements for uploaded templates
 
-- Historical periods across columns with labels in one column.
-- Forecast formulas reference the input area, not typed numbers.
-- No external workbook links (flagged on upload).
-- Macros are kept but never executed; INDIRECT and OFFSET allowed but flagged.
+Historical periods across columns with labels in one column; forecast formulas reference the input area; no external links (flagged); macros kept, never executed; INDIRECT and OFFSET flagged.
 
 #### 14.5 Versioning and sharing
 
-- Each sector has a default template; per-company overrides allowed.
-- Editing creates a new version; models keep the version they were built on.
-- Templates can be personal or shared within a team. Built-in templates ship as a fallback.
+A default template per sector, per-company overrides; editing creates a new version and models keep theirs; personal or team templates; built-ins as fallback.
 
 ## 15. Coverage Builder
 
 #### 15.1 Flow
 
-- Pick a company from the universe and choose Start coverage; the sector's default template is preselected.
-- Gather 8 to 12 quarters and 3 to 5 years from the database, backfilling what is missing; sector KPIs, segments, shareholding and business description from presentations and annual reports.
-- Generate the workbook from the template: inputs filled, formulas untouched, each input cell commented with its source.
-- Propose first-pass assumptions per driver from history (three-year averages and trends) and management guidance, each with rationale and citation; analyst accepts or edits.
-- Recalculate (Excel or LibreOffice) and require the Checks sheet to pass.
-- Write the hidden tag and confirmed mapping; save the model.
-- Draft the initiation pack.
+- Pick a company and Start coverage; the sector's default template is preselected.
+- Gather 8 to 12 quarters and 3 to 5 years, backfilling what is missing; KPIs, segments, shareholding and description from presentations and annual reports (or the offer document for a recent listing).
+- Generate the workbook: inputs filled, formulas untouched, each input commented with its source.
+- Propose first-pass assumptions per driver from history (three-year averages and trends) and guidance, each with rationale and citation; the analyst accepts or edits.
+- Recalculate and require the Checks sheet to pass; write the hidden tag and mapping; save; draft the initiation pack.
 
 #### 15.2 Built-in template structure
 
@@ -779,69 +772,68 @@ The template is filled with one real company's history and recalculated. The rep
 | Drivers | Growth, margins, yields, costs, capex, working capital, payout |
 | Model | Linked P&L, balance sheet and cash flow; balance via cash or debt |
 | Sector KPIs | Template-specific metrics |
-| Valuation | DCF and relative valuation; for banks and NBFCs, P/B versus ROE and residual income |
+| Valuation | DCF and relative; for banks and NBFCs, P/B versus ROE and residual income |
 | Sensitivities | Cost of capital, terminal growth, key drivers |
 | Checks | Balance sheet balances, cash flow ties, no stray hardcodes |
 | Sources | Every input traced to document and page |
 
 #### 15.3 Initiation pack
 
-- Draft initiation report (Word): investment summary, business and segments, industry backdrop, management and governance, financial analysis, forecasts, valuation, risks.
-- Charts, comps table and company profile slide.
-- Every number from the database or model with citations; industry context drafted from public sources with citations and marked for verification.
-- Valuation is computed; the rating and target price are read from the analyst's model when it holds them, otherwise left for the analyst (SEBI Research Analyst rules apply to publication).
+Draft initiation (Word): investment summary, business and segments, industry backdrop, management and governance, financial analysis, forecasts, valuation, risks; charts, comps and profile slide. Every number from the database or model with citations; industry context from public sources cited and marked for verification until the context sources of section 3.4 exist. Valuation computed; rating and target price read from the analyst's model or left for the analyst (SEBI Research Analyst rules apply to publication).
 
 #### 15.4 Hand-off
 
-The built model carries its tag and confirmed mapping, so the next results flow straight into the quarterly update with no setup.
+The built model carries its tag and mapping, so the next results flow into the quarterly update with no setup.
 
 ## 16. Model Sync Engine
 
 #### 16.1 Write plan
 
-- Writes only into input cells mapped to facts or KPIs; formula cells change only through explicit roll-forward items.
-- Dependents of every written cell are listed from the dependency graph.
+Writes only into input cells mapped to facts or KPIs; formula cells change only through explicit roll-forward items; dependents of every written cell listed.
 
 #### 16.2 Roll-forward
 
-- New period column marked E with formulas: propose actual values in input rows and switch the flag to A, keeping calculation rows.
-- Propose extending the forecast horizon by copying the last forecast column one column right.
-- List hardcoded estimates next to new actuals and period labels needing a shift.
+A new period column marked E with formulas: actuals proposed into input rows and the flag switched to A; the forecast horizon extended by copying the last forecast column; hardcoded estimates and labels needing a shift listed.
 
 #### 16.3 Assumption suggestions
 
-For each driver, actual versus estimate is compared and the GenAI engine suggests a revision with a grounded one-line rationale. Suggestions are change items like any other.
+For each driver, actual versus estimate is compared and a revision suggested with a grounded one-line rationale, as a change item like any other.
 
 #### 16.4 Change set and apply
 
-- Items grouped by kind: actual_write, roll_forward, assumption_suggestion, label_shift; each with cell, old and new value or formula, rationale and source.
-- Review in the web app or Excel pane; bulk accept per kind.
-- Apply writes in one pass, recalculates, saves a new model_version; the original is never overwritten.
+- Items by kind (actual_write, roll_forward, assumption_suggestion, label_shift), each with cell, old and new value or formula, rationale and source; reviewed in the web app or Excel pane, bulk accept per kind.
+- Drafting, deciding and applying hold the model's lock (one holder; others get 423 and a read-only view naming the holder; a decision on an item no longer pending gets 409).
+- Apply writes in one pass, recalculates, saves a new model_version; the original is never overwritten. A set whose base is no longer the latest version is refused (409 `change_set_stale`, never rebased); the analyst drafts a new one.
 
 #### 16.5 Excel integration options
 
-| **Option** | **How it works** | **Trade-offs** |
+| **Option** | **How** | **Trade-offs** |
 |---|---|---|
-| xlwings (v1) | Local bridge drives desktop Excel on Windows or macOS. | Native recalc and formatting; needs Excel; runs outside Docker. |
-| openpyxl + LibreOffice | Headless edits; LibreOffice recalculation. | No Excel needed; formatting edge cases. |
-| Office.js add-in (later) | Task pane inside Excel (Windows, Mac, web). | Best experience; more front-end work. |
+| xlwings (v1) | Local bridge drives desktop Excel. | Native recalc; needs Excel; runs outside Docker. |
+| openpyxl + recalc service | Headless edits; LibreOffice in its own `recalc` container. | No Excel; formatting edge cases; cells LibreOffice cannot compute are refused. |
+| Office.js add-in (later) | Task pane in Excel. | Best experience; more front-end work. |
+
+**Recalc service.** `recalc_file(bytes) -> bytes` is the one entry point. With RECALC_URL set it POSTs the workbook to the `recalc` container (a small HTTP server, non-root, read-only root, all capabilities dropped, on an internal network with no internet, database or object storage, and no published port; token in the `X-Recalc-Token` header only). It retries once on a refused or reset connection, read timeout or busy 503, then falls back to a local LibreOffice (RECALC_FALLBACK=local, dev and CI) or raises: Apply answers 503 `recalc_unavailable`, saves nothing, releases the lock and keeps the change set approved. A 200 that is not an xlsx counts as unavailable. Cells LibreOffice cannot compute (a VBA function, an add-in) give 422 `recalc_cannot_compute` naming the cells. `.xlsm` keeps its VBA project; macros never run. The service's limits come from its own environment (RECALC_TIMEOUT_SECONDS, RECALC_CONCURRENCY, RECALC_MAX_BYTES). Saving without recalculating was rejected: stale cached values would feed Checks and the report tools.
 
 ## 17. Analysis and GenAI Engine
 
 | **Output** | **Content** |
 |---|---|
-| Results flash | Actuals versus last quarter, same quarter last year and estimates; key KPIs; three to five bullets. |
-| Variance bridge | Changes split into price, volume, mix and cost effects where data allows. |
+| Results flash | Actuals versus last quarter, last year and estimates; KPIs; three to five bullets. |
+| Variance bridge | Price, volume, mix and cost effects where data allows. |
 | Call digest | Guidance changes, analyst concerns, deflected topics, tone shift, with pages. |
-| Red flags | Auditor qualifications, pledges, related party transactions, insider sales, late filings, restatements. |
-| Quarterly update | Word note: results highlights, concall highlights, risks and future guidance, investment rationale. Set up on the Reports screen for one quarter. |
-| Initiating coverage note | Word note, longer and fuller: investment summary, MD&A and business, financial performance, sector performance, company outlook, strengths and risks, investment rationale. |
-| IB-style slides | PowerPoint for either report, dense in the investment-banking way: as much information on as few slides as possible. |
+| Red flags | Auditor qualifications, pledges, related-party deals, insider sales, late filings, restatements. |
+| Quarterly update | Word: results highlights, concall highlights, risks and guidance, investment rationale. |
+| Initiating coverage note | Word: investment summary, MD&A and business, financial and sector performance, outlook, strengths and risks, rationale. |
+| IPO coverage | Per-section drafts from the RHP or Prospectus (section 6.11). |
+| IB-style slides | Dense PowerPoint for either report. |
 | Q&A | Answers over filings with citations. |
 
-**What feeds a report**, best first: the filed numbers already in the database (on the basis the analyst chose: standalone, consolidated or both), comps for the company and its peers (saved peer lists), the analyst's Excel model (its estimates, and its recommendation and target price), then the annual report's MD&A, concall transcripts and quarterly investor presentations. Later: the firm's house templates for Word and PowerPoint, and its previous coverage reports for tone and structure.
+**What feeds a report,** best first: filed numbers (on the chosen basis), comps, the analyst's model (estimates, recommendation, target price), then MD&A, transcripts and presentations; proposed, the context documents (section 3.4) and the firm's and analyst's accepted reports (section 17.4). Later: house templates for Word and PowerPoint.
 
-**How it must read.** Drafts are professional and read as the analyst's own work: no em-dashes, no stock phrases or other marks of generated text, no signatures. A style check enforces this after the grounding check, the same way: a draft that fails is regenerated or blocked, never shown as it is. The recommendation and target price are copied from the analyst's model, or left as a marked blank for the analyst to fill in; the model never proposes one (section 23).
+**How it must read.** Professional, the analyst's own work: no em-dashes, stock phrases or signatures. A style check after the grounding check blocks a failing draft the same way. Recommendation and target price copied from the analyst's model or left as a marked blank (section 23).
+
+**How reports run.** Today the flash, note and initiation run one open tool loop (all tools, up to 20 turns); IPO coverage runs one grounded loop per section, each grounded separately. Proposed for every report: a fixed outline, core data fetched by code, a short loop and a grounding check per section, so one section can be redone; the open loop stays for Q&A.
 
 #### 17.1 Tools exposed to the model
 
@@ -849,25 +841,52 @@ For each driver, actual versus estimate is compared and the GenAI engine suggest
 |---|---|
 | get_facts(company, elements, periods) | Fact values with source references. |
 | get_kpis(company, names, periods) | KPI values with pages and confidence. |
-| get_model_values(model_id, ranges) | Values and estimates from the model. |
-| search_filings(company, query, k) | Chunks with document and page references. |
-| get_prices(company, from, to) | The latest close and market cap (section 3.3); only the latest trading day is stored. |
+| get_model_values(model_id, ranges) | Values and estimates from the model (`ModelReader`). |
+| search_filings(company, query, k) | Chunks with document and page. |
+| get_prices(company) | The latest close and market cap. |
 | calc(expression, inputs) | Deterministic arithmetic in Python. |
+| IPO tools | An issue's restated figures, terms, peers and text chunks (`ipo/tools.py`). |
+| Proposed | search_context(sector, topic, since); get_estimate_changes(model_id, from, to); get_analyst_notes(company). |
 
 #### 17.2 Grounding rules
 
-- Only numbers returned by tools or computed by calc may appear in output.
-- A post-check matches every number in the text to tool results; any unmatched number blocks the output.
-- Each claim carries a citation; prompt caching for long system prompts; tokens logged in llm_calls.
-- A style check follows: em-dashes and the stock phrases of generated text block the draft as an unmatched number does.
-- No recommendation or target price is generated: one only appears when it is read from the analyst's model with get_model_values.
+- Only numbers returned by tools or computed by `calc` may appear; a post-check matches every number and blocks on any unmatched one (`genai/grounding.py`; never weakened to make output pass).
+- Each claim carries a citation; long system prompts cached; tokens logged in llm_calls. All calls go through `genai/client.py` (refusal fallbacks on; structured output with closed JSON schemas).
+- A style check follows: em-dashes and stock phrases block like an unmatched number.
+- No recommendation or target price generated; one appears only when read from the analyst's model.
+
+#### 17.3 Agentic RAG (proposed)
+
+The agent plans, retrieves and explains before it writes (workflow 6.12; AI.md sections 1 to 3):
+
+- **Plan in code:** per report, a fixed set of sections, standing "why" questions per section, and sources per sector (a bank: RBI; an oil marketer: OPEC and fuel policy). The model reads and writes within the plan; no open-ended agent loops on small models.
+- **Retrieve, never search the web:** context documents are fetched ahead (section 3.4) and retrieved by sector, topic and date.
+- **Explain the analyst's estimates:** the approved model's versions are diffed; each changed growth rate, cost line, margin and driver is explained with evidence.
+- **Flag conflicts before drafting:** where the evidence contradicts a changed estimate, the analyst is told first and decides; the agent never changes an estimate (rules 2 and 8).
+- **Cite every context claim;** say "no evidence" rather than reason from memory. Numbers are not the only evidence.
+
+#### 17.4 Learning from the analyst (proposed, after the MVP)
+
+- **Training material:** accepted reports, the draft-to-final edits, answers to conflict flags and the analyst's notes. Indexed for retrieval at once; used for training later.
+- **Method:** LoRA adapters trained 4-bit (QLoRA) on a local base model: a firm layer (house style and frameworks) and an analyst layer (voice), a few MB each, swapped per request. A new analyst uses the firm layer until enough accepted reports exist.
+- **Weights learn how to write; retrieval holds what is true.** Facts are never trained in; ratings, target prices and numbers are masked out of training data.
+- **Training runs in the background** (nightly or every N accepted reports). An **automatic check** compares a new adapter with the current one on a fixed set of the firm's past reports (grounding rejections, broken structured output, banned phrasing, missing sections); worse means not swapped in. The last few adapters are kept for rollback. The golden-set test comes after the MVP.
+- **Guardrails are code** in front of every model; no training run can remove them.
+
+#### 17.5 Local models (proposed)
+
+Aim: no API cost (owner, 27 October 2026). A local provider (Ollama) beside Claude in `genai/client.py`, chosen per job: Qwen2.5 7B on the VM's CPU for overnight extraction, labels and tagging; the laptop's GPU (RTX 4060, 8 GB) for Whisper, drafts, Q&A and training, over a private tunnel. Same token logging and the same grounding check for every provider. Each job moves only after it passes the golden set. Per-job placement, setup and deployment steps: AI.md.
+
+#### 17.6 Order
+
+Retrieval and the agent first (they remove the pasted-context step), then local models job by job, then the learning loop once the MVP's features are done.
 
 ## 18. IB Output Engine
 
-- **Comps:** saved peer lists (up to 30 companies each) and suggested peers (same NSE sector and results format, closest in market cap, the same LSEG group first); price, market cap, TTM revenue, revenue YoY, EBITDA and net margins, P/E and P/B, with median and mean; Excel export. TTM is the last four quarters back to back on one basis (consolidated when four exist, else standalone; the row says which). EBITDA is derived as on the company page and left out for lenders and insurers. Book value is the latest balance sheet's equity attributable to owners (capital plus reserves for banks; not yet for insurers). EV = market cap + debt − cash, shown only once debt and cash are sourced: until then EV multiples are blank, never market cap passed off as EV. A symbol that has left the universe is reported, not fatal.
-- **Company profile slide:** business summary, shareholding, key financials, valuation, recent events. No price chart: only the latest close is kept.
+- **Comps:** saved peer lists (up to 30 companies) and suggested peers (same NSE sector and results format, closest in market cap, same LSEG group first); price, market cap, TTM revenue, revenue YoY, EBITDA and net margins, P/E, P/B, median and mean; Excel export. TTM = last four quarters back to back on one basis (consolidated when four exist, else standalone; the row says which). EBITDA derived as on the company page, left out for lenders and insurers. Book value = latest equity attributable to owners (capital plus reserves for banks; not yet for insurers). EV = market cap + debt - cash, shown only once debt and cash are sourced; until then EV multiples are blank, never market cap passed off as EV. A symbol that left the universe is reported, not fatal.
+- **Company profile slide:** business summary, shareholding, key financials, valuation, recent events; no price chart (only the latest close is kept).
 - **Pitch page refresh:** placeholders such as {{MUTHOOTFIN.pat_q}} replaced with current values plus a change log.
-- **Precedents (later):** curated set from deal announcements with AI extraction flagged for review.
+- **Precedents (later):** curated deal announcements with AI extraction flagged for review.
 
 ## 19. User interfaces
 
@@ -875,94 +894,90 @@ For each driver, actual versus estimate is compared and the GenAI engine suggest
 
 | **Screen** | **Contents and actions** |
 |---|---|
-| Welcome | The first visit of a browser session to the home page: the mark, a greeting, the tagline and live counts (companies tracked, results filings, reporters this quarter) on frosted cards over slowly drifting light. The page follows a scroll or swipe up with some resistance, springs back if let go early, and unlocks into the desk past a threshold or on a click, tap or Enter; the mark flies to the sidebar. Links to other pages skip it. |
-| Home: Results desk | The quarter's reporters, newest filing first or largest market cap first, ten per page, with each company's market cap at the latest close: revenue (interest earned or premium for banks and insurers), net profit and EBITDA margin with the change on a year ago. Filters for quarter (newest by default), sector, filing date and watchlist, kept in the URL. Movers by revenue or profit (at least Rs 50 crore of quarterly revenue; profit growth needs a year-ago profit of at least 2% of revenue; turned profitable and turned to a loss listed apart) and progress by sector with median growth, each in a box that scrolls inside a fixed height. A results calendar from board meeting intimations (a day strip, a week or a month; results and other meetings told apart; a past day shows who actually filed), following the "Watchlist only" filter. Rows become cards on phones. |
-| Search and universe | Type-ahead over every NSE company, ranked: exact ticker or ISIN, ticker prefix, name prefix, words that start words in the name, then substrings. The universe (about 80 KB compressed) loads once and is searched in the browser; the server answers only before it loads and as a typo fallback. Open a company; add to watchlist. The top bar is hidden on screens with their own company picker (Reports, Comps), where "/" focuses that picker, and on screens that are not about one company (Models, which gets its own search, Templates, Settings): one company search per screen at most. |
-| Watchlist | The desk's columns for the companies followed: price and the day's change, market cap, latest quarter, revenue and profit YoY, basis, and Blocked or "N to review" badges; the calendar of their coming results, with those not yet announced. |
-| Company page | Header with sector, results format and coverage level; Analyse and Start coverage buttons. A Consolidated or Standalone switch when the company files both (in the URL). Figure tiles and a quarterly chart of the top line with a value per bar; amounts in lakhs when the company's revenue is under Rs 10 crore, crore otherwise. A Latest quarter column (full window height on wide screens, after the tiles on phones): the quarter's lines in the company's format with QoQ and YoY change, derived EBITDA and margins (in basis points), notes behind an information icon, a dash with the reason when a comparison quarter was never filed, and a Restated or Revised tag when the quarter was refiled. A Call highlights card (empty until call notes exist). Share price and market cap tiles from the latest close (with the day's change and the face value). A results history table: up to 12 quarters, oldest on the left and opened at the newest, in the company's own lines and one unit, with an Excel export; the chart switches between the top line, net profit and a margin, with a value on each bar. Each quarter's heading is that quarter's filing: the label, then a link to the filing in use on NSE (iXBRL) and a details button (filed on, the results PDF, what a refiling changed, earlier filings with their links), then one status mark (Blocked before Restated, Revised or Refiled). Filings without a column (older quarters, full-year filings, suspect filings) fold out under the table. Raw XBRL files are not linked for users (owner's rule, 21 October 2026). The table scrolls sideways with the keyboard too. Analyse is disabled, with the reason, when the job queue is down. KPIs and red flags to follow. |
-| Change-set review | Grouped items with cell, old and new values, source and rationale, dependent-cell counts; accept, edit, skip, apply. |
-| Assumption review | Proposed drivers with rationale and citations for new models; accept or edit. |
-| Templates | Upload, sector tags, mapping confirmation, test-build report, versions. |
-| Models | Discovered and built models, link status, versions. |
-| Reports | Set-up (built): the company, the report (Quarterly update or Initiating coverage), the figures (Standalone by default; Consolidated or Both when the company files both; a badge when it files one) and the quarter, all kept in the URL. Beside it, the inputs and whether each is ready for this company (filed results, comps, the analyst's Excel model and its rating), with transcripts, presentations, MD&A and the house template marked "Being built". Below, what each output will contain: the Word note's sections and the PowerPoint's slides for the chosen report. Generate stays off, with the reason, until drafting is built; a list of recent reports with their sources and approval status follows. Work in progress shows as soft pulsing placeholders (the one place motion marks content rather than a click, and it stops under the reduced-motion setting). Cards in a row share one height and spread their rows evenly. |
+| Welcome and sign-in | Signed out, Analekh opens on the welcome screen: the mark, greeting, tagline and live counts on frosted cards over drifting light; a scroll or swipe up (with resistance, springing back if let go early), click, tap, drag or Enter hands off to sign-in. Sign-in by email and password; the first sign-in only allows choosing a new password; a reset sends a 6-digit code. After sign-in the desk's data loads, then a short unlock plays. Sign out returns to the welcome page once the server confirms. |
+| Home: Results desk | The quarter's reporters, newest filing or largest market cap first, ten per page, with market cap: revenue (interest earned or premium for lenders and insurers), net profit and Margin (section 10.3) with the change on a year ago. Filters for quarter, sector, filing date and watchlist on one row, in the URL. Movers (at least Rs 50 crore of quarterly revenue; profit growth needs a year-ago profit of at least 2% of revenue; turned profitable or loss-making listed apart) and progress by sector with median growth, each scrolling inside a fixed height. The results calendar (day strip, week or month; a past day shows who filed). Rows become cards on phones. |
+| Search | Type-ahead over every NSE company: exact ticker or ISIN, ticker prefix, name prefix, words starting words in the name, then substrings. The universe (about 80 KB compressed) loads once and is searched in the browser. One company search per screen at most: hidden where a screen has its own picker (Reports, Comps, "/" focuses it) or is not about one company. |
+| Watchlist | The desk's columns for followed companies (price and change, market cap, latest quarter, YoY, basis, Blocked or "N to review"), with their coming results and those not yet announced. |
+| Company page | Header with sector, results format and coverage level; Analyse (disabled with the reason when the job queue is down) and Start coverage. Basis switch in the URL. Figure tiles and a chart of the top line, net profit or a margin, with values on the bars; for lenders NIM and an Interest ratios view (cost of borrowing with the spread stacked to the yield); for brokers and asset managers operating leverage; amounts in lakhs under Rs 10 crore of revenue. A Latest quarter column (full height on wide screens) with QoQ and YoY, derived lines, notes behind an information icon, dashes with reasons and Restated or Revised tags. Share price and market cap tiles. A results history table (up to 12 quarters, the company's own lines, one unit, Excel export; keyboard scrolling): each heading links the filing in use on NSE (iXBRL), opens its details and shows one status mark; filings without a column fold out below. Call highlights card (empty until notes exist). |
+| Change-set review | Grouped items with cell, old and new, source, rationale, dependent counts; accept, edit, skip, apply. Read-only, naming the holder, when a colleague holds the model. |
+| Assumption review | Proposed drivers with rationale and citations; accept or edit. |
+| Conflict review (proposed) | Before drafting: each changed estimate the evidence contradicts, with sources; keep, change in the model, or add a note. |
+| Templates | Upload, sectors, mapping confirmation, test report, versions (admins). |
+| Models | Discovered and built models, link status, versions, lock holder. |
+| Reports | Set-up: company, report (Quarterly update, Initiating coverage, IPO coverage), basis (Standalone default; Consolidated or Both when filed), quarter, in the URL. Input readiness (filed results, comps, the model and its rating; transcripts, presentations, MD&A, house template marked "Being built"). What each output will contain. The IPO coverage tab lists issues, their documents, restated figures with flags, and per-section drafts (blocked sections show their numbers). Generate stays off, with the reason, until drafting is built; recent reports below. Soft pulsing placeholders for work in progress (stopped under reduced motion). |
 | Q&A | Chat over a company's filings with page links. |
-| Comps | Saved peer lists (beside the table from 1,500 pixels, a row of buttons above it otherwise); companies added by search or from suggested peers; the table with a basis switch (auto, consolidated, standalone), median and mean rows and an Excel export. The working set lives in the URL. Rows become cards on phones. |
-| Settings | Data status (the results watcher's season, last ask and next ask, with a warning when a scheduled start left no record; the latest close and its coverage; stored counts and database size; whether an Anthropic key is set, never the key). Alerts (Telegram and email set up or not, a test message per channel, recent alerts; errors are summarised, never echoed, as they can hold the bot token). Display preferences saved in the browser: theme, amounts (auto, crore or million), the company page's basis and the Results desk order. NSE schedules are not editable: they follow the owner's approvals. Watched folders and save mode come with the Excel bridge. |
+| Comps | Saved peer lists (beside the table from 1,500 px, buttons above it otherwise), companies by search or suggested peers, basis switch, median and mean, Excel export; the set in the URL; cards on phones. |
+| Settings | Data status (watcher season, last and next ask, a warning when a scheduled start left no record; latest close and coverage; counts and database size; whether a model key is set, never the key). Alerts (channels, a test per channel, recent alerts; errors summarised, never echoed). Bridge tokens (made, shown once, revoked). Sign out everywhere. Display preferences in the browser (theme, amounts, basis, desk order, lock chime). NSE schedules are not editable. |
+| Admin | Users (add with email, name and role; send first password; pause, unblock), Templates, Settings (upload limit 1 to 100 MB, default 25), Model locks (see and release any, audited). |
 
-Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense grids, ECharts, PDF.js for the side-by-side source viewer, and the Inter font bundled with the app. Layout: collapsible left sidebar; light, dark and system themes; clean, dense screens. Every screen has the Results desk's width: up to 1,400 pixels, and 1,840 from a 1,500-pixel window (the company page from 1,280, for its side column). Motion is for what is clicked, never for data (owner's rule, 17 October 2026): the sidebar highlight glides to the chosen tab, segmented switches have a sliding thumb (the theme switch a springy one), tabs dip when pressed and a faint light follows the pointer over the sidebar; screens and figures appear at once, and the browser keeps data fresh for five minutes so returning to a tab refetches nothing. All motion stops under the reduced-motion setting. Every screen works at phone width without sideways scrolling (checked at 390, 1,366 and 2,000 pixels); notes and tags open on hover, tap or keyboard focus, never on hover alone. The front end stays light: a new library has to earn its weight.
+Stack: React and TypeScript (Vite), TanStack Query, AG Grid Community, ECharts, PDF.js, Inter bundled. Collapsible left sidebar; light, dark and system themes. Width up to 1,400 px, 1,840 from a 1,500 px window (company page from 1,280). Motion only on what is clicked (owner, 17 October 2026): sidebar highlight, sliding switch thumbs, pressed tabs, a faint light following the pointer; data and screens appear at once and stay fresh five minutes; all motion stops under reduced motion. Every screen works at phone width without sideways scrolling (checked at 390, 1,366 and 2,000 px); notes open on hover, tap or focus. The front end stays light: a new library has to earn its weight.
 
 #### 19.2 Excel
 
-- Phase 2: xlwings bridge (background service with a tray or terminal status) that discovers, links and writes models.
-- Later: Office.js task pane showing the change set or assumptions beside the model; clicking an item highlights its cell.
+- Phase 2: xlwings bridge (`analekh-bridge`: scan, link, watch, apply) on the analyst's machine, authenticated with a bridge token. Link and scan tested on a real model (Lemon Tree, 24 October 2026); `apply` on a real model still to test.
+- Later: Office.js task pane beside the model; clicking an item highlights its cell.
 
 #### 19.3 Developer and operator interfaces
 
-- CLI: analekh universe load, analekh universe sectors [--stocks-file], analekh search, analekh watch, analekh refresh, analekh backfill, analekh results-backfill, analekh results-watch, analekh prices, analekh revalidate, analekh recompute-latest, analekh transcribe-audio, analekh template add, analekh build, analekh sync, analekh golden-sheet, analekh golden-import, analekh golden-test.
-- Swagger at /docs for every endpoint.
-- Internal Streamlit admin: feed health, failed jobs, validation failures, token spend.
+- CLI (`analekh --help`): universe load and sectors, search, watch, refresh, backfill, results-backfill, results-watch, prices, revalidate, recompute-latest, transcribe-audio, ipo-watch, ipo-read, template add, test and activate, build, sync, golden-sheet, golden-import, golden-test, create-admin.
+- Swagger at /docs. Streamlit admin dashboard: feed health, failed jobs, validation failures, token spend.
 
 ## 20. API design
 
+Every route needs a signed-in user except `/auth/login`, the reset flow and `/public/*` (rule 9). Changes carry the `X-Analekh-CSRF` header. The authoritative list is the OpenAPI schema at /docs (and `web/src/api/schema.d.ts`).
+
 | **Endpoint** | **Purpose** |
 |---|---|
-| GET /companies/search?q= | Ranked type-ahead over the universe; limit and offset for paging. |
-| GET /companies/index | The whole universe (id, symbol, name, ISIN, sector) for search in the browser; ETag and 304, gzip. |
-| GET /companies/{symbol} | Company record and coverage level. |
-| POST /watchlist / DELETE /watchlist/{symbol} | Add or remove a company. |
-| GET /watchlist | Watchlist with coverage levels. |
-| POST /companies/{symbol}/analyse | On-demand deep coverage (backfill, document pipeline). |
-| POST /companies/{symbol}/refresh | Find newest filing; fetch and validate if missing. |
-| GET /companies/{symbol}/filings \| facts \| kpis | Filings, facts and KPIs by period. Filings carry slim metadata (source links, the block flag, V11's scale record) unless full=true. Filings of a quarter filed more than once carry their revision status (original, revised or refiled), what they replaced or were superseded by, and the headline lines that changed. Facts accept logical names (revenue resolves to interest earned for a bank) and default to consolidated when the company files it, else standalone. |
-| GET /companies/{symbol}/glance | The latest quarter's lines in the company's results format, with QoQ and YoY change, notes, the reason a comparison is missing and the quarter's revision status; consolidated or standalone. |
-| GET /companies/{symbol}/history; GET /companies/{symbol}/history.xlsx | Up to 12 (at most 28) quarters of the company's own lines, oldest first, on one basis; the same as an Excel workbook. Suspect filings are left out. |
-| GET /desk | Results desk: a quarter's reporters (paged, by filing time or market cap: sort=filed or market_cap) with market cap, movers, progress and medians by sector, the quarters available and every sector (so Home makes one request); filters for quarter, sector, watchlist and days since filing. |
-| GET /calendar?start=&end=&watchlist= | Results and board meetings by day from the Board Meetings feed; past days show the companies that filed results; watchlist=true for the companies followed. |
-| GET /system/jobs | Whether the job queue (Redis) answers, so Analyse and Refresh can say at once when they cannot run (503 with a plain message otherwise). |
-| GET /companies/{symbol}/price | The latest close: trade date, open, high, low, close, previous close, the day's change and market cap; null before the first load. |
+| POST /auth/login, /auth/logout, /auth/logout-everywhere; GET /auth/me, /auth/password-rules | Sign-in and sessions; the password rules shown live in the web app. |
+| POST /auth/first-password; POST /auth/reset/request, /auth/reset/confirm | First password change; reset by emailed code. |
+| GET, POST /auth/tokens; DELETE /auth/tokens/{id} | Bridge tokens (shown once, stored hashed). |
+| GET, POST /users; PATCH /users/{id}; POST /users/{id}/send-first-password, /unblock | User management (admins). |
+| GET, PUT /settings/upload-limit | Upload limit (admins set it); also carries the lock poll and idle-reminder timings. |
+| GET /models/{id}/lock; POST /models/{id}/lock/release; GET /me/locks; GET /admin/locks; POST /admin/locks/{id}/release | Model locks. |
+| GET /public/auth-status, /public/welcome | Signed-out welcome data. |
+| GET /companies/search?q=; GET /companies/index | Ranked type-ahead; the whole universe for the browser (ETag, gzip). |
+| GET /companies/{symbol} | Company and coverage level. |
+| GET, POST /watchlist; DELETE /watchlist/{symbol} | Watchlist. |
+| POST /companies/{symbol}/analyse, /refresh | Deep coverage on demand; find, fetch and validate the newest filing. |
+| GET /companies/{symbol}/filings, /facts, /kpis | Filings (slim metadata unless full=true; revision status and changes), facts (logical names, consolidated by default when filed), KPIs. |
+| GET /companies/{symbol}/glance, /history, /history.xlsx, /price | Latest quarter; up to 12 (at most 28) quarters on one basis; the latest close. |
+| GET /desk; GET /calendar | Results desk in one request; results and board meetings by day. |
+| GET /system/jobs; GET /status | Whether the job queue answers; data status for Settings (never contacts NSE). |
 | GET /jobs/{id} | Job status. |
-| POST /templates | Upload a template with sectors. |
-| POST /templates/{id}/mapping | Confirm or edit the suggested mapping. |
-| POST /templates/{id}/test | Run a test build for a company. |
-| GET /templates; POST /templates/{id}/activate | List templates; activate after a passing test build. |
-| POST /coverage | Start coverage: company and template; returns a model build. |
-| GET /models/{id}/assumptions; POST decisions | Review proposed assumptions. |
-| POST /models/{id}/finalize | Write the built model once its assumptions are decided. |
-| POST /models/discover; POST /models/link; POST /models/{id}/link | Index watched folders; confirm a model-to-company link for a new or a registered model. |
-| GET /models; GET /models/{id}/builds; GET /models/{id}/versions/{version} | Models screen, build history, version download. |
-| POST /models/{id}/sync | Build a change set for a filing. |
-| GET /change-sets/{id}; POST decisions; POST apply | Review and apply. |
-| POST /reports | Flash, note, slides, digest or initiation (runs inline today; to become a job). Planned: a quarterly update or initiating coverage request with basis and quarter, returning a Word note and a PowerPoint. |
-| GET /reports/{id} | Fetch a generated report. Planned: GET /reports (recent reports) and the files' downloads. |
+| POST /templates; POST /templates/{id}/mapping, /test, /activate; GET /templates | Template onboarding (admins). |
+| POST /coverage; GET /models/{id}/assumptions; POST decisions; POST /models/{id}/finalize | Start coverage and assumptions. |
+| POST /models/discover, /models/link, /models/{id}/link; GET /models, /models/{id}/builds, /models/{id}/versions/{v} | Discovery, linking, versions. |
+| POST /models/{id}/sync; GET /change-sets/{id}; POST decisions, apply | Change sets (lock held; 409 when stale; 503 or 422 from recalc). |
+| POST /reports; GET /reports/{id} | Reports (inline today; to become jobs); planned: GET /reports and downloads. |
+| GET /ipo/issues, /ipo/issues/{id}; POST, GET /ipo/issues/{id}/coverage; POST /ipo/issues/{id}/symbol | IPO issues, coverage drafts, the analyst's NSE symbol. |
 | POST /qa | Question over filings with citations. |
-| GET, POST /peer-lists; PUT, DELETE /peer-lists/{id} | Saved peer lists (names unique ignoring case; symbols checked against the universe). |
-| GET /companies/{symbol}/peers | Suggested peers. |
-| POST /comps/table; POST /comps | The comps table as JSON, or as an Excel workbook. |
-| GET /status | Data status for Settings; reads only, never contacts NSE. |
-| GET /alerts/channels; POST /alerts/test; GET /alerts | Alert channels set up, a test message, recent alerts. |
+| GET, POST /peer-lists; PUT, DELETE /peer-lists/{id}; GET /companies/{symbol}/peers; POST /comps/table, /comps | Peer lists, suggested peers, comps as JSON or Excel. |
+| GET /alerts/channels, /alerts; POST /alerts/test | Alerts. |
+| Proposed | Context documents (list, upload), conflict flags and answers, accepted report versions. |
 
 ## 21. Technology stack
 
 | **Layer** | **Choice** | **Reason** |
 |---|---|---|
-| Language and environment | Python 3.12, uv | Finance, PDF and XBRL libraries; reproducible lockfile |
-| API | FastAPI (uvicorn) | Typed, async, OpenAPI docs |
-| Jobs and scheduling | Celery + Redis; Celery beat | Retries, rate limits, polling |
-| Database | PostgreSQL + pgvector; SQLAlchemy; Alembic | See section 8 |
-| Object storage | MinIO | Immutable raw files and generated outputs |
-| XBRL | Arelle; lxml | Taxonomy support; fast parsing |
-| PDF | PyMuPDF, pdfplumber, Camelot; RapidOCR | Local text, tables, OCR |
-| AI | Claude API (PDF input, tool use, structured output, Batch API, prompt caching) | Irregular tables, label matching, grounded writing |
-| Embeddings | Hosted API or local sentence-transformers model | Search and Q&A |
-| Excel | xlwings; openpyxl; formulas or pycel; LibreOffice for headless recalc | Live writes, structure reading, dependency graphs |
+| Language | Python 3.12, uv | Finance, PDF and XBRL libraries; lockfile |
+| API | FastAPI (uvicorn) | Typed, async, OpenAPI |
+| Jobs | Celery + Redis (Valkey in production); beat | Retries, rate limits, schedules |
+| Database | PostgreSQL 16 + pgvector + pg_trgm; SQLAlchemy; Alembic | Section 8 |
+| Object storage | MinIO (built from source) | Immutable raw files and outputs |
+| XBRL | lxml (Arelle available) | Fast parsing |
+| PDF | PyMuPDF, pdfplumber, Camelot; RapidOCR (ONNX) | Local text, tables, OCR without a system binary |
+| Language models | Claude API today (tool use, structured output, Batch, caching, refusal fallbacks); local models through Ollama proposed (Qwen2.5 7B and 14B) | Grounded writing; no API cost as the aim |
+| Fine-tuning (proposed) | LoRA / QLoRA adapters on the local base model | Firm and analyst style |
+| Embeddings | Local sentence-transformers model (default) | Search, Q&A, context retrieval |
+| Speech | faster-whisper (large-v3) | Call recordings |
+| Excel | xlwings; openpyxl; formulas or pycel; LibreOffice in the `recalc` container | Live writes, structure, dependencies, headless recalc |
 | Documents | python-docx, python-pptx, XlsxWriter | Notes, slides, workbooks |
-| Market data | NSE's daily bhavcopy, latest day only (section 3.3) | Free; end of day is enough; no paid feed in v1 |
-| Sector data | NSE Indices constituent CSVs (NSE's taxonomy); Excel Stocks data type (Microsoft 365) | Free; no scraping |
-| Front end | React (Vite), TypeScript; pnpm workspace; Node 24 | Review screens and dashboards; strict, fast installs |
-| Quality | pytest, ruff, mypy, pre-commit | Tests, linting, typing |
-| Source control and CI/CD | GitLab Free (primary); GitHub (public mirror); OSV-Scanner for dependencies | Integrated CI/CD, registry and the scanners the Free tier includes; public visibility via mirror |
-| Container registry | GitLab container registry | Images built and scanned in the same pipeline |
-| Deployment | Docker Compose | One command |
+| Auth | argon2id passwords; HttpOnly SameSite=Strict cookies; CSRF header | Rule 9 |
+| Market and sector data | Bhavcopy (latest day); NSE Indices CSVs; Excel Stocks data type | Free; no scraping |
+| Front end | React (Vite), TypeScript; pnpm workspace; Node 24 | Dense review screens |
+| Quality | pytest, ruff, mypy, pre-commit | Tests, lint, types |
+| Source control and CI | GitLab Free (primary), self-hosted runners; GitHub mirror; OSV-Scanner | Free tier, no compute minutes |
+| Deployment | Docker Compose; Caddy for HTTPS | One command |
 
 ## 22. Packaging, deployment and setup
 
@@ -972,437 +987,244 @@ Stack: React with TypeScript (Vite), TanStack Query, AG Grid Community for dense
 |---|---|
 | api | FastAPI application |
 | worker | Celery workers: fetch, parse, extract, build, sync, report |
-| beat | Scheduler: results watcher, daily prices, weekly universe refresh, feed polling |
-| postgres | PostgreSQL with pgvector |
-| redis | Queue broker |
-| minio | Raw files and generated outputs |
-| web | React build served by nginx |
-| excel-bridge (host) | Runs on the analyst's machine; watches folders; drives Excel |
+| beat | Scheduler (section 9.6) |
+| migrate | Runs `alembic upgrade head` before the API starts (production) |
+| postgres | PostgreSQL 16 with pgvector |
+| redis / valkey | Queue broker (Valkey in production) |
+| minio | Raw files and outputs |
+| recalc | Headless LibreOffice on an internal network, no published port (section 16.5) |
+| web | React build served by nginx (body cap; passes the client address on) |
+| caddy | HTTPS and the only published ports (80, 443), production |
+| excel-bridge (host) | On the analyst's machine; watches folders; drives Excel |
 
-Until hosting is set up, the stack runs on the owner's laptop: PostgreSQL (shared_buffers 1 GB), MinIO, Redis, the worker and beat in Docker Desktop (since 21 October 2026; the Windows scheduled tasks that stood in for beat are disabled), and the API and the web app started by hand. Inside Docker the services reach each other by name (postgres, redis, minio), which docker-compose.yml sets for the containers; .env, also read by the API and the CLI on the host, holds 127.0.0.1 addresses (on Windows, localhost tries IPv6 first and stalled after a Docker restart).
+Development runs the same stack in Docker Desktop (`docker-compose.yml`), with the API and web app started by hand; containers reach each other by service name, and `.env` on the host uses 127.0.0.1. Production: `deploy/compose.production.yml` (section 22.7).
 
 #### 22.2 Requirements
 
-- Docker Desktop with 8 GB RAM (4 vCPU, 20 GB disk to start; more as the all-company facts table grows).
-- Python 3.12 and uv for development and the Excel bridge. Node.js 24 and pnpm for the front ends (fnm is a convenient way to install Node).
-- Microsoft Excel desktop for the xlwings route; LibreOffice for headless recalculation. Microsoft 365 (Excel for the web is enough) for the Stocks data type used by the sector import.
-- Anthropic API key.
-- Indian network or VM in an Indian region for NSE access.
-- Optional: SMTP or Telegram bot token.
-- Every library by language, with versions, and every system package: Appendix G.
+- Docker with 8 GB RAM (4 vCPU, 20 GB disk to start). Python 3.12 and uv; Node 24 and pnpm for the front ends.
+- Microsoft Excel desktop for the xlwings route; Microsoft 365 (Excel for the web is enough) for the Stocks data type import.
+- A model key while Claude is used; for local models, Ollama and (for drafting at speed and for training) a GPU with about 8 GB (AI.md).
+- An Indian network or VM for NSE access. Optional: SMTP (needed for first passwords and resets) or a Telegram bot.
+- Libraries and system packages: Appendix G.
 
 #### 22.3 Environment variables
 
-```
-# Copy .env.example to .env and fill in; never commit .env.
-# 127.0.0.1 for runs on the host; docker-compose.yml gives the containers the service names.
-DATABASE_URL=postgresql+psycopg://app:app@127.0.0.1:5432/analekh
-REDIS_URL=redis://127.0.0.1:6379/0
-MINIO_ENDPOINT=127.0.0.1:9000
-MINIO_ACCESS_KEY=...
-MINIO_SECRET_KEY=...
-MINIO_BUCKET=analekh
-ANTHROPIC_API_KEY=...
-CLAUDE_MODEL=claude-opus-5-5
-CLAUDE_SMALL_MODEL=claude-haiku-5-5
-EMBEDDINGS_PROVIDER=local
-FEED_POLL_SECONDS=300
-EVENT_FEED_POLL_SECONDS=1800
-UNIVERSE_REFRESH_CRON=0 6 * * 1
-BACKFILL_PRIORITY=NIFTY500
-USER_AGENT=Analekh/0.1
-CONTACT_EMAIL=you@example.com         # sent in the From header; NSE stalls a User-Agent with an email
-RESULTS_WATCH_CRON=0 9-23 * * *        # seasons.py decides: every run in season, 21:00 otherwise
-PRICES_CRON=0 19-23 * * 1-5            # bhavcopy after the close; skipped once stored
-DOWNLOAD_RATE_PER_SECOND=1.0
-IMPORT_DIR=./import
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-SMTP_URL=
-ALERT_EMAIL_TO=
-# Excel bridge (host)
-ANALEKH_API=http://127.0.0.1:8000
-WATCH_FOLDERS=~/Models;~/OneDrive/Models
-SAVE_MODE=versioned
-```
+The source of truth is `.env.example` (development), `deploy/production.env.example` (production, written on the server by `deploy/make-production-env.sh`, secrets prompted, never in git) and `analekh/config.py` (every setting, its default and its bounds; limits and timings come from settings, never literals). Groups:
+
+| **Group** | **Variables** |
+|---|---|
+| Stores | DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET |
+| Models | ANTHROPIC_API_KEY, CLAUDE_MODEL, CLAUDE_SMALL_MODEL, EMBEDDINGS_PROVIDER (proposed: provider, Ollama hosts, model and adapter tags) |
+| Sources and schedules | USER_AGENT, CONTACT_EMAIL (sent in From), FEED_POLL_SECONDS, EVENT_FEED_POLL_SECONDS, UNIVERSE_REFRESH_CRON, RESULTS_WATCH_CRON, PRICES_CRON, SEBI_WATCH_CRON, SESSION_PURGE_CRON, DOWNLOAD_RATE_PER_SECOND, BACKFILL_PRIORITY, IMPORT_DIR |
+| Sign-in and limits | ENV, CORS_ORIGINS, AUTH_ENABLED (dev only), session, pause, reset and lock timings (for example RESET_MAX_FAILURES, RESET_LOCKOUT_HOURS, IDLE_REMINDER_MINUTES, LOCK_POLL_SECONDS), MAX_UPLOAD_CEILING_BYTES |
+| Mail and alerts | SMTP_URL, SMTP_FROM, ALERT_EMAIL_TO, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID |
+| Recalc | RECALC_URL, RECALC_TOKEN, RECALC_FALLBACK |
+| Excel bridge (host) | ANALEKH_API, ANALEKH_TOKEN, WATCH_FOLDERS, SAVE_MODE |
 
 #### 22.4 Setup
 
-- Clone the repository from GitLab; copy .env.example to .env and fill in keys.
-- docker compose up -d.
-- Front ends: pnpm install, then pnpm dev for the web app (it proxies /api to port 8000).
-- Run migrations (alembic upgrade head).
-- Load the universe (analekh universe load); feeds start on the next scheduler tick.
-- Load sectors (analekh universe sectors, with --stocks-file for a Stocks data type workbook; section 4.2).
-- Upload sector templates or use the built-in ones.
-- On the analyst machine: uv sync, then start the Excel bridge with watched folders configured.
+- Clone the repository from GitLab; copy `.env.example` to `.env` and fill it in.
+- `docker compose up -d`; run migrations (`alembic upgrade head`).
+- Front ends: `pnpm install`, then `pnpm dev` (proxies /api to port 8000).
+- Create the first admin: `analekh create-admin EMAIL "Name" [--adopt-local]`.
+- Load the universe (`analekh universe load`) and sectors (`analekh universe sectors [--stocks-file]`); feeds start on the next beat tick.
+- Upload sector templates or use the built-ins.
+- On the analyst's machine: `uv sync`, make a bridge token in Settings, start the bridge with watched folders.
 - Search a company: Start coverage, or link an existing model and sync.
 
 #### 22.5 Source control, CI/CD and mirroring
 
-GitLab (Free tier) is the single source of truth. GitHub hosts a read-only public mirror for visibility; it never receives direct pushes from developers.
+GitLab (Free) is the single source of truth; GitHub is a read-only public mirror fed only by the pipeline.
 
 | **Area** | **Configuration** |
 |---|---|
-| Branching | Protected main. While there is one developer, commits go straight to main and the pipeline runs on every push. With collaborators: feature branches, merge requests only, pipeline must succeed, squash on merge, source branch deleted after merge. |
-| Pipeline stages | lint, test, build, scan, deploy-staging, dast, release, mirror (Appendix F). The test stage also runs the web job (pnpm lint, test and build) and the dependency audit. |
-| Quality gates | ruff, ruff format check, mypy, pytest with coverage and JUnit report; golden-set accuracy on a schedule and on demand. |
-| Security scanning | GitLab templates for SAST, secret detection and container scanning (on the built image), which run on Free. Dependencies: OSV-Scanner on uv.lock and pnpm-lock.yaml, with findings shown as a warning. DAST against staging needs Ultimate and a staging URL; not in effect yet. |
-| Security policies | Merge request approval and scan execution policies need Ultimate and are not in effect on Free. Until then, scanner warnings are reviewed in each pipeline. |
-| Registry | Images pushed to the GitLab container registry, tagged by commit SHA and release tag. |
-| Environments | staging deploys automatically from main; production deploys from release tags with manual approval; deployment history per environment. Not set up yet; the deploy jobs run only when STAGING_URL or PRODUCTION_URL is set. |
-| Runner | Two self-hosted runners on the Oracle Cloud Mumbai VM (Arm64): a shell runner tagged india builds the Arm64 images and deploys; a Docker runner takes every untagged job (images kept with pull_policy if-not-present). GitLab's shared runners are off for the project, so no compute minutes are used. Python jobs run on uv's own image (Python 3.12, Debian 13), cache the virtual environment keyed on uv.lock, and retry twice after a network or runner failure. |
-| Secrets | Protected and masked CI/CD variables scoped per environment: GITHUB_MIRROR_TOKEN, GITHUB_MIRROR_USER, GITHUB_MIRROR_REPO, deployment SSH key, runtime keys. |
-| Mirror to GitHub | A pipeline job runs after a green pipeline on main and on release tags, and pushes the commit (fast-forward only, no force) and tags to GitHub using a fine-grained token limited to that one repository with contents read and write. A resource group prevents concurrent mirror pushes. A pipeline job is used instead of GitLab's built-in push mirroring so that only green builds reach the public repository. The job clears the alpine/git image's entrypoint (it is git, and the runner needs a shell) and is skipped when GITHUB_MIRROR_TOKEN is not set. |
-| Commits | Signed by the owner with an SSH key; the AI assistant prepares changes and messages but never commits. |
-| GitHub repository settings | Public; description, topics and README point contributors to GitLab; Actions, Issues, Wiki and Projects disabled; ruleset on main blocks force pushes and deletion; optional CodeQL as an independent second scanner. |
+| Branching | Protected main; feature branches merged into main (squash), or direct commits while there is one developer. |
+| Pipeline | Stages lint, test, build, scan, deploy-staging, dast, release, mirror (Appendix F). Python jobs on uv's image (Python 3.12, Debian 13), `.venv` cached on `uv.lock`, two retries. |
+| Quality gates | ruff, ruff format, mypy, pytest with coverage, `alembic check`; web lint, tests and build; golden-set accuracy on schedule and on demand. |
+| Security scanning | GitLab SAST, secret detection, container scanning (app and recalc images); OSV-Scanner on `uv.lock` and `pnpm-lock.yaml`. DAST and security policies need Ultimate and a staging URL; not in effect. |
+| Runners | Both on the Oracle VM: a shell runner (`india`) builds the Arm64 images and deploys; a Docker runner takes untagged jobs (images kept, `if-not-present`). Shared runners off; no compute minutes. |
+| Registry and environments | Images in the GitLab registry by commit and tag. Production deploys manually from main or a tag (`deploy_production`, which runs `down` first when the live network subnet differs from the compose file); staging when STAGING_URL is set. |
+| Secrets | Protected, masked CI variables per environment (mirror token, SSH key, runtime keys). |
+| Mirror | After a green pipeline on main and on tags: fast-forward push only, no force, token scoped to one repository, resource group against concurrent pushes; skipped without the token. |
+| Commits | Signed by the owner with an SSH key; the assistant prepares changes and messages but never commits. |
+| GitHub settings | Public; points contributors to GitLab; Actions, Issues, Wiki, Projects off; ruleset blocks force pushes and deletion. |
 
 #### 22.6 Distribution
 
-- Public GitHub mirror with sample models and templates built on public companies, a demo video and the diagrams; GitLab remains the working repository.
-- No raw exchange files, user models or keys committed; secret detection and pre-commit hooks enforce this before code leaves a developer's machine.
+Public GitHub mirror with sample models on public companies, a demo video and the diagrams. No raw exchange files, user models, keys or downloaded filings committed; secret detection and pre-commit hooks enforce it.
 
 #### 22.7 Hosting
 
-*Figure 12. Where Analekh runs today (the owner's laptop) and the planned server in India.*
+*Figure 14. Where Analekh runs: the Oracle Cloud VM in Mumbai, the laptop's GPU over a private tunnel (planned), and the analyst's machine.*
 
-- **Needs:** about 2 vCPUs, 4 GB of RAM and 60 to 80 GB of disk (the data is about 5.4 GB on 21 October 2026: PostgreSQL 4.6 GB, raw files 0.8 GB with XBRL compressed, growing about 0.5 GB a results season), in an Indian region, with HTTPS and a login.
-- **The gate:** NSE may refuse requests from data-centre addresses. One honest request from the new machine to the results lookup and one bhavcopy must succeed before anything moves.
-- **Where it runs (since 26 October 2026):** one Arm64 VM on Oracle Cloud's free tier in Mumbai (4 OCPU, 24 GB, Ubuntu 24.04 LTS, reserved public address). NSE's integrated-filing lookup, RSS feeds and bhavcopy answered from it before anything moved. The production stack (API, worker, beat, web, PostgreSQL, Valkey, MinIO, recalc, Caddy with automatic HTTPS on an sslip.io name) deploys from GitLab; only ports 80 and 443 are published. The data moved by pg_dump and a MinIO copy (59,366 files), never downloaded from NSE again. A nightly pg_dump is kept for 7 days.
-- **Left:** backups copied off the box (a private Object Storage bucket) with one test restore; SSH limited to the owner's address (open to all today, key only); the sign-in limit seeing the real client address behind the proxies; a domain with Cloudflare in front.
-- **Tried first (October 2026):** Azure for Students (the university email could not be verified); AWS and Google Cloud need a card and their credits run out. Oracle's first sign-up failed; a second attempt succeeded.
-- **GPU work:** the VM has no GPU. Speech and the larger local models run on the owner's laptop (RTX 4060, 8 GB) when it is on, reached over a private tunnel; the VM's CPU is the fallback for small batch jobs. See AI.md.
+- **Since 26 October 2026:** one Arm64 VM on Oracle Cloud's free tier, Mumbai (4 OCPU, 24 GB, Ubuntu 24.04 LTS, reserved address). NSE's lookup, feeds and bhavcopy answered from it before anything moved; the www.nseindia.com home page does not, and the app never requests it. The production stack (section 22.1) deploys from GitLab; only 80 and 443 are published; HTTPS on an sslip.io name until a domain. Data moved by pg_dump and a MinIO copy (59,366 files), never downloaded again. Nightly pg_dump, 7 days kept.
+- **Needs met:** an Indian region, HTTPS and sign-in. Data about 5.4 GB on 21 October 2026, growing about 0.5 GB a results season.
+- **Left:** backups off the box with one test restore; SSH limited to the owner's address; a domain with Cloudflare in front; failed-sign-in counts shared across API processes (in Redis).
+- **GPU work:** the VM has no GPU. Speech, larger local models and adapter training run on the owner's laptop (RTX 4060) when it is on, over a private tunnel; the VM's CPU is the fallback for small batch jobs (AI.md).
+- **Tried first:** Azure for Students (verification failed); AWS and Google need a card with short credits; Oracle's second sign-up succeeded.
+
+#### 22.8 Self-hosted per firm (proposed)
+
+The end goal is Analekh as a platform each firm hosts itself (owner, 29 October 2026):
+
+- Each instance holds its own documents, edits, accepted reports and adapters; its data trains only its own model; nothing flows back to Analekh or between firms.
+- Analekh ships the software and the base model; no client data, no knowledge packs. Each instance fetches its own sources and can add its own, with its own approval.
+- A firm needs a GPU machine to train (about 8 GB for a 7B adapter); without one it drafts slowly on CPU and does not train.
+- Training, the automatic check and rollback run inside the instance without Analekh.
+- More features come later as add-ons or sister products (roadmap section 8).
 
 ## 23. Security, compliance and data rights
 
-- **Exchange data:** only published RSS feeds at their stated interval and the files they link to; no redistribution of raw data; written confirmation or a licensed feed before public or commercial release. NSE Indices' published constituent CSVs are allowed on the same terms, limited to /IndexConstituent/ by the HTTP client's path allow-list. On www.nseindia.com only the home page, the integrated-filing lookup (approved by the owner on 14 October 2026) and the financial-results list (15 October 2026) are allowed: per company, plus one request every 2 hours without a ticker. One bhavcopy per trading day after the close (17 October 2026). No other internal endpoint; widening the list needs the owner's approval, and requests are never disguised as a browser. If NSE refuses the honest User-Agent, the owner decides what happens next.
-- **Third-party data from Excel:** LSEG industry groups from Excel's Stocks data type come through Microsoft 365. They are kept in the local database only, never in git, and Microsoft's terms for this data must be checked before any public or commercial release.
-- **Research regulation:** publishing buy or sell recommendations in India generally requires SEBI Research Analyst registration; NISM Series XV alone is not registration. Analekh never generates a rating or a target price. Amended by the owner on 21 October 2026: a report may carry the recommendation and target price the analyst's own Excel model holds, read from the model, or leave them as a marked blank for the analyst; whoever publishes the report is responsible for the registration that publishing needs. Shared outputs without the analyst's model carry none.
-- **User files:** models and templates stay on the user's machine or private storage; only structure maps and confirmed mappings are stored centrally; macros are never executed.
-- **Secrets:** environment variables only; never logged.
-- **AI data handling:** only public filings and the user's own workbook labels are sent to the Claude API; no client or employer data in the public build.
-- **Audit:** every model change, assumption and report stored with sources and approver.
-- **Code and supply chain:** GitLab SAST, secret detection and container scanning, plus OSV-Scanner for dependencies; DAST and merge request approval policies once the plan includes them; pre-commit secret scanning locally; pnpm blocks package install scripts unless allowed; the GitHub mirror token is scoped to one repository and rotated every 90 days.
+- **Exchange and regulator data:** only the sources and paths in section 3.2's access rule (CLAUDE.md rule 1), at their stated intervals; no redistribution of raw data; written confirmation or a licence before public or commercial release. If NSE refuses the honest User-Agent, the owner decides. Proposed context sources (section 3.4) need each host approved and its terms read.
+- **Third-party data:** LSEG groups from the Stocks data type stay in the local database, never in git; Microsoft's terms to check before release. Licensed research (Gartner) enters only by analyst upload.
+- **Research regulation:** publishing recommendations in India generally needs SEBI Research Analyst registration (NISM Series XV alone is not). Analekh never generates a rating or target price; a report carries the one in the analyst's own model or a marked blank (owner's amendment, 21 October 2026); the publisher carries the registration duty. No model is trained to produce one.
+- **Sign-in (rule 9):** every route needs a signed-in user except `/auth/login`, the reset flow and `/public/*`. Passwords argon2id, 15 to 30 characters with 8 letters, a number, a special, upper and lower case, no spaces. Credentials, tokens and codes travel only in POST bodies, the session cookie or the Authorization header, never in a URL or log. Session cookie HttpOnly, SameSite=Strict, Secure outside dev, plus a CSRF header on changes; sessions end after 9 hours idle or 24 in all. Wrong password, unknown email, paused and blocked accounts get the same reply. Three failures pause an account 15 minutes, five block it until a reset; failures also counted per client address (behind Caddy and nginx, the address is trusted only from the web container's fixed address on a fixed network). First passwords are generated (20 characters, 24 hours, emailed); reset codes are 6 digits, hashed, 2 minutes, single use, 5 tries, one mail per 2 minutes, and 20 wrong codes stop new codes for 24 hours. Any password change revokes bridge tokens. "Sign out everywhere" ends every session.
+- **Authorisation:** admin and analyst roles; only admins manage users, templates and the upload limit; every route checks the objects it touches; admin and lock actions written to `audit_log`.
+- **Inputs and outbound requests:** every input bounded at the boundary (one upload limit; bodies over the ceiling refused as they arrive, at nginx and in the API); parameterised queries only; no eval, shell strings or unsafe deserialisation; outbound requests only through `PoliteClient`, with redirect hops and embedded URLs checked against the allow-list; mail over STARTTLS with certificate checks.
+- **User files:** models and templates stay on the user's machine or private storage; macros never executed; workbooks recalculated only in the isolated `recalc` container.
+- **Secrets:** environment variables only; never logged or echoed in errors.
+- **AI data handling:** with Claude, only public filings, public context documents and the user's own workbook labels are sent. With local models (proposed) nothing leaves the instance; each firm's training data stays in its instance.
+- **Audits:** security audits run when the owner decides (rule 10); the audit of 29 October 2026 (commit e0a260b, two runs) found 7 issues, all fixed; three unconfirmed leads remain open (reset attempt counter race, unbounded discovery hints, runner settings). Accepted findings are recorded in `deviations.md`. All new code is written as if the audit were coming (rule 11).
+- **Supply chain:** SAST, secret detection, container and dependency scanning; images take Debian security updates and carry no setuid programs; pnpm blocks install scripts unless allowed; the mirror token is scoped to one repository and rotated every 90 days.
 
 ## 24. Testing and quality
 
 | **Test** | **Approach and target** |
 |---|---|
-| Golden set | 20 filings across sectors and every results format (Ind-AS standalone and consolidated, bank, NBFC, general insurer, life insurer) with hand-checked values. analekh golden-sheet copies their XBRL from storage and writes a worksheet (each line, Analekh's value, the results PDF link); the analyst marks every line against the PDF; analekh golden-import writes the manifest. Lines are resolved through the element tables, so the mapping is tested, not only the parser. A line Analekh cannot find stays on the sheet for the PDF's figure. |
-| Results views | Revisions: a revision downloaded before its original must still be the value in use; the popup lists old and new values. The history table's headings link the newest filing of each quarter, and every filing of the basis is in a column, in a column's earlier filings or in the fold-out (unit tests; checked on TCS, L&T, KIMS and ICICI Bank on both bases). Layout: no cell or page overflows at 390, 1,366 and 2,000 pixels (measured in a headless browser). |
-| Unit check | V11 on fixtures: corrected only when both signals agree on the same power of ten; one signal gives a suspect; a real jump on both bases passes; revalidation never applies a factor twice. |
-| Test database | Tests run on their own database (analekh_test, created on the first run), never the working one: about 50 seconds instead of 6 minutes on 10 million facts. |
-| XBRL parsing | 100% exact match on mapped elements. |
-| KPI extraction | 95% or better precision with correct pages. |
-| Workbook understanding | 20 real-world models and templates with hand-labelled structure; mapping suggestion accuracy 90% or more. |
-| Template test builds | Checks pass for each built-in template on five companies per sector. |
-| Coverage Builder | Built models balance; every input has a Sources entry. |
-| Model sync | Fixture workbooks with expected change sets and recalculated outputs. |
+| Golden set | 20 filings across every results format with hand-checked values: `analekh golden-sheet` (XBRL from storage plus a worksheet), the owner marks it against the PDFs, `golden-import` writes the manifest, `golden-test` runs it through the element tables. Real filings live in `tests/fixtures/golden/` (gitignored). |
+| Results views | A revision downloaded before its original is still in use; history headings link the newest filing; every filing appears once; no overflow at 390, 1,366 and 2,000 px. |
+| Unit check | V11 fixtures: corrected only when both signals agree; one signal gives a suspect; real jumps pass; never applied twice. |
+| Margins | NIM, yield, cost and spread on fixtures, interpolated quarters, the 40% interest rule, fee-finance companies. |
+| Sign-in and locks | Uniform replies, pause and block, reset lockout, CSRF, token revocation, lock contention (423), stale decisions and sets (409), admin release. |
+| Recalc | Service unavailable, non-xlsx replies, uncomputable cells (422), VBA kept. |
+| IPO | Watcher (lists 11 and 12 only, allow-list on the embedded PDF), reader flags, versions and restatements, per-section grounding, API. |
+| Test database | Tests use `analekh_test` (live tables, no data), never the working database; about 50 s instead of 6 minutes. |
+| XBRL parsing; KPI extraction | 100% exact on mapped elements; 95% KPI precision with correct pages. |
+| Workbook understanding; templates; builder; sync | 20 real models with hand-labelled structure (90% mapping accuracy); built-in templates pass on five companies per sector; built models balance with full Sources; fixture workbooks with expected change sets. |
 | Grounding | Every number in generated text matches a tool result. |
-| Universe and feeds | Recorded feed samples; universe diff tests for listings and delistings. |
-| Search | The browser's ranking matches the server's on real queries (22 of 22 at last check). |
-| Prices | Bhavcopy parsing (one row per ISIN, main series first), market cap from the filing's share count, the previous day replaced, an older day refused; the latest-close endpoint and the desk's market-cap sort. |
-| CI | GitLab CI on every push and merge request: ruff, mypy, pytest, alembic check, web lint, tests and build, security scanners and the dependency audit; golden-set accuracy on schedule and per release. |
+| Local models and adapters (proposed) | The golden-set gate per job; the automatic check before an adapter goes live (section 17.4). |
+| Universe, feeds, search, prices | Recorded feed samples; listing and delisting diffs; browser ranking matches the server (22 of 22); bhavcopy parsing, market cap, day replacement. |
+| CI | Every push and merge request: ruff, mypy, pytest, `alembic check`, web lint, tests and build, scanners and the dependency audit; golden-set accuracy on schedule. |
 
 ## 25. Cost model
 
 | **Item** | **Estimate** |
 |---|---|
-| Universe and all-company facts | No AI cost; local parsing. About 5.4 GB today (facts are 97% of the database; XBRL files are stored compressed); a results season adds roughly 0.5 GB to the database and a few tens of MB of compressed files. |
-| Prices | No cost: one public file a day; about 0.4 MB, since only the latest day is kept. |
-| GitLab | Free tier; Ultimate only if DAST, dependency scanning and security policies are needed. |
-| Presentation extraction | About 5 to 15 selected pages per filing, watchlist or on demand only. |
-| Annual report extraction | About 10 to 25 selected pages instead of 300. |
-| Label mapping | AI only for ambiguous labels; once per template or model. |
-| Reports and initiations | Per company per quarter or per initiation; cached system prompts. |
-| Backfill | Batch API at a lower price. |
+| Universe and facts | No AI cost; about 5.4 GB (facts 97% of the database); about 0.5 GB a results season. |
+| Prices | One public file a day; about 0.4 MB stored. |
+| Hosting, CI | Oracle free tier; GitLab Free on self-hosted runners: no cost. |
+| Document extraction | 5 to 25 selected pages per document, watchlist or on demand. |
+| Label mapping | AI only for ambiguous labels, once per template or model. |
+| Reports, initiations, IPO coverage | Per company per quarter or per issue; cached system prompts. |
+| Local models (proposed) | No API cost; electricity and the laptop's or firm's GPU. |
+| Backfill | Batch API at a lower price, if ever needed. |
 
-Check current Claude API pricing before budgeting; real cost per company is measured from llm_calls from the first spike.
+Check current Claude API pricing before budgeting; real cost per company is measured from llm_calls.
 
 ## 26. Build plan
 
 | **Phase** | **Scope** | **Exit criteria** |
 |---|---|---|
-| 0. Spike (2 to 3 days) | Load the universe; poll two feeds; parse XBRL for 10 tickers including a bank and an NBFC. (The price pull was dropped with Kite Connect; section 3.3.) | Data path proven; taxonomy differences documented |
-| 1. Data layer (1 to 2 weeks) | Universe loader, watcher, fetcher, parser, validation, schema, watchlist, on-demand and Nifty 500 backfill, search. | Every NSE filer's results in the database |
-| 2. Builder and sync (2 to 3 weeks) | Workbook understanding engine, template onboarding, Coverage Builder for two templates (NBFC and manufacturing or consumer), Model Sync on built models, review screens, xlwings bridge. | Start coverage then quarterly update works end to end |
-| 3. Document AI (2 weeks) | Page classifier, KPI extraction for three sectors, transcript digest, embeddings. | KPI precision target met |
-| 4. GenAI outputs (1 to 2 weeks) | Flash, variance bridge, red flags, note and slides, initiation draft, Q&A, grounding check. | Grounded outputs on 10 companies |
-| 5. Discovery, IB outputs, polish (2 weeks) | Discovery and linking of existing user models, comps, profile slide, pitch refresh, alerts, Office.js pane, demo video. | Demo-ready public repository |
+| 0. Spike | Universe; two feeds; XBRL for 10 tickers including a bank and an NBFC. | Data path proven; taxonomy differences documented; golden set passing |
+| 1. Data layer | Loader, watcher, fetcher, parser, validation, schema, watchlist, backfill, search, sign-in. | Every NSE filer's results in the database |
+| 2. Builder and sync | Workbook engine, onboarding, Coverage Builder (NBFC and consumer templates), Model Sync, review screens, xlwings bridge. | Start coverage then quarterly update end to end |
+| 3. Document AI | Page classifier, KPI extraction for three sectors, transcript digest, embeddings, offer documents; context fetcher (proposed). | KPI precision target met |
+| 4. GenAI outputs | Flash, bridge, red flags, update and slides, initiation, IPO coverage, Q&A, grounding; agentic RAG and conflict flags (proposed). | Grounded outputs on 10 companies |
+| 5. Discovery, IB, polish | Model discovery, comps, profile slide, pitch refresh, alerts, Office.js, demo; learning loop (proposed, after the MVP). | Demo-ready repository |
 
-Phase 0 is time-boxed to two to three days and decides whether the full build proceeds. December-quarter results, filed from late January, provide a live test window for Phases 1 and 2.
+Versions follow the phases: v0.0.x during Phase 0, v0.1.x once Phase 0 is complete, v0.2.x after Phase 1, and so on; v1.0.0-pre-release is the first release for proper testing. This document and the code are at v0.0.6.
 
-#### 26.1 Status on 21 October 2026
+#### 26.1 Status on 29 October 2026
 
 | **Phase** | **Where it stands** | **What stops it finishing** |
 |---|---|---|
-| 0. Spike | Data path proven at scale: 54,350 results filings from 2,756 companies fetched, parsed and validated (10.1 million values); element tables for Ind-AS, banks, NBFCs, general and life insurers come from real filings and tie out. The 14 V2-blocked filings pass since V2 reads both names for exceptional items. V11's sweep corrected 28 filings tagged in the wrong unit; the 44 filings blocked today are its suspects. | The hand-check of about 10 values per filing against the results PDF, for a golden set covering every results format, and the golden-set run (analekh golden-test); the 44 suspects checked against their PDFs. How to flag contexts with the same dates but different values is still to decide. |
-| 1. Data layer | Universe (3,186 companies), NSE sectors for 1,430 and a sector of some source for 3,017, search, watchlist, both lookups, history from March 2023 (both backfills finished), validation with the unit check, revisions, daily prices with market cap (3,065 companies on 21 October), the scheduler and feed watcher in Docker, the Results desk, the results calendar, company pages with results history, comps, settings and the welcome screen. The September-quarter season: 169 companies reported by 21 October. | The scheduler on a server (it runs in Docker on the laptop, so it stops when the laptop sleeps); the 290 companies with nothing on NSE (about 250 file only with BSE); the 169 without any sector and the LSEG-to-NSE mapping; about 2,400 Ind-AS filings whose profit is tagged under a name not yet mapped (ProfitLossForThePeriod; the owner's decision). |
-| 2. Builder and sync | Every engine has a working core with synthetic tests. | Real model templates and existing models from an analyst, to tune the workbook reader and template onboarding; balance sheet and cash flow history in the built-in templates; a machine with desktop Excel for the xlwings bridge; debt and cash for EV-based valuation. |
-| 3. Document AI | Pipeline built with synthetic tests; call recordings can be transcribed locally. | A valid Anthropic API key; a source for investor presentations (NSE's announcements list needs the owner's approval; company IR pages otherwise) and transcripts; the embeddings provider; a golden set of KPIs. |
-| 4. GenAI outputs | Tools, calc, grounding check and report loop built; the Reports set-up screen (company, report type, basis, quarter, input readiness, output outline) built on real data. | Phase 3's KPIs and call notes; the report structure decision (section 28); the Word and PowerPoint writers for the two reports, the style check, reading the rating from the analyst's model, and the recent reports list. |
-| 5. Discovery, IB, polish | Comps (market cap and P/E, P/B from the latest close), profile slide, alerts and the add-in have working cores. | Debt and cash for EV multiples; branded slide templates; hosting in an Indian region with a login so the app can be shared (section 22.7). |
-
-Update, 27 October 2026 (to be folded into the next version): sign-in, roles, first password by email and model locks are built; the stack runs on the Oracle Mumbai VM with the data restored, which takes the scheduler off the laptop; margins follow the company type (EBITDA, NIM for lenders, core pre-provision profit for brokers and asset managers); the Excel bridge links and scans a real workbook. For Phases 3 and 4 the plan is now local models without paid APIs (AI.md), so a valid API key is no longer the gate: a local model passing the golden set is. The roadmap, with the new ideas, is docs/roadmap.md.
+| 0. Spike | 54,350 filings from 2,756 companies parsed and validated (10.1 million values); element tables for every format tie out; V11 corrected 28 filings. | The golden set hand-check and `golden-test`; the 44 V11 suspects against their PDFs; flagging same-date contexts. |
+| 1. Data layer | Universe (3,186), sectors, search, watchlist, both lookups, history from March 2023, V1 to V11, revisions, prices, scheduler and feeds, desk, calendar, company pages, margins by type, comps, settings, sign-in, roles, first password by email, model locks; hosted on the Oracle Mumbai VM with nightly backups; security audit fixes in. | The 290 companies with nothing on NSE; 169 without a sector and the LSEG-to-NSE mapping; the Ind-AS profit tag (ProfitLossForThePeriod, about 2,400 filings). |
+| 2. Builder and sync | Every engine has a working core; recalc in its own container; the bridge links and scans a real workbook. | Real templates and models; `apply` on a real model; balance sheet and cash flow history; debt and cash for EV. |
+| 3. Document AI | Pipeline built; RapidOCR; recordings transcribed locally; local embeddings; offer documents read (synthetic tests; layout confirmed live). | A local model passing the golden set (AI.md); V10 wired; KPI golden set; a presentation and transcript source; the first real RHP run; the context fetcher. |
+| 4. GenAI outputs | Tools, calc, grounding, report loop; Reports set-up; IPO per-section drafts. | Word and PowerPoint writers; the style check; rating read from the model; reports as jobs; the agentic flow and conflict screen. |
+| 5. Discovery, IB, polish | Comps, profile slide, alerts, add-in cores. | EV multiples; branded templates; domain; the learning loop after the MVP. |
 
 #### 26.2 What to build next
 
-Ordered by value:
+Order of work (with new ideas in `docs/roadmap.md`):
 
-Done since 18 October: the season schedule, the scheduler in Docker, the V2-blocked filings, the results history table and the results calendar. Done since 21 October: hosting (section 22.7), sign-in and model locks, margins by company type.
+- **Phase 0 exit (v0.1.0):** golden set and `golden-test`; the 44 V11 suspects.
+- **Hosting hardening:** backups off the box with a test restore, SSH limited, domain and Cloudflare, shared sign-in counts.
+- **Local AI stack:** Ollama on the VM and laptop, the provider switch, the `local_llm` queue, the golden-set gate (AI.md phases A to E).
+- **Context sources:** host and terms approvals, then the fetcher for RBI, Government of India, OPEC and World Bank first (section 3.4).
+- **Report drafting with the agentic flow:** writers for Word and PowerPoint, style check, rating from the model, estimate diff and conflict flags, reports as jobs; call highlights.
+- **IPO coverage finish:** a real RHP run and hand-check, Word export, linking on listing.
+- **Balance sheet and cash flow** from half-year and year-end filings; V4 for Ind-AS.
+- **Q&A screen;** peer view, red flags and alerts; sector editing.
+- **Learning loop** once the MVP's features are done.
 
-Ordered by value (the current order, with new ideas, is in docs/roadmap.md):
-
-- **Report drafting** (workflow 6.8): the quarterly update and initiating coverage writers for Word and PowerPoint, section by section from the outline the Reports screen shows, with the grounding and style checks, the recommendation read from the analyst's model, and the recent reports list. Testable end to end once there is a valid API key.
-- **Q&A screen**, after Reports.
-- **Hosting** (section 22.7): the NSE test from a server's address, then the stack, the data, HTTPS and a login, and the scheduler off the laptop.
-- **Golden set and hand-check** across the five results formats, then golden-test, and the 44 V11 suspects against their PDFs: this completes Phase 0 (v0.1.0).
-- **Balance sheet and cash flow** from the half-year and year-end filings; V4 for Ind-AS filers.
-- **A peer view** of growth and margins; red flags and alerts from the feeds (workflow 6.9).
-- **Sector editing screen** and the LSEG-to-NSE mapping.
-
-Decisions waiting on the owner: the Ind-AS profit tag (ProfitLossForThePeriod, about 2,400 filings); the LSEG-to-NSE sector mapping (28 clear groups, 25 to decide); how banks are presented and calculated (the owner's walkthrough); hosting details (provider, domain, login); investor presentations and concall transcripts through NSE's announcements list (section 28); the 250 BSE-only filers (manual import, or a note that NSE has no data); the logo; the Anthropic API key.
+Decisions waiting on the owner: the Ind-AS profit tag; the LSEG-to-NSE mapping; bank presentation; hosts and paths for each context source; NSE's announcements list (presentations, transcripts, call links); debt-segment results; the 250 BSE-only filers; the domain and the logo.
 
 #### 26.3 Future scope (after v1)
 
-Left out of v1 by the owner's choice, for a later release (the first two need paid data):
-
-- **Live and intraday prices** through a paid market-data API (Kite Connect or similar), in place of the end-of-day bhavcopy (section 3.3).
-- **NSE's finer classification** (industry and basic industry, such as Gems, Jewellery and Watches under Consumer Durables) for every company. NSE publishes only the 22 sectors in its index lists, and its per-company classification is not open to Analekh (section 4.2); setting thousands by hand is not worth it (owner, 18 October 2026). A licensed data feed would supply it.
-- **Live earnings-call listener** (owner, 20 October 2026): Analekh's own agent that joins a company's earnings call as it happens and transcribes it live, instead of waiting for the recording on NSE (filed within a day). A call record (company, time, link) starts a headless browser a few minutes early; it registers with the analyst's own details (never a made-up identity, never past a captcha or an operator), records the webcast's audio stream with ffmpeg (or a virtual audio device when the page exposes no stream), and the local Whisper (section 11) transcribes 5 to 10 second pieces on the GPU, about 10 seconds behind the speaker. The company page's Call highlights card shows the transcript as it arrives, marked live and unverified; guidance, margin and capex remarks are extracted with their quotes under the grounding check, and XBRL still wins on any figure. The official recording's transcript replaces it once filed. Fixed scripts handle the common webcast hosts, with a browser agent for unknown registration pages; phone-only calls would need a telephony service (paid per minute) and come later. Transcripts stay in the analyst's own database, never republished, per the calls' terms. Open points: finding calls automatically needs NSE's announcements list (a rule 1 decision, as for investor presentations; until then the analyst pastes the link), and the listener needs an always-on machine (section 22.7). First step when picked up: replay an existing call recording as if live, to measure delay and accuracy.
-
-Proposed since 27 October 2026, not decided (details in docs/roadmap.md): offer documents (DRHP, RHP, Prospectus) from SEBI's site for recently listed companies, with the Prospectus as the final record and quarterly XBRL winning once filed; debt-segment results for debt-only issuers; KPIs and peers seeded from an offer document's "Basis for Offer Price"; a lock-in calendar; the analyst's approved script voiced over the slides by a local text-to-speech model, with consent and labelling. Each new host or path needs the owner's approval under rule 1.
-
-Versions follow the build phases: v0.0.x while Phase 0 is under way, v0.1.x once Phase 0 is complete, v0.2.x once Phase 1 is complete, and so on (the middle number counts completed phases; the last counts revisions within a phase). The first release for proper testing is v1.0.0-pre-release. This document and the code are at v0.0.5.
+- **Live and intraday prices** through a paid market-data API, in place of the bhavcopy.
+- **NSE's finer classification** (industry, basic industry) through a licensed feed; NSE publishes only the 22 sectors openly (owner, 18 October 2026).
+- **Live earnings-call listener** (owner, 20 October 2026): an agent joins the call, registers with the analyst's own details (never a made-up identity, never past a captcha), records the stream with ffmpeg, and local Whisper transcribes 5 to 10 s pieces about 10 s behind the speaker. Call highlights show it marked live and unverified, with quotes under the grounding check; the filed recording replaces it. Fixed scripts for common webcast hosts; phone-only calls need a paid telephony service. Transcripts stay in the firm's database. Needs a call source (rule 1) and an always-on machine. First step: replay a recording as if live.
+- **Proposed, not decided** (roadmap): debt-segment results; KPIs and peers from "Basis for Offer Price"; a lock-in calendar; the analyst's approved script voiced over slides by local text-to-speech, with consent and labelling. Each new host or path needs the owner's approval.
 
 ## 27. Risks and mitigations
 
 | **Risk** | **Mitigation** |
 |---|---|
-| NSE changes feeds or objects to polling | Polite polling; source adapters; IR fallback; written confirmation or licence before release. The results feed already stopped carrying filings once (24 August 2026); the integrated-filing lookup replaced it with the owner's approval. |
-| NSE refuses the honest User-Agent or the lookup | Runs stop at the first refusal; the owner decides; requests are never disguised. |
-| NSE's request limit (a few hundred to a few thousand requests, then a pause) | Runs resume at the company they stopped on after a 10-minute pause; the watcher needs one request; longer back-off if NSE stalls quickly several times in a row. |
-| Revised filings change numbers already shown | The most recently filed value is used whatever the download order; superseded values kept; refiled quarters tagged with what changed. |
-| XBRL varies by sector | results_taxonomy per company, detected from the filing's line items; element tables for Ind-AS, banks, general and life insurers; golden set per format. |
-| Context or period errors | Rules V5, V6, V8; declared period wins. |
-| AI extraction errors | Pages and quotes on every value; thresholds; XBRL wins; approval before writes. |
-| Templates and models vary widely | Shared understanding engine; confidence scores; confirm once; test builds; built-in fallbacks. |
-| Wrong model linked to a company | Hidden tag after confirmation; user confirmation for every new link. |
-| Sector classification gaps | Stocks data type import and NSE Indices lists, with precedence; user override per company. SME companies remain the gap. |
-| Excel dependency | Headless openpyxl and LibreOffice path; Office.js later. |
-| Geo-restriction | Indian network or VM. |
-| NSE hosts stop answering | Retry later with single requests; never work around a block; import folder as fallback. |
-| Bhavcopy late, missing or changed in format | Hourly retries until 23:00; a missing day leaves the previous close in place; parsing by column name; core numbers do not need prices. |
-| No host serves NSE, or none can be set up | The laptop keeps working meanwhile; an always-on home machine with Cloudflare Tunnel keeps the home connection NSE serves; the NSE test gates any move. |
-| Regulatory exposure when sharing outputs | Analekh never generates a rating or target; one appears only from the analyst's own model or hand, and the publisher carries the registration duty. |
-| Scope creep | Phase gates with exit criteria; each phase ends with a working demo. |
-| Mirror diverges or leaks | GitHub main accepts only fast-forward pushes from the mirror job; mirror runs only after a green pipeline; secret detection and push protection run before anything leaves GitLab. |
+| NSE changes feeds or objects to polling | Polite polling; source adapters; IR fallback; confirmation or licence before release. The results feed already stopped once; the lookup replaced it with approval. |
+| NSE refuses the honest User-Agent | Runs stop at the first refusal; the owner decides; never disguised. |
+| NSE's request limit | Runs resume after a 10-minute pause; the watcher needs one request; longer back-off on repeated quick stalls. |
+| Revised filings change shown numbers | Most recently filed value used; superseded values kept; quarters tagged with what changed. |
+| XBRL varies by sector | Format from line items; element tables per format; golden set per format. |
+| Context or period errors | V5, V6, V8; declared period wins. |
+| AI extraction errors | Pages and quotes on every value; XBRL wins; approval before writes; offer-document figures that do not tie are flagged. |
+| Templates and models vary | Shared engine; confidence scores; confirm once; test builds; built-ins. |
+| Wrong model linked | Hidden tag after confirmation; confirmation for every new link. |
+| Sector gaps | Two sources with precedence; user override; SME companies remain the gap. |
+| Excel dependency | Headless recalc container; Office.js later. |
+| Recalc cannot compute a workbook | Refused with the cells named; the Excel bridge applies it. |
+| Geo-restriction; hosts stop answering | Mumbai VM; retry later with single requests; import folder. |
+| Bhavcopy late or changed | Hourly retries; parsing by column name; core numbers need no prices. |
+| Regulatory exposure | No generated rating or target; one only from the analyst; publisher carries the duty. |
+| Account takeover, data exposure | Sign-in on every route, uniform replies, lockouts, CSRF, scoped tokens, audit log, audits when the owner decides. |
+| Local model quality | Golden-set gate per job; Claude as fallback; grounding never weakened. |
+| A training run makes drafts worse | Automatic check before swap; previous adapters kept for rollback. |
+| Context sources change terms or layout | Per-source adapters; terms read before fetching; a refused source is dropped, never worked around. |
+| Training leaks one firm's style or data to another | Each firm self-hosts; training data and adapters never leave the instance. |
+| Scope creep | Phase gates; each phase ends with a working demo; extras as add-ons later. |
+| Mirror diverges or leaks | Fast-forward only from the mirror job after a green pipeline; secret detection before anything leaves GitLab. |
 
 ## 28. Open questions
 
-- Settled in 0.0.3: banks and insurers use their regulators' element sets (RBI, IRDAI general and life); NBFCs use the Ind-AS names. Still open: how stable the tags are across the full universe, which the completed backfill and the golden set will show.
-- Should Analekh link each quarter's investor presentation from NSE's announcements list (subject "Investor Presentation"; one request a day, plus a backfill by date range or per company)? It needs the owner's approval to widen the allow-list. Some filings under that subject are only meeting intimations.
-- How to cover the 290 companies with nothing on NSE (about 250 file only with BSE, whose API refuses automated requests): a manual import, or a note that NSE has no data? Periods before March 2023 need the company's own files.
-- Settled on 26 October 2026: the host is Oracle Cloud's free tier in Mumbai; NSE answers from it (section 22.7).
-- Which language model for each AI job: a local model (Ollama, Qwen2.5 7B or 14B on the laptop's GPU or the VM's CPU) or Claude? The owner aims for no API costs; each job moves after it passes the golden set (AI.md).
-- Should Analekh read offer documents from SEBI's site (`www.sebi.gov.in`, listing page, filing pages and their PDFs; one listing request a day)? It needs the owner's approval, as rule 1 does for NSE.
-- Can annual statements be downloaded cleanly from NSE's annual report XBRL section for backfill?
-- Is there a public shareholding pattern feed, or must shareholding come from filings?
-- How should the 25 undecided LSEG groups map to NSE sector names, and how to classify the 169 companies with no sector at all? Do Microsoft's terms allow storing Stocks data type fields?
-- Do transcripts appear in the announcements feed with a consistent subject line? (Recordings come first and can be transcribed locally.)
+- How stable element tags are across the full universe (the golden set will show).
+- Investor presentations, transcripts and call links through NSE's announcements list (one request a day)? Needs approval under rule 1.
+- The 290 companies with nothing on NSE (about 250 BSE-only): manual import or a note?
+- Exact hosts and paths for each context source (section 3.4), their terms, and which ministries count for each sector.
+- How the accepted version of a report comes back: an upload of the final Word file, or edits in the web app.
+- A starter adapter trained only on public material, or each firm from the base model? Minimum accepted reports before an analyst's own adapter?
+- Can annual statements come cleanly from NSE's annual-report XBRL for backfill? Is there a public shareholding feed?
+- The 25 undecided LSEG groups and the 169 companies without a sector; Microsoft's terms on stored Stocks data type fields.
 - xlwings or Office.js first for the demo machine?
-- Hosted or local embeddings? (A local embedder is built and set as the default; to confirm.)
-- Would NSE confirm in writing that polling its RSS feeds for a personal or open-source tool is acceptable?
-- Settled in 0.0.5: a report's rating and target price come from the analyst's own model or the analyst, never from Analekh; reports are a quarterly update and an initiating coverage note, each as Word and PowerPoint; the results watcher follows the results seasons.
-- Settled in 0.0.4: prices come from NSE's bhavcopy, end of day, latest day only. Still open: whether a results season's schedule should follow the results calendar once the feed watcher runs.
-- How should XBRL contexts with the same dates but different values (OneD versus FourD) be flagged?
-- Report generation: one open tool loop per report (today), or a fixed outline from a report template with a short tool loop and a grounding check per section, keeping the open loop for Q&A?
+- Would NSE confirm in writing that polling its feeds for this tool is acceptable?
+- How to flag XBRL contexts with the same dates but different values (OneD versus FourD)?
+- Settled: element sets per regulator (0.0.3); prices from the bhavcopy (0.0.4); ratings only from the analyst, two report types, the watcher by season (0.0.5); hosting on Oracle Mumbai, SEBI offer documents, local embeddings, and per-section reports for IPO coverage (0.0.6).
 
 ## 29. Appendices
 
-### Appendix A. Core DDL (PostgreSQL)
+### Appendix A. Schema (PostgreSQL)
 
-```
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE TABLE companies (
-id BIGSERIAL PRIMARY KEY,
-nse_symbol TEXT UNIQUE NOT NULL,
-isin CHAR(12) UNIQUE,
-name TEXT NOT NULL,
-series TEXT, listing_date DATE, face_value NUMERIC(12,2),
-sector TEXT, industry TEXT,
-sector_source TEXT CHECK (sector_source IN ('user','excel_stocks','nse_indices')),
-sector_lseg TEXT,
-results_taxonomy TEXT CHECK (results_taxonomy IN ('indas','banking','nbfc','insurance','life_insurance')),
-is_sme BOOLEAN NOT NULL DEFAULT FALSE,
-is_active BOOLEAN NOT NULL DEFAULT TRUE,
-source TEXT NOT NULL DEFAULT 'nse_equity_list',
-refreshed_at TIMESTAMPTZ
-);
-CREATE INDEX ON companies USING gin (name gin_trgm_ops);
-CREATE TABLE watchlist (
-user_id TEXT NOT NULL,
-company_id BIGINT NOT NULL REFERENCES companies(id),
-added_at TIMESTAMPTZ DEFAULT now(),
-settings JSONB NOT NULL DEFAULT '{}',
-PRIMARY KEY (user_id, company_id)
-);
-CREATE TABLE feed_items (
-id BIGSERIAL PRIMARY KEY,
-feed TEXT NOT NULL, item_key CHAR(64) NOT NULL,
-title TEXT, link TEXT, description TEXT, pub_date TIMESTAMPTZ,
-company_id BIGINT REFERENCES companies(id), processed_at TIMESTAMPTZ,
-UNIQUE (feed, item_key)
-);
-CREATE INDEX ON feed_items (pub_date);
-CREATE TABLE filings (
-id BIGSERIAL PRIMARY KEY,
-company_id BIGINT NOT NULL REFERENCES companies(id),
-feed_item_id BIGINT REFERENCES feed_items(id),
-kind TEXT NOT NULL,
-period_start DATE, period_end DATE, period_type TEXT,
-consolidated BOOLEAN, audited BOOLEAN,
-source_url TEXT,
-file_sha256 CHAR(64) UNIQUE NOT NULL,
-storage_key TEXT NOT NULL,
-filed_at TIMESTAMPTZ,
-status TEXT NOT NULL DEFAULT 'fetched',
-meta JSONB NOT NULL DEFAULT '{}'
-);
-CREATE INDEX ON filings (company_id, period_end DESC);
-CREATE TABLE facts (
-id BIGSERIAL PRIMARY KEY,
-filing_id BIGINT NOT NULL REFERENCES filings(id),
-company_id BIGINT NOT NULL REFERENCES companies(id),
-element TEXT NOT NULL,
-period_start DATE, period_end DATE NOT NULL,
-is_instant BOOLEAN NOT NULL, consolidated BOOLEAN NOT NULL,
-value NUMERIC(24,4), unit TEXT, decimals INT, context_ref TEXT,
-dimensions JSONB NOT NULL DEFAULT '{}', dims_hash CHAR(64) NOT NULL,
-is_latest BOOLEAN NOT NULL DEFAULT TRUE,
-UNIQUE (filing_id, element, period_start, period_end, consolidated, dims_hash)
-);
-CREATE INDEX ON facts (company_id, element, period_end) WHERE is_latest;
-CREATE TABLE kpis (
-id BIGSERIAL PRIMARY KEY,
-filing_id BIGINT NOT NULL REFERENCES filings(id),
-company_id BIGINT NOT NULL REFERENCES companies(id),
-name TEXT NOT NULL, value NUMERIC(24,4), unit TEXT, period_end DATE,
-page INT, quote TEXT, confidence NUMERIC(3,2), method TEXT,
-verified BOOLEAN DEFAULT FALSE
-);
-CREATE TABLE documents (
-id BIGSERIAL PRIMARY KEY,
-filing_id BIGINT NOT NULL REFERENCES filings(id),
-page_count INT
-);
-CREATE TABLE chunks (
-id BIGSERIAL PRIMARY KEY,
-document_id BIGINT NOT NULL REFERENCES documents(id),
-page INT NOT NULL, ord INT NOT NULL, text TEXT NOT NULL,
-embedding vector(1024),
-tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED
-);
-CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX ON chunks USING gin (tsv);
-CREATE TABLE prices (
-company_id BIGINT REFERENCES companies(id), trade_date DATE,
-open NUMERIC(14,4), high NUMERIC(14,4), low NUMERIC(14,4), close NUMERIC(14,4),
-prev_close NUMERIC(14,4), volume BIGINT, market_cap NUMERIC(24,2),
-PRIMARY KEY (company_id, trade_date)
-);
-CREATE TABLE templates (
-id BIGSERIAL PRIMARY KEY,
-owner TEXT NOT NULL, name TEXT NOT NULL, sectors TEXT[] NOT NULL,
-version INT NOT NULL DEFAULT 1,
-storage_key TEXT NOT NULL,
-structure JSONB, mapping JSONB,
-driver_cells JSONB, check_cells JSONB,
-status TEXT NOT NULL DEFAULT 'draft',  -- draft, tested, active
-is_default BOOLEAN NOT NULL DEFAULT FALSE,
-created_at TIMESTAMPTZ DEFAULT now(),
-UNIQUE (owner, name, version)
-);
-CREATE TABLE template_tests (
-id BIGSERIAL PRIMARY KEY,
-template_id BIGINT NOT NULL REFERENCES templates(id),
-company_id BIGINT NOT NULL REFERENCES companies(id),
-result TEXT NOT NULL, issues JSONB, created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE models (
-id BIGSERIAL PRIMARY KEY,
-company_id BIGINT NOT NULL REFERENCES companies(id),
-template_id BIGINT REFERENCES templates(id),
-name TEXT NOT NULL,
-origin TEXT NOT NULL,           -- discovered, built
-doc_tag UUID UNIQUE NOT NULL,   -- written into workbook custom properties
-file_path TEXT, fingerprint CHAR(64), last_seen TIMESTAMPTZ,
-structure JSONB, mapping JSONB
-);
-CREATE TABLE model_builds (
-id BIGSERIAL PRIMARY KEY,
-model_id BIGINT NOT NULL REFERENCES models(id),
-template_id BIGINT NOT NULL REFERENCES templates(id),
-history_from DATE, history_to DATE,
-status TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE assumptions (
-id BIGSERIAL PRIMARY KEY,
-model_id BIGINT NOT NULL REFERENCES models(id),
-driver TEXT NOT NULL, period TEXT,
-proposed_value NUMERIC(18,6), rationale TEXT, citations JSONB,
-decision TEXT NOT NULL DEFAULT 'pending', final_value NUMERIC(18,6)
-);
-CREATE TABLE model_versions (
-id BIGSERIAL PRIMARY KEY,
-model_id BIGINT NOT NULL REFERENCES models(id),
-version INT NOT NULL, parent_version INT,
-storage_key TEXT NOT NULL, created_by TEXT,
-created_at TIMESTAMPTZ DEFAULT now(),
-UNIQUE (model_id, version)
-);
-CREATE TABLE change_sets (
-id BIGSERIAL PRIMARY KEY,
-model_id BIGINT NOT NULL REFERENCES models(id),
-base_version INT NOT NULL,
-filing_id BIGINT REFERENCES filings(id),
-status TEXT NOT NULL DEFAULT 'proposed',
-summary JSONB, created_at TIMESTAMPTZ DEFAULT now(), decided_at TIMESTAMPTZ
-);
-CREATE TABLE change_items (
-id BIGSERIAL PRIMARY KEY,
-change_set_id BIGINT NOT NULL REFERENCES change_sets(id),
-kind TEXT NOT NULL, sheet TEXT, cell TEXT,
-old_value TEXT, new_value TEXT, formula_before TEXT, formula_after TEXT,
-rationale TEXT, source_fact_id BIGINT REFERENCES facts(id),
-decision TEXT NOT NULL DEFAULT 'pending', final_value TEXT
-);
-CREATE TABLE reports (
-id BIGSERIAL PRIMARY KEY,
-company_id BIGINT REFERENCES companies(id),
-filing_id BIGINT REFERENCES filings(id),
-model_id BIGINT REFERENCES models(id),
-kind TEXT NOT NULL,             -- flash, note, slides, digest, initiation, qa
-storage_key TEXT, model_used TEXT, prompt_hash CHAR(64),
-citations JSONB, created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE llm_calls (
-id BIGSERIAL PRIMARY KEY, purpose TEXT, model TEXT,
-input_tokens INT, output_tokens INT, request_hash CHAR(64),
-created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE TABLE alerts (
-id BIGSERIAL PRIMARY KEY,
-company_id BIGINT REFERENCES companies(id),
-kind TEXT, payload JSONB, channel TEXT, sent_at TIMESTAMPTZ
-);
-CREATE TABLE peer_lists (
-id BIGSERIAL PRIMARY KEY,
-name TEXT UNIQUE NOT NULL,
-symbols TEXT[] NOT NULL
-);
-```
+Source of truth: `analekh/db/models.py` (SQLAlchemy) and the Alembic migrations in `analekh/db/migrations/versions/` (0001 initial schema to 0014 IPO offers); CI runs `alembic check` so the two cannot drift. Extensions: `vector`, `pg_trgm`. Tables and indexes are summarised in sections 8.2 and 8.3.
+
+| **Migration** | **Adds** |
+|---|---|
+| 0001 | Initial schema: companies, watchlist, feed_items, filings, facts, kpis, documents, chunks, prices, templates, models, versions, assumptions, change sets, reports, llm_calls, alerts, peer_lists |
+| 0002 to 0005 | sector_source; life_insurance taxonomy; sector_lseg; previous close |
+| 0006 to 0008 | job_status; filings read indexes; feed item fetch attempts |
+| 0009 to 0011 | users, sessions, tokens, settings; first password and its mail status |
+| 0012 | model_locks |
+| 0013 | reset-code failure counter and lockout |
+| 0014 | ipo_issues, ipo_documents, ipo_financials, ipo_chunks, ipo_drafts |
 
 ### Appendix B. Template mapping (example)
 
@@ -1412,506 +1234,114 @@ version: 3
 sectors: [NBFC, Gold Finance]
 basis: consolidated
 period_axis:
-sheet: Data
-header_row_label: "Period"        # e.g. Q2FY27
-flag_row_label: "A/E"             # A = actual, E = estimate
+  sheet: Data
+  header_row_label: "Period"        # e.g. Q2FY27
+  flag_row_label: "A/E"             # A = actual, E = estimate
 units:
-default_transform: "div:10000000"  # INR to INR crore
+  default_transform: "div:10000000"  # INR to INR crore
 rows:
-- source: xbrl:RevenueFromOperations
-sheet: Data
-row_label: "Revenue from operations"
-confidence: 0.98
-- source: xbrl:FinanceCosts
-sheet: Data
-row_label: "Finance costs"
-confidence: 0.99
-- source: xbrl:ProfitLossForPeriod
-sheet: Data
-row_label: "PAT"
-confidence: 0.95
-- source: kpi:gold_loan_aum
-sheet: Data
-row_label: "Gold loan AUM"
-transform: none
-confidence: 0.90
+  - {source: xbrl:RevenueFromOperations, sheet: Data, row_label: "Revenue from operations", confidence: 0.98}
+  - {source: xbrl:FinanceCosts, sheet: Data, row_label: "Finance costs", confidence: 0.99}
+  - {source: xbrl:ProfitLossForPeriod, sheet: Data, row_label: "PAT", confidence: 0.95}
+  - {source: kpi:gold_loan_aum, sheet: Data, row_label: "Gold loan AUM", transform: none, confidence: 0.90}
 drivers:
-- name: loan_yield
-actual_row_label: "Yield on loans"
-forecast_sheet: Drivers
-forecast_row_label: "Yield assumption"
+  - {name: loan_yield, actual_row_label: "Yield on loans", forecast_sheet: Drivers, forecast_row_label: "Yield assumption"}
 checks:
-- sheet: Checks
-cell_label: "Balance sheet difference"
-expect: 0
+  - {sheet: Checks, cell_label: "Balance sheet difference", expect: 0}
 ```
 
 ### Appendix C. Change set (example)
 
 ```
-{
-"change_set_id": 42,
-"model": "MUTHOOTFIN nbfc_quarterly v3",
-"base_version": 7,
-"filing": "Q2FY27 consolidated results (XBRL)",
-"summary": {"writes": 18, "dependents_affected": 214,
-"roll_forwards": 3, "suggestions": 2, "warnings": 1},
-"items": [
-{"kind": "actual_write", "sheet": "Data", "cell": "M12",
-"old": "=L12*(1+Drivers!M5)", "new": "<actual value>",
-"source": "RevenueFromOperations, 2026-07-01 to 2026-09-30"},
-{"kind": "roll_forward", "sheet": "Data", "cell": "M3", "old": "E", "new": "A"},
-{"kind": "assumption_suggestion", "sheet": "Drivers", "cell": "N8",
-"old": "<current yield>", "new": "<suggested yield>",
-"rationale": "Actual yield came in below the estimate for the quarter"}
-]
-}
+{"change_set_id": 42, "model": "MUTHOOTFIN nbfc_quarterly v3", "base_version": 7,
+ "filing": "Q2FY27 consolidated results (XBRL)",
+ "summary": {"writes": 18, "dependents_affected": 214, "roll_forwards": 3, "suggestions": 2, "warnings": 1},
+ "items": [
+  {"kind": "actual_write", "sheet": "Data", "cell": "M12", "old": "=L12*(1+Drivers!M5)", "new": "<actual value>",
+   "source": "RevenueFromOperations, 2026-07-01 to 2026-09-30"},
+  {"kind": "roll_forward", "sheet": "Data", "cell": "M3", "old": "E", "new": "A"},
+  {"kind": "assumption_suggestion", "sheet": "Drivers", "cell": "N8", "old": "<current yield>",
+   "new": "<suggested yield>", "rationale": "Actual yield came in below the estimate for the quarter"}]}
 ```
 
-### Appendix D. Docker Compose skeleton
+### Appendix D. Docker Compose
 
-```
-services:
-postgres:
-image: pgvector/pgvector:pg16
-environment: [POSTGRES_USER=app, POSTGRES_PASSWORD=app, POSTGRES_DB=analekh]
-volumes: [pgdata:/var/lib/postgresql/data]
-redis:
-image: redis:7
-minio:
-image: minio/minio
-command: server /data --console-address :9001
-volumes: [minio:/data]
-api:
-build: .
-command: uvicorn analekh.api.main:app --host 0.0.0.0 --port 8000
-env_file: .env
-depends_on: [postgres, redis, minio]
-worker:
-build: .
-command: celery -A analekh.jobs worker -l info
-env_file: .env
-depends_on: [postgres, redis, minio]
-beat:
-build: .
-command: celery -A analekh.jobs beat -l info
-env_file: .env
-depends_on: [redis]
-web:
-build: ./web
-depends_on: [api]
-volumes:
-pgdata:
-minio:
-```
+Source of truth: `docker-compose.yml` (development: postgres, redis, minio, recalc, api, worker, beat, web) and `deploy/compose.production.yml` (production: postgres, valkey, minio, web, caddy, recalc, migrate, api, worker, beat, on a fixed `10.89.0.0/24` network with the web container at `10.89.0.10`, plus an internal `recalc` network). MinIO is built from source (`deploy/minio`), the recalc service from `deploy/recalc`, HTTPS from `deploy/Caddyfile`. Only Caddy publishes ports (80, 443).
 
 ### Appendix E. Repository layout
 
 ```
 analekh/
-analekh/
-api/            FastAPI routers and schemas
-jobs/           Celery app, tasks, schedules
-universe/       equity list loader, sectors (precedence, Stocks import, index lists), search
-ingest/         feed watcher, integrated-filing lookup and financial-results list, polite HTTP client and host and path allow-list, fetcher, pipeline (incomplete-file guard, latest value by filing time), backfill, bhavcopy (daily prices)
-xbrl/           parser, context mapping, taxonomies
-docs/           page classifier, extraction, chunking, embeddings, call audio to text
-validate/       rules V1 to V11
-workbook/       structure reader, label matcher, dependency graph, fingerprint
-templates/      onboarding, mapping confirmation, test builds
-templates_builtin/  NBFC and manufacturing or consumer templates
-builder/        Coverage Builder, assumption proposals, Sources sheet
-modelsync/      write plan, roll-forward, change sets
-genai/          tools, prompts, grounding check, report and initiation builders
-ib/             comps, profile slide, pitch refresh
-alerts/         email and Telegram alerts
-admin/          Streamlit ops dashboard
-excel_bridge/   folder watcher, model discovery, xlwings writer
-db/             SQLAlchemy models, Alembic migrations
-cli.py, coverage.py, discovery.py, facts.py, golden.py
-desk.py         Results desk: reporters, movers, sector progress
-glance.py       latest quarter at a glance, derived lines, missing-comparison notes
-restatements.py revision status of refiled quarters and what changed
-prices.py       latest close and market cap per company
-deploy/           compose files per environment
-docs/             design document, deviations log, runbooks
-mappings/         example template mapping (Appendix B)
-scripts/          Phase 0 spike, Stocks workbook helper
-web/              React front end (package.json)
-office-addin/     Excel task pane, Phase 5 (package.json)
-tests/            unit, integration, golden set, workbook fixtures
-docker-compose.yml
-pyproject.toml    Python dependencies (source of truth; uv.lock pins them)
-requirements*.txt exported from uv.lock (Appendix G)
-package.json      pnpm workspace root (with pnpm-workspace.yaml, pnpm-lock.yaml)
-.python-version, .node-version
-.env.example
-.gitlab-ci.yml    pipeline (Appendix F)
-.gitlab/          merge request templates
-.pre-commit-config.yaml
-CLAUDE.md         project brief for the AI coding assistant
-.claude/          assistant settings and hooks (the owner's commands and skills are kept outside the repo)
+  api/              FastAPI app, routers (auth, users, tokens, locks, public, companies, models,
+                    change_sets, templates, outputs, ipo, comps, settings, system), body limit
+  auth/             passwords (argon2id), sign-in service, per-address limit, reset codes, bridge tokens
+  jobs/             Celery app, beat schedule, tasks
+  universe/         equity lists, sectors (precedence, Stocks import, index lists), search
+  ingest/           feeds, integrated lookup and results list, PoliteClient and allow-list,
+                    storage, pipeline, backfill, bhavcopy
+  ipo/              SEBI watcher, reader, statements, terms, versions, symbols, coverage, tools
+  xbrl/             parser, element tables per format
+  validate/         rules V1 to V11
+  docs/             PDF read and OCR, page classifier, extraction, chunking, embeddings, audio
+  workbook/         periods, labels, reader, mapping, graph, hygiene, fingerprint, tags, recalc, checks
+  templates/, templates_builtin/, builder/, modelsync/, excel_bridge/
+  genai/            client, tools, calc, grounding, reports, Q&A, writers
+  ib/, alerts/, admin/, db/ (models, migrations)
+  cli.py, config.py, coverage.py, discovery.py, facts.py, golden.py, desk.py, glance.py,
+  history.py, interest.py, restatements.py, prices.py, schedule.py, seasons.py
+deploy/             production and staging compose, Caddyfile, minio, recalc, env scripts
+docs/               design (this document, deviations, architecture.html), roadmap, pending items,
+                    superpowers specs and plans, runbooks
+scripts/            Phase 0 spike, Stocks helper, design_docx.py, diagram_panels.py, graphify_clean.py
+web/, office-addin/ front ends (pnpm workspace)
+tests/              unit, integration, golden set (gitignored), workbook fixtures
+AI.md, CLAUDE.md, Commit-Info.md, README.md
+docker-compose.yml, pyproject.toml, uv.lock, requirements*.txt, package.json, pnpm-*.yaml
+.gitlab-ci.yml, .pre-commit-config.yaml, .env.example, .python-version, .node-version
 ```
 
-### Appendix F. GitLab CI/CD pipeline (skeleton)
+### Appendix F. GitLab CI/CD pipeline
 
-```
-stages: [lint, test, build, scan, deploy-staging, dast, release, mirror]
-variables:
-GIT_DEPTH: "0"                 # full history, required for the mirror push
-include:
-- template: Jobs/SAST.gitlab-ci.yml
-- template: Jobs/Secret-Detection.gitlab-ci.yml
-- template: Jobs/Container-Scanning.gitlab-ci.yml
-- template: Security/DAST.gitlab-ci.yml
-.py:
-image: python:3.12-slim
-before_script:
-- pip install --quiet uv
-- uv sync --frozen
-lint:
-extends: .py
-stage: lint
-script:
-- uv run ruff check .
-- uv run ruff format --check .
-- uv run mypy analekh
-unit_and_integration:
-extends: .py
-stage: test
-services:
-- name: pgvector/pgvector:pg16
-alias: postgres
-- name: redis:7
-alias: redis
-variables:
-POSTGRES_USER: app
-POSTGRES_PASSWORD: app
-POSTGRES_DB: analekh
-DATABASE_URL: postgresql+psycopg://app:app@postgres:5432/analekh
-REDIS_URL: redis://redis:6379/0
-script:
-- uv run alembic upgrade head
-- uv run pytest --junitxml=report.xml --cov=analekh
-artifacts:
-reports:
-junit: report.xml
-golden_set:
-extends: .py
-stage: test
-rules:
-- if: $CI_PIPELINE_SOURCE == "schedule"
-- when: manual
-allow_failure: true
-script:
-- uv run analekh golden-test --report golden.json
-artifacts:
-paths: [golden.json]
-web:
-stage: test
-image: node:24-alpine
-before_script:
-- npm install -g "$(node -p "require('./package.json').packageManager")"
-script:
-- pnpm install --frozen-lockfile
-- pnpm lint
-- pnpm test
-- pnpm build                   # web app and Excel task pane
-dependency_audit:                  # replaces Dependency-Scanning (Ultimate only)
-stage: test
-image:
-name: ghcr.io/google/osv-scanner:v2.7.0
-entrypoint: [""]
-allow_failure: true              # findings show as a warning
-script:
-- /osv-scanner scan source --lockfile uv.lock --lockfile pnpm-lock.yaml
-build_image:
-stage: build
-image: docker:27
-services: [docker:27-dind]
-script:
-- echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-- docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
-- docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
-container_scanning:
-stage: scan
-needs: [build_image]
-variables:
-CS_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-deploy_staging:
-stage: deploy-staging
-tags: [india]                    # self-hosted runner on the Indian VM
-environment: { name: staging, url: $STAGING_URL }
-rules:
-- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-script:
-- IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.staging.yml pull
-- IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.staging.yml up -d
-dast:
-stage: dast
-variables:
-DAST_TARGET_URL: $STAGING_URL
-rules:
-- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-deploy_production:
-stage: release
-tags: [india]
-environment: { name: production, url: $PRODUCTION_URL }
-rules:
-- if: $CI_COMMIT_TAG
-when: manual
-script:
-- IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml pull
-- IMAGE_TAG=$CI_COMMIT_SHA docker compose -f deploy/compose.production.yml up -d
-mirror_to_github:
-stage: mirror
-image:
-name: alpine/git:latest
-entrypoint: [""]           # the image's entrypoint is git; the runner needs a shell
-resource_group: github-mirror
-rules:
-- if: $GITHUB_MIRROR_TOKEN == null || $GITHUB_MIRROR_TOKEN == ""
-when: never
-- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-- if: $CI_COMMIT_TAG
-script:
-- REMOTE="https://${GITHUB_MIRROR_USER}:${GITHUB_MIRROR_TOKEN}@github.com/${GITHUB_MIRROR_REPO}.git"
-- if [ -n "$CI_COMMIT_TAG" ]; then git push "$REMOTE" "refs/tags/$CI_COMMIT_TAG"; else git push "$REMOTE" "HEAD:refs/heads/main"; fi
-```
-
-Notes: scanner template paths follow GitLab's documentation at the time of writing and should be checked against the current docs. The mirror job runs in the last stage, so it only executes when every earlier job has passed. The push has no force flag, so any divergence on GitHub fails the job instead of overwriting history. On GitLab Free the Dependency-Scanning template is replaced by the dependency_audit job (OSV-Scanner); DAST and the security policies stay off until the plan includes them. The real file also has a workflow block, caches, and rules that run deploy and DAST jobs only when their URL variables are set.
+Source of truth: `.gitlab-ci.yml`. Stages: lint, test, build, scan, deploy-staging, dast, release, mirror. Jobs: `lint` (ruff, format, mypy), `unit_and_integration` (pytest with PostgreSQL, `alembic check`), `web` (pnpm lint, test, build), `dependency_audit` (OSV-Scanner, allowed to fail), `golden_set` (scheduled), `build_image` (Arm64 app, web, MinIO and recalc images on the `india` runner), SAST and secret detection templates, `container_scanning` and `container_scanning_recalc`, `deploy_staging` and `dast` (only with their URL variables), `deploy_production` (manual, from main or a tag), `mirror_to_github` (last stage, fast-forward only, skipped without the token). A `workflow:` block avoids duplicate branch and merge-request pipelines.
 
 ### Appendix G. Dependencies and requirements files
 
-The project uses three languages: Python for the back end, workers and Excel bridge; TypeScript for the web app and the Excel add-in; and SQL on PostgreSQL. Python dependencies are declared in pyproject.toml and locked in uv.lock; the requirements files below are exported from the lock so the project also installs with plain pip. Version floors reflect current releases in October 2026; exact versions always come from the lockfiles (uv.lock, pnpm-lock.yaml).
+Source of truth: `pyproject.toml` (locked in `uv.lock`) and `package.json` files (locked in `pnpm-lock.yaml`). The requirements files are exported from the lock: `uv export --no-hashes --no-emit-project --frozen [--only-group bridge|optional|dev]`.
 
 | **File** | **Installs** |
 |---|---|
-| requirements.txt | API, Celery workers and scheduler; the application Docker image. |
-| requirements-bridge.txt | Excel bridge on the analyst's Windows or macOS machine; kept small and separate. |
-| requirements-optional.txt | Local embeddings and the internal admin dashboard; installed only when used. |
-| requirements-dev.txt | Tests, linting and type checks; includes requirements.txt. |
-| web/package.json | React web app (Node.js 24 LTS), in the pnpm workspace. |
-| office-addin/package.json | Excel task pane add-in (Phase 5). |
-| package.json, pnpm-workspace.yaml | Root of the pnpm workspace: pinned pnpm version, install-script policy, one pnpm-lock.yaml for the web app and the add-in. |
+| requirements.txt | API, workers, scheduler (the application image) |
+| requirements-bridge.txt | Excel bridge (xlwings, openpyxl, watchdog, httpx), kept small |
+| requirements-optional.txt | Local embeddings (sentence-transformers) and the Streamlit dashboard |
+| requirements-audio.txt | faster-whisper for call recordings (group `audio`) |
+| requirements-dev.txt | pytest, respx, time-machine, ruff, mypy, pre-commit, stubs |
+| web/package.json, office-addin/package.json | React app and Excel add-in (Office.js loads from Microsoft's CDN) |
 
-#### G.1 Python: requirements.txt
+Main Python groups: web API (FastAPI, uvicorn, pydantic), database (SQLAlchemy, Alembic, psycopg, pgvector), jobs (Celery with Redis), storage and HTTP (boto3, httpx, feedparser, tenacity), XBRL (lxml, Arelle), PDF and OCR (PyMuPDF, pdfplumber, Camelot, RapidOCR, onnxruntime), AI (anthropic), Excel and documents (openpyxl, formulas, XlsxWriter, python-docx, python-pptx, matplotlib), data (pandas, numpy, rapidfuzz), auth (argon2), CLI and logging (typer, structlog). Front end: React, TanStack Query, AG Grid Community, ECharts, PDF.js, zod, Inter; TypeScript held at 5.9 until openapi-typescript and typescript-eslint support newer versions.
 
-```
-# requirements.txt: API, Celery workers and scheduler (the application image)
-# Python 3.12. pyproject.toml is the source of truth; exact pins live in uv.lock.
-# Regenerate a fully pinned copy with:  uv export --no-dev --no-hashes -o requirements.txt
-# Web API
-fastapi>=0.143,<1.0
-uvicorn[standard]>=0.54,<1.0
-pydantic>=2.14,<3
-pydantic-settings>=2.15,<3
-python-multipart>=0.0.32          # template and model uploads
-# Database
-sqlalchemy>=2.1,<3
-alembic>=1.20,<2
-psycopg[binary]>=3.3,<4
-pgvector>=0.5,<1.0
-# Jobs and scheduling (pulls in a compatible redis client)
-celery[redis]>=5.6,<6
-# Object storage, HTTP and feeds
-boto3>=1.43,<2                    # S3 API: MinIO locally, any S3 service when hosted
-httpx>=0.28,<1.0
-feedparser>=6.0,<7
-tenacity>=9.2,<10                 # retries with backoff
-# XBRL
-arelle-release>=2.46,<3
-lxml>=6.1,<7
-# PDF and OCR
-pymupdf>=1.28,<2
-pdfplumber>=0.11,<1.0
-camelot-py>=2.0,<3
-rapidocr>=3.10,<4                 # OCR for scanned pages; ONNX models ship in the package
-onnxruntime>=1.31,<2              # runs the RapidOCR models on the CPU
-# AI
-anthropic>=1.13,<2
-# Excel and documents
-openpyxl>=3.1.5,<4
-formulas>=1.3,<2                  # dependency graph and headless recalculation checks
-xlsxwriter>=3.2,<4
-python-docx>=1.2,<2
-python-pptx>=1.0.2,<2
-matplotlib>=3.11,<4               # charts for notes and slides
-# Data handling and matching
-pandas>=3.0,<4
-numpy>=2.5,<3
-rapidfuzz>=3.14,<4                # label matching
-python-dateutil>=2.9,<3
-# CLI and logging
-typer>=0.27,<1.0
-structlog>=26.1
-```
+#### G.7 PostgreSQL extensions
 
-#### G.2 Python: requirements-bridge.txt
-
-```
-# requirements-bridge.txt: Excel bridge on the analyst's machine (Windows or macOS with desktop Excel)
-# Kept separate so the bridge stays small. Regenerate with:
-#   uv export --only-group bridge --no-hashes -o requirements-bridge.txt
-xlwings>=0.37,<1.0
-openpyxl>=3.1.5,<4
-watchdog>=6.0,<7                  # watched model folders
-httpx>=0.28,<1.0                  # talks to the ANALEKH API
-pydantic-settings>=2.15,<3
-typer>=0.27,<1.0
-structlog>=26.1
-```
-
-#### G.3 Python: requirements-optional.txt
-
-```
-# requirements-optional.txt: install only when needed
-sentence-transformers>=6.1,<7     # local embeddings (EMBEDDINGS_PROVIDER=local); pulls in PyTorch, large
-streamlit>=1.65,<2                # internal admin dashboard
-```
-
-Call recordings use a separate optional group, exported to requirements-audio.txt (uv sync --group audio): faster-whisper with CUDA libraries, no PyTorch.
-
-#### G.4 Python: requirements-dev.txt
-
-```
-# requirements-dev.txt: tests, linting and typing. Regenerate with:
-#   uv export --only-dev --no-hashes -o requirements-dev.txt
--r requirements.txt
-pytest>=9.1,<10
-pytest-cov>=7.1
-pytest-asyncio>=1.4
-respx>=0.23                       # mocks httpx; tests never hit the network
-time-machine>=3.5                 # freezes time for scheduler and period tests
-ruff>=0.17
-mypy>=2.4
-pre-commit>=4.6
-types-python-dateutil
-pandas-stubs
-boto3-stubs[s3]
-```
-
-#### G.5 TypeScript: web/package.json
-
-```
-{
-"name": "analekh-web",
-"private": true,
-"type": "module",
-"engines": { "node": "^22.22.2 || ^24.15.0 || >=26" },
-"scripts": {
-"dev": "vite",
-"build": "tsc -b && vite build",
-"lint": "eslint .",
-"format": "prettier --write src",
-"test": "vitest run",
-"api-types": "openapi-typescript http://localhost:8000/openapi.json -o src/api/schema.d.ts"
-},
-"dependencies": {
-"@fontsource-variable/inter": "^5.3.0",
-"@tanstack/react-query": "^5.104.2",
-"ag-grid-community": "^36.2.0",
-"ag-grid-react": "^36.2.0",
-"echarts": "^6.1.0",
-"echarts-for-react": "^3.0.6",
-"pdfjs-dist": "^6.4.299",
-"react": "^19.3.0",
-"react-dom": "^19.3.0",
-"react-router-dom": "^7.18.4",
-"zod": "^4.6.6"
-},
-"devDependencies": {
-"@eslint/js": "^10.0.1",
-"@testing-library/dom": "^10.4.2",
-"@testing-library/react": "^16.3.3",
-"@types/react": "^19.3.0",
-"@types/react-dom": "^19.3.0",
-"@vitejs/plugin-react": "^6.1.2",
-"eslint": "^10.12.0",
-"eslint-plugin-react-hooks": "^7.1.1",
-"jsdom": "^30.1.2",
-"openapi-typescript": "^7.13.0",
-"prettier": "^3.9.10",
-"typescript": "~5.9.3",
-"typescript-eslint": "^8.71.1",
-"vite": "^8.3.4",
-"vitest": "^5.0.4"
-}
-}
-```
-
-TypeScript is held at 5.9 because openapi-typescript does not yet support TypeScript 6 and typescript-eslint does not yet support TypeScript 7. The api-types script generates front-end types from the FastAPI OpenAPI schema so the two sides cannot drift. Both front ends install with pnpm (version pinned in the root package.json).
-
-#### G.6 TypeScript: office-addin/package.json
-
-```
-{
-"name": "analekh-excel-addin",
-"private": true,
-"type": "module",
-"scripts": {
-"dev-certs": "office-addin-dev-certs install",
-"start": "office-addin-debugging start manifest.xml desktop",
-"stop": "office-addin-debugging stop manifest.xml",
-"validate": "office-addin-manifest validate manifest.xml",
-"build": "tsc -b && vite build"
-},
-"dependencies": {
-"react": "^19.3.0",
-"react-dom": "^19.3.0"
-},
-"devDependencies": {
-"@types/office-js": "^1.0.611",
-"@types/react": "^19.3.0",
-"@types/react-dom": "^19.3.0",
-"@vitejs/plugin-react": "^6.1.2",
-"office-addin-debugging": "^7.0.1",
-"office-addin-dev-certs": "^3.0.1",
-"office-addin-manifest": "^3.0.1",
-"typescript": "~5.9.3",
-"vite": "^8.3.4"
-}
-}
-```
-
-Office.js itself is not an npm dependency: Microsoft requires add-ins to load it from its CDN in the task pane HTML.
-
-#### G.7 SQL: PostgreSQL extensions
-
-| **Extension** | **Use** |
-|---|---|
-| vector (pgvector) | Embeddings and similarity search on chunks; shipped in the pgvector/pgvector:pg16 image. |
-| pg_trgm | Fuzzy company-name search; part of PostgreSQL contrib. |
+`vector` (pgvector, in the pgvector/pgvector:pg16 image) for embeddings; `pg_trgm` (contrib) for fuzzy name search.
 
 #### G.8 System packages and services
 
-| **Package** | **Version** | **Needed by** |
-|---|---|---|
-| Python | 3.12 | Back end, workers, Excel bridge |
-| uv | Current | Environments and lockfile |
-| Node.js | 24 LTS (24.15 or later) | Web app and add-in builds, Prettier |
-| pnpm | 12.x (pinned in package.json) | Front-end installs (workspace) |
-| PostgreSQL + pgvector | 16 (pgvector/pgvector:pg16) | Database |
-| Redis | 7 | Celery broker |
-| MinIO | Current | Local S3-compatible object storage |
-| LibreOffice | Current, headless | Recalculating workbooks without Excel |
-| nginx | Stable | Serving the web build |
-| Docker Engine + Compose | Current | Running all services |
-| Microsoft Excel (desktop) | Microsoft 365 | xlwings bridge; the Stocks data type for the sector import (Excel for the web also works) |
+Python 3.12, uv, Node 24 LTS (pinned in `.node-version`), pnpm (pinned in `package.json`), PostgreSQL 16 + pgvector, Redis 7 or Valkey, MinIO, LibreOffice (in the recalc image only), nginx, Caddy, Docker Engine and Compose, Microsoft Excel desktop (bridge; Microsoft 365 for the Stocks data type). Proposed: Ollama; an NVIDIA GPU driver where training runs.
 
 #### G.9 Licence notes
 
-Everything is free for an open-source public repository. Before any closed or commercial release, these need attention:
+Everything is free for an open-source public repository. Before a closed or commercial release:
 
 | **Component** | **Licence and action** |
 |---|---|
-| PyMuPDF | AGPL-3.0 or a commercial licence from Artifex. A closed product needs that licence, or PDF text extraction moves to pypdfium2 with pdfplumber. |
-| MinIO server | AGPL-3.0. Hosted deployments use a managed S3 service instead; the code talks to the S3 API through boto3, so only configuration changes. |
-| Redis server | Licence changed from version 7.4. Hosted deployments can use Valkey (BSD), a drop-in replacement. |
-| psycopg | LGPL-3.0; fine when used unmodified as a library. |
+| PyMuPDF | AGPL-3.0 or a commercial licence from Artifex; or move text extraction to pypdfium2 with pdfplumber. |
+| MinIO server | AGPL-3.0; hosted deployments can use a managed S3 service (boto3, configuration only). |
+| Redis server | Licence changed from 7.4; Valkey (BSD) is the drop-in replacement, already used in production. |
+| psycopg | LGPL-3.0; fine used unmodified as a library. |
 | formulas | EUPL-1.1; review obligations before distributing a modified copy. |
-| AG Grid | Community edition (MIT) only; Enterprise features are paid and not used. |
-| Market data | No price feed in v1. Prices and sectors from Excel's Stocks data type (LSEG via Microsoft 365) are for the account holder's own use; NSE bhavcopy and NSE Indices terms need checking before redistribution. Serving other users needs a market data licence from an authorised vendor. |
+| AG Grid | Community edition (MIT) only. |
+| Local models (proposed) | Check each base model's licence (for example Qwen2.5's) before shipping it to firms. |
+| Market data | NSE bhavcopy and NSE Indices terms before redistribution; Stocks data type fields for the account holder's own use; serving others needs a market data licence. |
+| Context sources (proposed) | Each publisher's terms before fetching; no redistribution of their documents. |
 
 ### Appendix H. Glossary
 
@@ -1919,26 +1349,24 @@ Everything is free for an open-source public repository. Before any closed or co
 |---|---|
 | Universe | Every NSE-listed company, preloaded from the equity list. |
 | Watchlist | Companies that get deep coverage, alerts and background work. |
-| XBRL | Machine-readable tagged financial statements filed with the exchanges. |
-| Taxonomy | Dictionary of XBRL element names; here in-bse-fin for Ind-AS results. |
-| Context | XBRL definition of the period and dimensions a fact belongs to. |
-| Template | A user's model structure for a sector, onboarded once and reused. |
-| Structure map | The engine's reading of a workbook: periods, inputs, labels, drivers, checks. |
-| Hidden tag | Model ID and symbol stored in workbook custom document properties. |
-| Change set | Proposed model edits awaiting approval. |
-| Roll-forward | Turning an estimate period into an actual and extending the forecast. |
-| Comps | Comparable companies analysis using trading multiples. |
-| LODR | SEBI Listing Obligations and Disclosure Requirements regulations. |
-| TTL | Refresh interval a feed publishes (5 minutes for NSE feeds). |
-| Sector source | Where a company's sector came from: user, excel_stocks or nse_indices. A lower source never overwrites a higher one. |
-| Stocks data type | Excel (Microsoft 365) data type that turns an exchange ID such as XBOM:500325 into a record with fields like Industry and Price. |
-| Static reference price | The one price Analekh uses for a company at a time: the day's close after the market closes, the day's open during market hours (section 3.3). |
-| Bhavcopy | NSE's daily end-of-day price file for every traded security. |
-| Integrated filing | SEBI's combined quarterly filing (financials and governance) that replaced separate results filings; NSE lists them with links to the XBRL. |
-| Basis | Standalone (the listed company alone) or consolidated (with subsidiaries). Both are stored; the company page switches between them. |
-| Revision, restatement | A quarter filed again on the same basis. Restated means headline numbers changed; superseded marks the filing replaced. The most recently filed values are used. |
-| Basis point (bps) | One hundredth of a percentage point; margins and ratios change in bps. |
-| Lakh, crore | Indian units: 1 lakh = 100,000; 1 crore = 10,000,000 (100 lakh). |
+| XBRL; taxonomy; context | Tagged financial statements; the dictionary of element names (in-capmkt with Ind-AS names for integrated filings); the period and dimensions a fact belongs to. |
+| Integrated filing | SEBI's combined quarterly filing that replaced separate results filings. |
+| Basis | Standalone or consolidated; both stored. |
+| Revision, restatement | A quarter filed again on the same basis; restated means headline numbers changed; the most recently filed values are used. |
+| Template; structure map; hidden tag | A sector model structure onboarded once; the engine's reading of a workbook; model ID and symbol in the workbook's custom properties. |
+| Change set; roll-forward | Proposed model edits awaiting approval; turning an estimate period into an actual and extending the forecast. |
+| Model lock | One holder per model while an update, build or report runs. |
+| Comps | Comparable companies by trading multiples. |
+| NIM; CPPPM | Net interest margin; core pre-provision profit margin (section 10.3). |
+| RHP; Prospectus; DRHP | Red herring prospectus (before pricing); the final offer document; the draft (not used). |
+| Agentic RAG | Retrieval-augmented generation where an agent, following a plan in code, decides what context to retrieve and which questions to answer before drafting. |
+| Context source | An official or research publisher fetched ahead for agentic drafting (section 3.4). |
+| Conflict flag | A changed analyst estimate that the retrieved evidence contradicts, shown before drafting. |
+| Adapter (LoRA, QLoRA) | A small trained layer on top of a base model that carries a firm's or analyst's style. |
+| Bhavcopy | NSE's daily end-of-day price file. |
+| Sector source; Stocks data type | Where a sector came from (user, nse_indices, excel_stocks); Excel's linked record type with fields like Industry and Price. |
+| LODR; TTL | SEBI's listing regulations; the refresh interval a feed publishes. |
+| bps; lakh, crore | One hundredth of a percentage point; 1 lakh = 100,000, 1 crore = 10,000,000. |
 
 ## 30. Sources
 
@@ -1948,21 +1376,23 @@ Everything is free for an open-source public repository. Before any closed or co
 - [List of NSE RSS feeds (Feedspot)](https://rss.feedspot.com/nseindia_rss_feeds/)
 - [NSE equity list (EQUITY_L.csv)](https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv)
 - [Sample results XBRL file (NSE archives)](https://archives.nseindia.com/corporate/xbrl/INDAS_121282_1717387_24082026053915.xml)
-- [NSE Terms of Use](https://www.nseindia.com/static/nse-terms-of-use)
+- [NSE integrated filings (financials)](https://www.nseindia.com/companies-listing/corporate-integrated-filing?integratedType=integratedfilingfinancials)
 - [NSE Annual Report XBRL filings](https://www.nseindia.com/companies-listing/corporate-filings-annual-reports-xbrl)
+- [NSE Terms of Use](https://www.nseindia.com/static/nse-terms-of-use)
+- [NSE Indices (index constituent lists)](https://www.niftyindices.com)
+- [SEBI public issues (offer documents)](https://www.sebi.gov.in/sebiweb/home/HomeAction.do?doListing=yes&sid=3&ssid=15&smid=11)
+- [SEBI LODR regulation 33 (financial results)](https://www.sebi.gov.in/legal/regulations/)
+- [SEBI LODR call disclosures (TaxGuru)](https://taxguru.in/?p=1067323)
 - [BSE Information Products Pricing Sheet](https://mock.bseindia.com/downloads1/Information_Products_Pricing_Sheet.pdf)
 - [BSE Market Data Products](https://www.bseindia.com/market_data_products.html)
+- [BSE List of Securities](https://www.bseindia.com/corporates/List_Scrips.html)
 - [Zerodha Kite Connect pricing change (Marketcalls)](https://www.marketcalls.in/fintech/zerodha-makes-trading-api-free-for-personal-use-bundles-historical-data-with-connect-api.html)
 - [NseIndiaApi, unofficial Python library](https://github.com/BennyThadikaran/NseIndiaApi)
 - [Screener.in export help](https://support.screener.in/article/28-export-screen-results)
 - [EODHD financial summary, BSE.NSE](https://eodhd.com/financial-summary/BSE.NSE)
-- [SEBI LODR call disclosures (TaxGuru)](https://taxguru.in/?p=1067323)
-- [Claude API PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support)
 - [Best Financial Data API for Indian Stocks 2026 (DalalAI)](https://dalalai.com/blog/best-financial-data-api-india)
-- [NSE Indices (index constituent lists)](https://www.niftyindices.com)
-- [BSE List of Securities](https://www.bseindia.com/corporates/List_Scrips.html)
 - [Excel data types: Stocks and Geography (Microsoft Support)](https://support.microsoft.com/en-us/office/excel-data-types-stocks-and-geography-61a33056-9935-484f-8ac8-f1a89e210877)
+- [Claude API PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support)
 - [OSV-Scanner](https://google.github.io/osv-scanner/)
 - [GitLab features by tier](https://about.gitlab.com/pricing/feature-comparison/)
-- [NSE integrated filings (financials)](https://www.nseindia.com/companies-listing/corporate-integrated-filing?integratedType=integratedfilingfinancials)
-- [SEBI LODR regulation 33 (financial results)](https://www.sebi.gov.in/legal/regulations/)
+- [Ollama](https://ollama.com)

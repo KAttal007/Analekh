@@ -138,7 +138,7 @@ export function Reports() {
     return (
       <div className="page">
         <PageHeader title="Reports" subtitle="Report types: quarterly update, initiating coverage, IPO coverage." />
-        <div className="field">
+        <div className="field reports-switch">
           Report
           <Segmented<Kind>
             label="Report type"

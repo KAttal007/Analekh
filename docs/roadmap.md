@@ -1,6 +1,6 @@
 # Analekh roadmap
 
-Status on **27 October 2026** (code and design at v0.0.5). This file holds the plan: what is
+Status on **29 October 2026** (code and design at v0.0.6). This file holds the plan: what is
 done, what comes next, and the new ideas with what each one needs. The build phases and their
 exit criteria are in design doc 26; what changed in each update is in
 [Commit-Info.md](../Commit-Info.md); open tasks are ticked off in
@@ -19,13 +19,13 @@ Legend: ✅ done · 🟡 partly done · 🔲 planned · 💬 idea, needs a decis
 | 4. GenAI outputs | 🟡 Tools, calc, grounding check, report loop; Reports set-up screen | Word and PowerPoint writers for the quarterly update and initiation; Q&A screen; reports as jobs |
 | 5. Discovery, IB, polish | 🟡 Comps (P/E, P/B), profile slide, alerts, add-in cores; Comps and Settings screens | Debt and cash for EV multiples; branded templates; demo |
 
-**Done since the v0.0.5 documents (21 to 27 October):** sign-in, roles, first password by email
+**Done since the v0.0.5 documents (21 to 29 October; folded into v0.0.6):** sign-in, roles, first password by email
 and model locks; LibreOffice moved to its own `recalc` container; RapidOCR in place of Tesseract;
 security scan sweep; Excel bridge tested on a real workbook; hosting on Oracle Cloud Mumbai with
 deploys from GitLab, the database and files restored, nightly database backups; CI on the VM's own
 runners (no GitLab minutes), on uv's image with cached dependencies and retries; margins by
 company type and interest ratios for lenders; chart and tab fixes for phone screens; the local AI
-plan ([AI.md](../AI.md)).
+plan ([AI.md](../AI.md)); IPO coverage from SEBI offer documents; the security audit and its fixes; the agentic AI plan (design doc 3.4, 6.12, 17.3 to 17.6, 22.8).
 
 ## 2. Next, in order
 
@@ -59,6 +59,10 @@ Full plan and deployment steps: [AI.md](../AI.md). In short:
 | Report and presentation drafts, comps commentary | Laptop, overnight | Qwen2.5 14B (partial offload) | 🔲 quality to prove |
 | Q&A | Laptop, while it is on | Qwen2.5 7B | 🔲 weakest fit; last |
 | Concall agent (join, record, relay) | Laptop | Playwright script + Whisper + 7B summary | 🔲 design doc 26.3 |
+
+Planned on top (owner, 29 October 2026; AI.md sections 1 to 5): agentic RAG over official and
+research sources fetched ahead, conflict flags on estimate changes, and adapters trained on each
+firm's accepted reports, after the MVP.
 
 Rules that hold whatever the model: numbers only from tools or `calc`; XBRL wins; ratings and
 targets from the analyst; no em-dashes; the analyst approves.
@@ -139,7 +143,7 @@ approves every script; outputs are labelled.
 
 ## 6. Decisions waiting on the owner
 
-- SEBI host for offer documents (section 4.1); NSE paths for announcements (4.3) and debt filings (4.2).
+- Hosts and paths for each context source of the agentic plan (AI.md section 3); NSE paths for announcements (4.3) and debt filings (4.2). (SEBI approved 28 October.)
 - Moving each AI job off Claude, after the golden-set gate (AI.md).
 - The Ind-AS profit tag (about 2,400 filings); the LSEG-to-NSE sector mapping (25 groups); the 250 BSE-only filers.
 - Bank presentation and calculations (walkthrough); the domain name; the logo.

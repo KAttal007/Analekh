@@ -3,6 +3,20 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-29** v0.0.6: documents brought up to date and the AI plan written down. `AI.md`
+  now holds the owner's agentic AI plan: agentic RAG over official and research sources fetched
+  ahead of time (RBI, Government of India, OPEC, World Bank, WEF, IBEF, CRISIL, EY, McKinsey,
+  BCG, Bain; Gartner by analyst upload only; each host needs rule 1 approval), "why" questions on
+  every movement, conflict flags on the analyst's estimate changes before drafting, local models,
+  and adapters trained on each firm's and analyst's accepted reports, with Analekh as a platform
+  each firm hosts itself. The design document is v0.0.6 and compact (about 131 KB, was 170 KB):
+  current design only, repository files (DDL, Compose, CI, dependency lists, environment)
+  referenced instead of copied, section numbers unchanged; new sections 3.4, 6.11 (IPO coverage),
+  6.12 (agentic flow), 10.3 (margins by company type), 17.3 to 17.6 and 22.8. The deviations log
+  folds everything since v0.0.5. Architecture PDF: 14 pages, with IPO coverage and the agentic
+  flow added and the hosting page redrawn for the Oracle VM. Word copy, README, CLAUDE.md, roadmap
+  and the code version (pyproject, package files, `uv.lock`) at 0.0.6. Unblocks: the source
+  approvals and the context fetcher, then agentic drafting.
 - **2026-10-29** IPO coverage from SEBI offer documents, on branch `feature/ipo-coverage`. A daily
   watcher reads SEBI's RHP (smid 11) and Prospectus (smid 12) lists only (`analekh ipo-watch`,
   beat entry `sebi_watch_cron`), stores each PDF once by hash and reads it (`analekh ipo-read`):

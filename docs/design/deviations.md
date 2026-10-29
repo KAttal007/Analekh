@@ -1,13 +1,28 @@
 # Deviations from the Technical Design
 
-The current design is **v0.0.5** ([technical-design.md](technical-design.md); the formatted
-copy is `Analekh - Technical Design v0.0.5.docx`, the diagrams `Analekh - Architecture v0.0.5.pdf`).
+The current design is **v0.0.6** ([technical-design.md](technical-design.md); the formatted
+copy is `Analekh - Technical Design v0.0.6.docx`, the diagrams `Analekh - Architecture v0.0.6.pdf`).
 Record here every place the build departs from it, with the section number, what changed, why
 and when, and fold the list into the next version of the document.
 
 Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed, not decided
 
-## Since v0.0.5
+## Since v0.0.6
+
+| Design says | Now | Why | Date |
+|---|---|---|---|
+
+Nothing yet. The agentic AI plan (design doc 3.4, 6.12, 17.3 to 17.6, 22.8; `AI.md`) is part of
+v0.0.6 as a proposal: building any of it, and each new source host, is recorded here first.
+
+## Folded into v0.0.6 (29 October 2026)
+
+Everything below was a departure from v0.0.5 and is now part of v0.0.6, along with sections 12
+and 13 further down (the SEBI host and IPO coverage), the security audit fixes of 29 October
+2026, and the owner's agentic AI plan of 29 October 2026 (proposed). From v0.0.6 the design
+document is compact: it states the current design only, and copies of repository files are
+replaced by pointers. Section numbers are v0.0.5's (unchanged in v0.0.6, which only adds 3.4,
+6.11, 6.12, 10.3, 11.1 to 11.3, 17.3 to 17.6 and 22.8).
 
 | Design says | Now | Why | Date |
 |---|---|---|---|

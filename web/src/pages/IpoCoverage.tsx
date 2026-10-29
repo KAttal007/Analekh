@@ -199,55 +199,60 @@ export function IpoCoverage() {
   const draft = generate.data ?? coverage.data ?? null;
 
   return (
-    <div className="ipo">
-      <label className="field">
-        IPO
-        <select value={selected?.id ?? ""} onChange={(e) => setPicked(Number(e.target.value))}>
-          {issues.data.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-              {i.current_stage ? ` (${i.current_stage === "prospectus" ? "Prospectus" : "RHP"})` : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {selected ? (
-        <p className="muted">
-          NSE symbol: {selected.company_symbol ?? "not yet assigned"}.
-          <label>
-            {" "}
-            <input value={symbolDraft} onChange={(e) => setSymbolDraft(e.target.value)} placeholder="e.g. JIOFIN" aria-label="NSE symbol" />
-          </label>{" "}
-          <button type="button" className="btn-sm" disabled={!symbolDraft.trim() || saveSymbol.isPending} onClick={() => saveSymbol.mutate()}>
-            Save symbol
-          </button>
-        </p>
-      ) : null}
-
-      {detail.data ? (
-        <>
-          <label className="field">
-            Figures
-            <select value={basis} onChange={(e) => setBasisChoice(e.target.value as Basis)} aria-label="Basis of figures">
-              {hasBoth ? <option value="both">Both</option> : null}
-              <option value="consolidated">Consolidated</option>
-              <option value="standalone">Standalone</option>
-            </select>
-          </label>
-          <Financials detail={detail.data} basis={basis} />
-        </>
-      ) : null}
-
-      <div className="ipo-generate">
-        <button type="button" className="btn" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>
-          Generate coverage
-        </button>
-        {!canGenerate ? <span className="muted"> Waits for an offer document to be read.</span> : null}
-        {genError ? <p role="alert">{genError}</p> : null}
+    <section className="card">
+      <div className="card-header">
+        <h2>IPO coverage</h2>
       </div>
+      <div className="card-body ipo-body">
+        <label className="field">
+          IPO
+          <select value={selected?.id ?? ""} onChange={(e) => setPicked(Number(e.target.value))}>
+            {issues.data.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+                {i.current_stage ? ` (${i.current_stage === "prospectus" ? "Prospectus" : "RHP"})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      {draft ? <Draft draft={draft} /> : null}
-    </div>
+        {selected ? (
+          <p className="muted ipo-symbol">
+            NSE symbol: {selected.company_symbol ?? "not yet assigned"}.
+            <label>
+              {" "}
+              <input value={symbolDraft} onChange={(e) => setSymbolDraft(e.target.value)} placeholder="e.g. JIOFIN" aria-label="NSE symbol" />
+            </label>{" "}
+            <button type="button" className="btn-sm" disabled={!symbolDraft.trim() || saveSymbol.isPending} onClick={() => saveSymbol.mutate()}>
+              Save symbol
+            </button>
+          </p>
+        ) : null}
+
+        {detail.data ? (
+          <>
+            <label className="field">
+              Figures
+              <select value={basis} onChange={(e) => setBasisChoice(e.target.value as Basis)} aria-label="Basis of figures">
+                {hasBoth ? <option value="both">Both</option> : null}
+                <option value="consolidated">Consolidated</option>
+                <option value="standalone">Standalone</option>
+              </select>
+            </label>
+            <Financials detail={detail.data} basis={basis} />
+          </>
+        ) : null}
+
+        <div className="ipo-generate">
+          <button type="button" className="btn" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>
+            Generate coverage
+          </button>
+          {!canGenerate ? <span className="muted"> Waits for an offer document to be read.</span> : null}
+          {genError ? <p role="alert">{genError}</p> : null}
+        </div>
+
+        {draft ? <Draft draft={draft} /> : null}
+      </div>
+    </section>
   );
 }

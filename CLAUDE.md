@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository.
 
 Analekh (`analekh/`): any NSE-listed company in; validated XBRL facts, a built or updated Excel
 model (analyst-approved) and grounded research drafts out. Section numbers in comments (e.g.
-"design doc 12.3") refer to *Analekh Technical Design Document v0.0.5*
+"design doc 12.3") refer to *Analekh Technical Design Document v0.0.6*
 (`docs/design/technical-design.md`; the `.docx` and the architecture PDF are generated from it and
 `architecture.html` with `scripts/design_docx.py` and `scripts/diagram_panels.py`; earlier versions
 are kept as the record). Record every departure from it in `docs/design/deviations.md`.
@@ -124,7 +124,7 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    marked blank for the analyst to fill in; the AI never proposes one (owner's amendment,
    2026-10-21; design doc 23). Drafts must read as the analyst's own work: no em-dashes or other
    marks of generated text.
-9. **Every route needs a signed-in user** (`analekh/auth/`, deviations "Since v0.0.5"), except
+9. **Every route needs a signed-in user** (`analekh/auth/`, design doc 23), except
    `/auth/login`, the reset flow and `/public/*`. Credentials, session tokens, bridge tokens and
    reset codes travel only in POST bodies, the session cookie or the `Authorization` header:
    never in a URL, and never logged. Sign-in replies never reveal whether an email has an
@@ -171,7 +171,7 @@ Search for `PHASE 0` .. `PHASE 5` and `# verify`:
 ## Claude API usage
 
 The owner aims for no API costs: a local provider (Ollama) is planned beside Claude, chosen per
-job once it passes the golden set (`AI.md`; not built yet, deviations "Since v0.0.5"). Until it
+job once it passes the golden set (`AI.md`; design doc 17.3 to 17.6, proposed, not built yet). Until it
 exists, the rules below describe the only provider.
 
 All calls go through `analekh/genai/client.py` (`Claude.create`), which sets the model from
