@@ -3,6 +3,17 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-29** IPO coverage from SEBI offer documents, on branch `feature/ipo-coverage`. A daily
+  watcher reads SEBI's RHP (smid 11) and Prospectus (smid 12) lists only (`analekh ipo-watch`,
+  beat entry `sebi_watch_cron`), stores each PDF once by hash and reads it (`analekh ipo-read`):
+  text chunks for search, the restated statements (three years plus stub, both bases, Decimal,
+  unit checks that flag rather than store clean) and the price band and peers. The Prospectus
+  supersedes the RHP and changes show as restatements. Coverage drafts run one grounded loop per
+  section (RHP or Prospectus), rating and rationale left as analyst blanks, no target price. New
+  API routes under `/ipo` (migration `0014`) and an "IPO coverage" report type on the Reports
+  page. Unblocks: first coverage of a recent listing the day its RHP is filed. Not built: Word
+  export of the draft, the call to `link_listed` after the daily prices, a golden case from a
+  real RHP (the owner marks it first). Records: deviations section 13.
 - **2026-10-29** Security audit pair (rule 10) on commit `e0a260b`: run-1 and run-2
   (`~/security-audit-skill/analekh/run-1`, `run-2`, kept outside the repo). Run-1 found 7
   confirmed issues, all fixed: STARTTLS certificate checks on mail, test builds admin-only, reset

@@ -71,10 +71,23 @@ class ReportRun:
         return not self.grounding.ok
 
 
-def run_report(claude: Claude, executor: ToolExecutor, kind: str, max_turns: int = 20, **params: Any) -> ReportRun:
-    prompt = PROMPTS[kind].format(**{"model_id": None, **params})
+def run_report(
+    claude: Claude,
+    executor: ToolExecutor,
+    kind: str,
+    max_turns: int = 20,
+    *,
+    tools: list[dict[str, Any]] = TOOL_DEFS,
+    system_text: str = SYSTEM,
+    prompt: str | None = None,
+    **params: Any,
+) -> ReportRun:
+    """Defaults keep every existing call unchanged. `prompt` overrides PROMPTS[kind]; `tools` and
+    `system_text` let a caller (the IPO coverage sections) use its own tool set and system text."""
+    if prompt is None:
+        prompt = PROMPTS[kind].format(**{"model_id": None, **params})
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
-    system = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    system = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
     calls: list[dict[str, Any]] = []
     results: list[Any] = []
     tokens_in = tokens_out = 0
@@ -84,7 +97,7 @@ def run_report(claude: Claude, executor: ToolExecutor, kind: str, max_turns: int
             f"report:{kind}",
             system=system,
             messages=messages,
-            tools=TOOL_DEFS,
+            tools=tools,
             effort="high",
             max_tokens=32000,
         )

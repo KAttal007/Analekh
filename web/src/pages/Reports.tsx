@@ -6,13 +6,16 @@ import { CompanySearch, type Suggestion } from "../components/CompanySearch";
 import { Icon, type IconName } from "../components/Icon";
 import { Badge, EmptyState, PageHeader, Segmented } from "../components/ui";
 import { longDate } from "../lib/format";
+import { IpoCoverage } from "./IpoCoverage";
 
 // Reports (design doc 15, 17). The set-up is live: company, report type, quarter and the input
 // checks read the real data. Writing the Word note and the PowerPoint is still being built, so
 
-type Kind = "quarterly" | "initiating";
+type Kind = "quarterly" | "initiating" | "ipo";
 
 const SECTIONS: Record<Kind, { word: string[]; slides: string[] }> = {
+  // The IPO tab has its own sections (IpoCoverage.tsx); these empty lists only keep the map total.
+  ipo: { word: [], slides: [] },
   quarterly: {
     word: ["Results highlights", "Concall highlights", "Risks and future guidance", "Investment rationale"],
     slides: ["Results at a glance", "Segment and KPI update", "Concall takeaways", "Outlook and risks"],
@@ -55,7 +58,8 @@ const BASIS_OPTIONS: { value: Basis; label: string }[] = [
 export function Reports() {
   const [params, setParams] = useSearchParams();
   const symbol = params.get("company") ?? "";
-  const kind: Kind = params.get("kind") === "initiating" ? "initiating" : "quarterly";
+  const requested = params.get("kind");
+  const kind: Kind = requested === "initiating" || requested === "ipo" ? requested : "quarterly";
   const asked = params.get("basis");
   const chosenBasis: Basis | null = asked === "standalone" || asked === "consolidated" || asked === "both" ? asked : null;
   const quarter = params.get("quarter");
@@ -128,6 +132,30 @@ export function Reports() {
   const wcur = Math.min(wordActive, sections.length - 1);
   const readyCount = INPUT_ROWS.filter((r) => states[r.key] === "ready").length;
 
+  if (kind === "ipo") {
+    // IPO coverage has its own inputs (SEBI offer documents), so the company and quarter cards
+    // do not apply. Hooks above run for every kind; this early return only changes the layout.
+    return (
+      <div className="page">
+        <PageHeader title="Reports" subtitle="Report types: quarterly update, initiating coverage, IPO coverage." />
+        <div className="field">
+          Report
+          <Segmented<Kind>
+            label="Report type"
+            options={[
+              { value: "quarterly", label: "Quarterly update" },
+              { value: "initiating", label: "Initiating coverage" },
+              { value: "ipo", label: "IPO coverage" },
+            ]}
+            value={kind}
+            onChange={(v) => set({ kind: v === "quarterly" ? null : v }, false)}
+          />
+        </div>
+        <IpoCoverage />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <PageHeader
@@ -169,6 +197,7 @@ export function Reports() {
                 options={[
                   { value: "quarterly", label: "Quarterly update" },
                   { value: "initiating", label: "Initiating coverage" },
+                  { value: "ipo", label: "IPO coverage" },
                 ]}
                 value={kind}
                 onChange={(v) => set({ kind: v === "quarterly" ? null : v }, false)}

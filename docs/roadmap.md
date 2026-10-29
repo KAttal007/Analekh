@@ -65,14 +65,18 @@ targets from the analyst; no em-dashes; the analyst approves.
 
 ## 4. New sources
 
-### 4.1 Offer documents for recent listings (SEBI) 💬
+### 4.1 Offer documents for recent listings (SEBI) 🟡
 
 Recently listed companies have few or no quarterly results, but their offer documents carry
 three financial years of restated figures (often a stub period too).
 
-- **Flow:** DRHP or RHP for early coverage; the Prospectus, filed once the price is fixed around
-  the issue close, becomes the final record. Order of precedence: Prospectus > RHP > DRHP. Quarterly
-  XBRL, once filed, wins over all of them (V10).
+- **Flow:** the RHP for early coverage; the Prospectus, filed once the price is fixed around
+  the issue close, becomes the final record. Order of precedence: Prospectus > RHP. The DRHP is
+  not used (owner, 29 October). Quarterly XBRL, once filed, wins over all of them (V10).
+- **Status (29 October 2026):** built and tested on synthetic documents (watcher, reader, versions,
+  restatements, coverage drafts, API, Reports tab). SEBI host approved 28 October. Layout confirmed
+  by a live fetch of Jio Platforms Limited. Not yet run on a real PDF: the first real run and its
+  hand-check against the document come before the figures are trusted.
 - **Changes are kept, not overwritten:** each document's figures are a version; a change from
   RHP to Prospectus shows as a restatement for the analyst, and reaches a model only through an
   approved change set.
@@ -84,8 +88,8 @@ three financial years of restated figures (often a stub period too).
   (2,277 records, 25 a page, newest first). Detail pages:
   `/filings/public-issues/{mon-yyyy}/{slug}_{id}.html`; PDFs under `/sebi_data/commondocs/`. No API;
   older pages are reached through a JavaScript form; `sebirss.xml` does not cover filings.
-- **Needs (owner):** a rule 1 style approval for `www.sebi.gov.in`, limited to the listing page,
-  `/filings/public-issues/` detail pages and `/sebi_data/commondocs/` PDFs; one listing request a
+- **Approved (owner, 28 October):** `www.sebi.gov.in`, limited to the list pages,
+  `/filings/public-issues/` entry pages and `/sebi_data/attachdocs/` PDFs; one listing request a
   day plus one detail page and one PDF per new filing; honest User-Agent. SEBI's website terms to
   be read first. Older listings: take the Prospectus from the NSE side instead of paging back
   (another NSE path to approve).

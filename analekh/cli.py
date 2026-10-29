@@ -148,6 +148,14 @@ def results_watch(
     typer.echo(watch_results(force))
 
 
+@app.command("ipo-watch")
+def ipo_watch() -> None:
+    """New RHPs and Prospectuses from SEBI's lists (smid 11 and 12 only; DRHP is never fetched)."""
+    from analekh.jobs.tasks import watch_sebi_offers
+
+    typer.echo(watch_sebi_offers())
+
+
 @app.command("prices")
 def prices(
     day: str | None = typer.Option(None, "--date", help="Trading day (YYYY-MM-DD); default: latest close."),
@@ -491,3 +499,11 @@ def create_admin(
             raise typer.Exit(1) from exc
         moved = adopt_local(s, user) if adopt_local_data else 0
     typer.echo(f"Admin {user.email} created." + (f" {moved} rows adopted." if moved else ""))
+
+
+@app.command("ipo-read")
+def ipo_read(limit: int = typer.Option(10, "--limit", min=1, max=100)) -> None:
+    """Read SEBI offer documents that are waiting (restated statements and text chunks)."""
+    from analekh.jobs.tasks import read_ipo_documents
+
+    typer.echo(read_ipo_documents(limit))

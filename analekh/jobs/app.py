@@ -57,5 +57,9 @@ app.conf.update(
             "task": "analekh.jobs.tasks.purge_sessions",
             "schedule": _cron(settings.session_purge_cron),
         },
+        "watch-sebi-offers": {
+            "task": "analekh.jobs.tasks.watch_sebi_offers",
+            "schedule": _cron(settings.sebi_watch_cron),
+        },
     },
 )
