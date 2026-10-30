@@ -41,7 +41,9 @@ def _login(client, email="kaushal@firm.in", password=GOOD):
 def test_login_sets_httponly_samesite_strict_cookie(raw, user):
     res = _login(raw)
     assert res.status_code == 200
-    assert res.json() == {
+    body = res.json()
+    assert set(body.pop("device")) == {"device_id", "name", "label"}
+    assert body == {
         "id": user.id,
         "name": "Kaushal",
         "email": "kaushal@firm.in",

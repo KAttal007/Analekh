@@ -3740,6 +3740,34 @@ table.glance tbody tr:last-child > * {
 .login-link:hover {
   text-decoration: underline;
 }
+.login-devices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.login-devices li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.login-device-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+.login-device-meta {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.login-devices .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
 .login-week {
   width: 100%;
   max-width: 860px;

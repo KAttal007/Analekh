@@ -3,6 +3,7 @@
 Monetary values are NUMERIC, never float. Raw files live in object storage; rows hold keys.
 """
 
+import secrets
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -554,15 +555,54 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+def new_device_id() -> str:
+    """A short public name for a device, safe to show and to send back: it is not the key."""
+    return secrets.token_hex(4)
+
+
+class UserDevice(Base):
+    """A browser a user has signed in from, remembered by the `analekh_device` cookie (only the
+    SHA-256 of its key is stored). It outlives sessions, so the name the user gave it stays.
+    `label` is a fixed-vocabulary "Chrome on Windows", never the raw User-Agent; `name` is the
+    user's own ("Office laptop")."""
+
+    __tablename__ = "user_devices"
+    __table_args__ = (UniqueConstraint("user_id", "device_id", name="uq_user_devices_user_device"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_id: Mapped[str] = mapped_column(String(16), default=new_device_id)
+    key_hash: Mapped[str] = mapped_column(Text, unique=True)
+    label: Mapped[str | None] = mapped_column(String(64))
+    name: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AuthSession(Base):
-    """A browser session. Only the SHA-256 of the cookie token is stored."""
+    """A browser session. Only the SHA-256 of the cookie token is stored. Each belongs to one
+    device; at most `session_max_per_user` are live per user."""
 
     __tablename__ = "auth_sessions"
 
     token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_pk: Mapped[int] = mapped_column(ForeignKey("user_devices.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SignInChoice(Base):
+    """A sign-in held at the session limit: the password was right, and the person must pick one
+    of their sessions to end before a new one opens. One use, short-lived; only the SHA-256 of
+    the token is stored. The second step comes from the same browser, so it brings its own
+    device cookie and User-Agent."""
+
+    __tablename__ = "sign_in_choices"
+
+    token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ApiToken(Base):

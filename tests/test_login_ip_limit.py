@@ -56,8 +56,9 @@ def test_a_refused_address_is_refused_even_with_the_right_password(client, db):
 
 def test_successful_sign_ins_do_not_count(client, db):
     create_user(db, "a@firm.in", "A", "analyst", GOOD)
-    for _ in range(10):
+    for _ in range(10):  # signing out each time keeps under the per-user session limit
         assert _login(client, "a@firm.in", GOOD).status_code == 200
+        assert client.post("/auth/logout", headers={"X-Analekh-CSRF": "1"}).status_code == 204
 
 
 def test_the_window_expires(client, monkeypatch):

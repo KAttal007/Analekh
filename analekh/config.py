@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     first_password_hours: int = 24
     first_password_length: int = 20
     session_max_hours: int = 24  # hard cap from sign-in, however active (a fresh sign-in each day)
+    session_max_per_user: int = 3  # browsers signed in at once; one more must end one first
+    session_choice_minutes: int = 5  # how long that "end which device?" step stays open
+    device_cookie_days: int = 365  # a browser is remembered this long after its last sign-in
+    device_name_max_length: int = 40
     login_pause_after: int = 3
     login_block_after: int = 5
     login_pause_minutes: int = 15

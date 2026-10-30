@@ -16,7 +16,7 @@ from analekh.auth import reset, service
 from analekh.auth.passwords import PasswordTooLong, PasswordTooShort
 from analekh.auth.tokens import create_api_token
 from analekh.config import get_settings
-from analekh.db.models import AuditEntry, AuthSession, PasswordReset
+from analekh.db.models import AuditEntry, AuthSession, PasswordReset, UserDevice
 from analekh.db.session import get_session
 
 GOOD = "Correct-Horse-Battery-9"
@@ -86,10 +86,14 @@ def test_purge_deletes_only_unusable_sessions(db, user):
     row = db.get(AuthSession, service._hash_token(fresh))
     assert row is not None
     other = service.create_user(db, "other@firm.in", "Other", "analyst", GOOD)
+    device = UserDevice(user_id=other.id, key_hash="k" * 64)
+    db.add(device)
+    db.flush()
     db.add(
         AuthSession(
             token_hash="x" * 64,
             user_id=other.id,
+            device_pk=device.id,
             created_at=T0 - timedelta(hours=cfg.session_max_hours, minutes=1),
             last_seen_at=T0,
         )

@@ -32,6 +32,12 @@ export type UserChange = Schemas["UserPatch"];
 export type UploadLimit = Schemas["UploadLimitOut"];
 export type ApiToken = Schemas["TokenOut"];
 export type ApiTokenCreated = Schemas["TokenCreated"];
+/** 409 from sign-in at the session limit (SessionLimitOut): pick a device to sign out of. */
+export type SessionDevice = { device_id: string; name: string | null; label: string | null; signed_in_at: string; last_seen_at: string };
+/** The device this browser just signed in on (ThisDeviceOut); `name` is the user's own. */
+export type ThisDevice = { device_id: string; name: string | null; label: string | null };
+export type LoginOut = Me & { device: ThisDevice };
+export type SessionLimit = { detail: string; limit: number; choice_token: string; devices: SessionDevice[] };
 export type DeskSort = "filed" | "market_cap";
 export type DeskQuery = {
   quarter_end?: string;
@@ -73,6 +79,7 @@ export class ApiError extends Error {
     message: string,
     public retryAfter?: number,
     public blocked = false,
+    public sessionLimit?: SessionLimit,
   ) {
     super(message);
   }
@@ -95,19 +102,23 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     let detail = res.statusText;
     let blocked = false;
+    let sessionLimit: SessionLimit | undefined;
     try {
       const body = await res.json();
       detail = body.detail ?? detail;
       blocked = body.blocked === true;
-    } catch { /* body is not JSON: keep the default detail */ }
-    if (res.status === 401 && path !== "/auth/login" && path !== "/auth/first-password") {
+      if (res.status === 409 && typeof body.choice_token === "string") sessionLimit = body as SessionLimit;
+    } catch {
+      /* body is not JSON: keep the default detail */
+    }
+    if (res.status === 401 && !path.startsWith("/auth/login") && path !== "/auth/first-password") {
       signedOutHandler?.();
     }
     const wait = Number(res.headers.get("Retry-After"));
     if (res.status === 404 && detail === "Not Found") {
       throw new ApiError(404, STALE_API);
     }
-    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail), Number.isFinite(wait) && wait > 0 ? wait : undefined, blocked);
+    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail), Number.isFinite(wait) && wait > 0 ? wait : undefined, blocked, sessionLimit);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
@@ -134,7 +145,9 @@ async function download(path: string, body: unknown, filename: string): Promise<
 }
 
 export const api = {
-  login: (email: string, password: string) => post<Me>("/auth/login", { email, password }),
+  login: (email: string, password: string) => post<LoginOut>("/auth/login", { email, password }),
+  replaceSession: (choiceToken: string, deviceId: string) => post<LoginOut>("/auth/login/replace", { choice_token: choiceToken, device_id: deviceId }),
+  nameDevice: (name: string) => post<ThisDevice>("/auth/device-name", { name }),
   logout: () => post<void>("/auth/logout"),
   logoutEverywhere: () => post<void>("/auth/logout-everywhere"),
   me: () => call<Me>("/auth/me"),

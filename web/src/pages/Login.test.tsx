@@ -28,6 +28,7 @@ beforeEach(() => {
     });
   });
   sessionStorage.clear();
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -47,6 +48,8 @@ const RULES = {
 const NEW_PASSWORD = "A-brand-new-passw0rd";
 
 const ME = { id: "u1", name: "Kaushal", email: "k@firm.in", role: "analyst" };
+// a device already named, so sign-in goes straight on
+const LOGIN = { ...ME, device: { device_id: "ab12cd34", name: "Office laptop", label: "Chrome on Windows" } };
 
 function Where() {
   const loc = useLocation();
@@ -93,7 +96,7 @@ test("wrong credentials show only the server's one sentence", async () => {
 });
 
 test("sign-in posts JSON with the CSRF header and never puts credentials in the address", async () => {
-  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: LOGIN });
   const push = vi.spyOn(window.history, "pushState");
   renderLogin();
   fill("Email", "k@firm.in");
@@ -196,7 +199,7 @@ test("reset: when email is not set up the page says so", async () => {
 
 test("signed out, a protected page remembers its path and sign-in returns to it", async () => {
   routes["GET /api/auth/me"] = () => ({ status: 401, body: { detail: "Sign in required." } });
-  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: LOGIN });
   renderLogin("/companies/TCS");
   await waitFor(() => expect(screen.getByTestId("where").textContent).toContain("/login"));
   expect(sessionStorage.getItem("analekh.return-path")).toBe("/companies/TCS");
@@ -336,7 +339,7 @@ test("refuses 31 characters with maxLength in the DOM", async () => {
 });
 
 test("after sign-in the desk's data is asked for before the page changes", async () => {
-  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: LOGIN });
   let deskAskedWhileOnLogin = false;
   routes["GET /api/desk"] = () => {
     deskAskedWhileOnLogin = screen.getByTestId("where").textContent === "/login";
@@ -353,7 +356,7 @@ test("after sign-in the desk's data is asked for before the page changes", async
 
 test("signing in again after a session ran out re-arms the sign-in reminder", async () => {
   sessionStorage.setItem("analekh.signin-locks", ME.id);
-  routes["POST /api/auth/login"] = () => ({ status: 200, body: ME });
+  routes["POST /api/auth/login"] = () => ({ status: 200, body: LOGIN });
   renderLogin();
   fill("Email", "k@firm.in");
   fill("Password", "a-long-secret-password");
@@ -373,4 +376,57 @@ test("a failed sign-in leaves the reminder's mark alone", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByRole("alert");
   expect(sessionStorage.getItem("analekh.signin-locks")).toBe(ME.id);
+});
+
+function signInWith(body: unknown, status = 200) {
+  routes["POST /api/auth/login"] = () => ({ status, body });
+  renderLogin();
+  fill("Email", "k@firm.in");
+  fill("Password", "a-long-secret-password");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+}
+
+const UNNAMED = { ...ME, device: { device_id: "ab12cd34", name: null, label: "Chrome on Windows" } };
+
+test("a new device is offered a name, ready to edit, and saving it goes on", async () => {
+  routes["POST /api/auth/device-name"] = () => ({ status: 200, body: { ...UNNAMED.device, name: "Home PC" } });
+  signInWith(UNNAMED);
+  const input = (await screen.findByLabelText("Device name")) as HTMLInputElement;
+  expect(input.value).toBe("Chrome on Windows");
+  expect(screen.getByTestId("where").textContent).toBe("/login"); // held until named or skipped
+  fill("Device name", "Home PC");
+  fireEvent.click(button("Save name"));
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/"));
+  const post = calls.find((c) => c.url === "/api/auth/device-name")!;
+  expect(JSON.parse(String(post.init.body))).toEqual({ name: "Home PC" });
+  expect(post.init.headers).toMatchObject({ "X-Analekh-CSRF": "1" });
+});
+
+test("skipping the name goes on and is not asked again on this browser", async () => {
+  signInWith(UNNAMED);
+  fireEvent.click(await screen.findByRole("button", { name: "Skip for now" }));
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/"));
+  expect(localStorage.getItem("analekh.device-name-skipped")).toBe("ab12cd34");
+  expect(calls.some((c) => c.url === "/api/auth/device-name")).toBe(false);
+});
+
+test("at the session limit the devices are listed and one can be signed out", async () => {
+  const limit = {
+    detail: "You are signed in on 3 devices, the most allowed. Sign out of one to sign in here.",
+    limit: 3,
+    choice_token: "choice-token",
+    devices: [
+      { device_id: "11aa22bb", name: "Office laptop", label: "Chrome on Windows", signed_in_at: "2026-10-30T04:00:00Z", last_seen_at: "2026-10-30T05:00:00Z" },
+      { device_id: "33cc44dd", name: null, label: "Safari on iPhone", signed_in_at: "2026-10-29T04:00:00Z", last_seen_at: "2026-10-29T05:00:00Z" },
+    ],
+  };
+  routes["POST /api/auth/login/replace"] = () => ({ status: 200, body: LOGIN });
+  signInWith(limit, 409);
+  expect(await screen.findByText("Office laptop")).toBeTruthy();
+  expect(screen.getByText("Safari on iPhone")).toBeTruthy();
+  expect(screen.getByText("11aa22bb")).toBeTruthy();
+  fireEvent.click(screen.getAllByRole("button", { name: "Sign out of this device" })[1]);
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/"));
+  const post = calls.find((c) => c.url === "/api/auth/login/replace")!;
+  expect(JSON.parse(String(post.init.body))).toEqual({ choice_token: "choice-token", device_id: "33cc44dd" });
 });
