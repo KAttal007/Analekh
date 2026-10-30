@@ -67,6 +67,43 @@ Build order (agreed in principle, to confirm):
 
 Open: the queue design (concurrency per provider, overflow policy) is to be brainstormed before project 1 starts.
 
+## Redesign: announcements, Notices and company notes (owner, 2026-10-30; next session starts here)
+
+Start with the brainstorming step and write the spec in `docs/superpowers/specs/` before any code. Nothing below is built.
+
+**Why it came up.** The watcher downloaded the PDF behind every announcement and board-meeting feed item. The feed's title is only the company name, so the classifier (`classify_announcement`, `analekh/ingest/pipeline.py`) could not tell announcements apart, and 6,372 files landed as kind `other`: 11.5 GB in 17 days (13 to 30 October), about 20 GB a month, on a disk that reached 80%. None was used: 6,374 stayed `fetched`, 5 were parsed (184 chunks, 0 KPIs).
+
+**Already done (commit `a1ef982`, deployed 2026-10-30).** Only transcripts, presentations and annual reports are downloaded now. Every other announcement is closed without a request and keeps its `feed_items` row (link, title, description). The 6,373 stored `other` files were deleted from MinIO and the database (5 parsed ones kept); the disk is at 31%. Recorded in `docs/design/deviations.md`.
+
+**Owner's idea.**
+
+- Do not download or store these files; link to the NSE URL in the database.
+- When the watcher finds a notice, another program reads it and writes a note. A text note per company makes it easier for the agentic AI to draft reports, and the notes show in the web app as notices on a new **Notices** screen.
+
+**What the data looks like (checked on the VM).**
+
+- All files came from `nsearchives.nseindia.com`: 5,174 from the `announcements` feed, 1,203 from `board_meetings`. About 375 a day; average 1.8 MB, largest 89 MB (a 192-page scheme of amalgamation, Arisinfra's creditors' meeting, 23 October).
+- The feed `description` carries the subject: "X has informed the Exchange regarding ...", and for board meetings `purpose |Meeting Date: DD-Mon-YYYY`. Some descriptions are blank (2 of 8 sampled).
+- File names also carry the subject (`Quick_Financial_Result`, `Analystcallrecording`, `CL-Earnings_call`, `PressRelease`, `Outcome`, `Regulation_30`, `Statement_of_Deviation_and_Variation`, `Utilization_of_issue_proceeds_Certificate`, `Newspaper...`) but are spelled many ways (`bm`, `bmintimation`, `boardmeetingintimation`), so they cannot be the only signal.
+- Some announcers are not equity companies (municipal corporations with listed bonds, mutual funds and ETFs).
+- The calendar reads `feed_items` of the `board_meetings` feed (`analekh/schedule.py`), never the files. Those rows must stay.
+- Kinds still downloaded: 390 transcripts (320 MB), 380 presentations (1.4 GB), 1 annual report, all since 14 to 21 October; IPO documents are stored separately under `ipo/` (542 MB, from SEBI).
+
+**Questions to settle.**
+
+- [ ] Reading without storing: a note needs one download per document, read in memory and discarded. Allow that? Confirm it is covered by rule 1 ("the files they link to" from the RSS feeds).
+- [ ] Which subjects get a note (results, board-meeting outcomes, earnings calls, press releases, mergers and schemes, fund raising) and which show only the description line (routine certificates, newspaper clippings, trading-window letters)?
+- [ ] Classification: use the feed description (and file name) as well as the title; fix the keyword lists, which see only company names today.
+- [ ] Which companies: the whole universe, or the watchlist and deep coverage only? Drop non-equity issuers.
+- [ ] Who writes the note: a local model (AI.md) or Claude; cost at about 375 documents a day; grounding (rule 3: only numbers from the document) and no ratings or targets (rule 8); human review?
+- [ ] Where the notes live: a database table, or text files per company in object storage (the owner said text files); how they are searched and cited by the report agent.
+- [ ] The Notices screen: global feed and per company, filters by subject, link to the NSE PDF; every route needs a signed-in user (rule 9); an alert when a watchlist company has a notice.
+- [ ] Do transcripts, presentations and annual reports stay downloaded (they feed KPI extraction), or move to the same read-and-note flow?
+- [ ] Delete the 5 parsed `other` files or keep them.
+- [ ] Documents to update with it: design doc sections 6.9 (calendar), 9.3 (storage), 17 and 20, `docs/design/deviations.md`, and `Commit-Info.md`.
+
+**Constraints that apply.** CLAUDE.md rules 1 (NSE access only through `PoliteClient`, no widening of `ALLOWED_HOSTS` or `ALLOWED_PATHS` without the owner), 3, 8, 9 and 11; money as Decimal; no raw exchange files in git.
+
 ## Architecture
 
 - [ ] Move reports from inline API execution to Celery jobs, storing files in object storage
@@ -93,8 +130,12 @@ Done:
 
 Remaining:
 
-- [ ] Backups off the box: a private Oracle Object Storage bucket (20 GB free) with the nightly dump copied there, plus a weekly copy of the MinIO files; test one restore into a scratch database
-- [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only, with `fail2ban`). Held back 2026-10-30: the owner's address changes with each network, so a fixed-address rule could lock them out. Options: a second allowed address, or Oracle Bastion
+- [x] Backups off the box (2026-10-30): private Oracle Object Storage bucket `analekh-backups` (Mumbai, Oracle keys). The nightly dump is copied there by `~/backup-db.sh` with rclone (instance principal, no stored key); weekly copy of the MinIO files at 03:00 Sundays; dumps deleted after 14 days by a bucket lifecycle rule. Restore test passed: the 17:10 dump restored with no errors and 56,417 filings, against 56,425 live (the gap is the filings added since). Free tier is 20 GiB combined; the account is on a Free Trial, so upgrade before it ends (data in a trial account can be deleted)
+- [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only, with `fail2ban`). Held back 2026-10-30: the owner's address changes with each network, so a fixed-address rule could lock them out. Options: Oracle Bastion (works from any network, no open port 22) or a VPN such as Tailscale. Done meanwhile: passwords and keyboard-interactive login off, `PermitRootLogin no` (`/etc/ssh/sshd_config.d/99-hardening.conf`), `fail2ban` bans of 1 hour (`/etc/fail2ban/jail.d/sshd-local.conf`)
+- [ ] Oracle bucket `analekh-backups`: add a lifecycle rule that deletes `db/` objects after 14 days (console, Object Lifecycle Policy); upgrade the Free Trial account before it ends
+- [ ] `node-forge` 1.4.0 (high) in the Excel add-in's dev tooling has no fixed version yet (OSV audit, allowed to fail); `qs` is overridden to 6.16.1 in `pnpm-workspace.yaml`
+
+VM state that is not in the repo (kept on the VM only): `/home/ubuntu/backup-db.sh` (nightly dump, then `rclone copy` to the bucket), the `ubuntu` crontab (nightly 21:30 backup; weekly MinIO copy Sundays 03:00), `~/.config/rclone/rclone.conf` (rclone 1.75.2 in `/usr/local/bin`, instance-principal login; the Ubuntu package is too old), `/etc/analekh/production.env`, the two SSH and `fail2ban` drop-in files above, and the Oracle dynamic group `analekh-vm` with policy `analekh-vm-backups`.
 - [ ] Container scanning gives no report on the Arm64 images (allowed to fail: the scanner looks for `linux/amd64`, the images are Arm64). Try `TRIVY_PLATFORM: linux/arm64` on both scanning jobs. Also open: `dependency_audit` flags `qs` 6.16.0 (fixed in 6.16.1) and `node-forge` 1.4.0 (no fix yet)
 - [ ] Confirm the first scheduled backup ran: `tail -3 ~/backups/backup.log` on the VM
 
