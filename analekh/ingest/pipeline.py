@@ -261,6 +261,14 @@ def process_feed_item(session: Session, store: ObjectStore, client: PoliteClient
         item.processed_at = datetime.now().astimezone()
         item.error = SKIPPED_ZIP
         return None
+    kind = None if item.feed == "financial_results" else classify_announcement(item.title, item.description)
+    if kind == "other":
+        # Notices, outcomes, press releases and the like are not stored (owner's decision
+        # 2026-10-30): the feed row keeps the link, title and description, which is all the
+        # calendar and the Notices screen read. Only transcripts, presentations and annual
+        # reports are downloaded, for the document pipeline.
+        item.processed_at = datetime.now().astimezone()
+        return None
     stored = session.scalar(select(Filing).where(Filing.source_url == item.link).limit(1))
     failed = None
     if stored is None:
@@ -296,7 +304,7 @@ def process_feed_item(session: Session, store: ObjectStore, client: PoliteClient
             store,
             company,
             result.content,
-            kind=classify_announcement(item.title, item.description),
+            kind=kind or "other",
             source_url=item.link,
             feed_item_id=item.id,
             filed_at=item.pub_date,

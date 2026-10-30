@@ -83,7 +83,10 @@ Done:
 - [x] Database restored from the laptop (counts match; Alembic at `0012`); the migrate step exits 0 after the image fix
 - [x] Nightly `pg_dump` on the VM at 03:00 IST, checked readable, 7 days kept (`~/backup-db.sh`, cron)
 - [x] Object-storage files copied from the laptop to the server's MinIO (59,366 files, 4.5 GB, same count and ownership as the source); an iXBRL filing opens from the company page on the server
-- [x] `fail2ban` and `unattended-upgrades` installed (service status still to be confirmed)
+- [x] `fail2ban` and `unattended-upgrades` installed and confirmed running (2026-10-30): the `sshd` jail is active (5 tries in 10 minutes, 10-minute ban; 924 failures and 83 bans so far), and the daily upgrade timer ran and is scheduled
+- [x] Domain `analekh.in` (GoDaddy India registrar, DNS on Cloudflare) live 2026-10-30: zone active, `analekh.in` and `www` proxied, SSL/TLS Full (strict), Always Use HTTPS on, GoDaddy mail records kept (DNS only). `www` redirects to the domain; `deploy/Caddyfile` keeps the `sslip.io` name as a fallback; `PRODUCTION_URL` is the domain
+- [x] Oracle security list: port 443 only from Cloudflare's 15 IPv4 ranges (the all-addresses rule removed); port 80 open (certificate renewals); direct access to the VM on 443 now blocked. Side effect: the `sslip.io` fallback does not answer; to use it, add `0.0.0.0/0` on 443 again in the Oracle console
+- [x] The per-address sign-in limit sees the real client address behind Cloudflare, Caddy and nginx (checked 2026-10-30: the owner's phone address appeared in the API log for a failed sign-in)
 - [x] Hosting and the NSE-from-cloud finding recorded in `docs/design/deviations.md` and design doc 22.7 (2026-10-27)
 - [x] CI on uv's image with `.venv` cached on `uv.lock`, retries and longer timeouts; Docker runner `pull_policy = ["if-not-present"]` (2026-10-27)
 - [x] Ubuntu checked: 24.04.5 LTS, no release upgrade needed; routine `apt upgrade` with a backup first
@@ -91,16 +94,13 @@ Done:
 Remaining:
 
 - [ ] Backups off the box: a private Oracle Object Storage bucket (20 GB free) with the nightly dump copied there, plus a weekly copy of the MinIO files; test one restore into a scratch database
-- [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only)
-- [ ] Check that the per-address sign-in limit sees the real client address behind Caddy and nginx (code check; otherwise one address could lock everyone out, or the limit does nothing)
-- [ ] Domain `analekh.in` (bought from GoDaddy India) and Cloudflare in front (the `sslip.io` name cannot be proxied). Done: zone added, records set (A to the VM and `www`, DNS only; GoDaddy mail records kept), `deploy/Caddyfile` and the env files ready (domain, `www` redirect, `sslip.io` kept as fallback, Cloudflare ranges trusted). Left: nameservers `tate` and `tegan.ns.cloudflare.com` to take effect (zone still pending 2026-10-30); edit `/etc/analekh/production.env` on the VM (`SITE_ADDRESS`, `WWW_ADDRESS`, `FALLBACK_ADDRESS`, `CORS_ORIGINS`) and deploy; set `PRODUCTION_URL` to `https://analekh.in`; then proxy on (orange cloud), SSL/TLS Full (strict), and allow ports 80 and 443 only from Cloudflare's ranges. Check that the API sees the real client address (the sign-in limit item above)
-- [ ] Container scanning gives no report on the Arm64 images (allowed to fail); decide how to scan them
-- [ ] Confirm `fail2ban` and `unattended-upgrades` are running: `systemctl is-active fail2ban`, `sudo fail2ban-client status sshd`, `systemctl list-timers apt-daily-upgrade.timer --no-pager`
+- [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only, with `fail2ban`). Held back 2026-10-30: the owner's address changes with each network, so a fixed-address rule could lock them out. Options: a second allowed address, or Oracle Bastion
+- [ ] Container scanning gives no report on the Arm64 images (allowed to fail: the scanner looks for `linux/amd64`, the images are Arm64). Try `TRIVY_PLATFORM: linux/arm64` on both scanning jobs. Also open: `dependency_audit` flags `qs` 6.16.0 (fixed in 6.16.1) and `node-forge` 1.4.0 (no fix yet)
 - [ ] Confirm the first scheduled backup ran: `tail -3 ~/backups/backup.log` on the VM
 
 - [ ] SSH from the college wifi and from Oracle Cloud Shell times out (seen 2026-10-27; the phone hotspot works). Cloud Shell could not reach the VM on 443 either, so check its network setting before relying on it
 
-Suggested order: the sign-in client-address check (security), SSH limited to the owner's address, the off-box backup bucket, then the domain with Cloudflare and the scanning decision.
+Suggested order: the off-box backup bucket (with one test restore), SSH access decision, then the scanning decision.
 
 ## Disclosures and legal (draft in `docs/legal/disclosures-draft.md`)
 

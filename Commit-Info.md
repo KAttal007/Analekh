@@ -3,12 +3,20 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
-- **2026-10-30** Domain `analekh.in` prepared. `deploy/Caddyfile` serves the domain, redirects
-  `www` to it, keeps the `sslip.io` name as a fallback way in, trusts Cloudflare's published ranges
-  and sets one real client address in `X-Forwarded-For` (for the sign-in limit); the env script and
-  example use the new variables. Not deployed: the zone was still pending on GoDaddy's nameserver
-  change. Unblocks the Cloudflare proxy, the Cloudflare-only firewall rule and the shared sign-in
-  limit check.
+- **2026-10-30** The watcher no longer downloads announcement PDFs it has no use for. Only
+  transcripts, presentations and annual reports are fetched; every other announcement is closed
+  with its feed row kept (link, title, description), so the calendar is unchanged. The 6,372
+  stored `other` files (11.5 GB, none processed) were growing about 20 GB a month on a disk at
+  80%. Clearing the existing files is a separate step. CI scanning now looks at the Arm64 images
+  (`TRIVY_PLATFORM`, not yet run).
+- **2026-10-30** `analekh.in` is live behind Cloudflare. `deploy/Caddyfile` serves the domain,
+  redirects `www` to it, keeps the `sslip.io` name as a fallback way in, trusts Cloudflare's
+  published ranges and sets one real client address in `X-Forwarded-For`; the env script and
+  example use the new variables. Cloudflare: zone active, proxied, SSL/TLS Full (strict). Oracle:
+  port 443 only from Cloudflare's ranges (the `sslip.io` fallback now needs 443 reopened by hand).
+  Checked: sign-in works, `www` redirects, the sign-in limit sees the real client address,
+  `fail2ban` and automatic updates run. Left: off-box backups, SSH access decision, Arm64 image
+  scanning.
 
 - **2026-10-29** v0.0.6: documents brought up to date and the AI plan written down. `AI.md`
   now holds the owner's agentic AI plan: agentic RAG over official and research sources fetched

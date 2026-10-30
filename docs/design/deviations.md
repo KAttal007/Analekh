@@ -11,9 +11,10 @@ Status: ✅ done · 🟡 partly done · 🔲 decided, not built · 💬 proposed
 
 | Design says | Now | Why | Date |
 |---|---|---|---|
+| The watcher downloads and stores the PDF behind every announcement and board-meeting feed item (9.3) | Only items classified as a transcript, a presentation or an annual report are downloaded. Every other announcement (board-meeting notices and outcomes, press releases, certificates, newspaper notices) is closed without a request: the feed row keeps the link, title and description, and no file is stored. The calendar reads those rows, not the files | The feed carries only the company name as its title, so the classifier could not tell announcements apart and 6,372 PDFs (11.5 GB in 17 days, about 20 GB a month) were stored as `other`; 6,374 were never processed, none gave a figure, and the VM disk reached 80%. Owner's decision. Notices from these items (a note per company read from the document, shown in a Notices screen) is a separate proposal | 2026-10-30 |
 
-Nothing yet. The agentic AI plan (design doc 3.4, 6.12, 17.3 to 17.6, 22.8; `AI.md`) is part of
-v0.0.6 as a proposal: building any of it, and each new source host, is recorded here first.
+The agentic AI plan (design doc 3.4, 6.12, 17.3 to 17.6, 22.8; `AI.md`) is part of v0.0.6 as a
+proposal: building any of it, and each new source host, is recorded here first.
 
 ## Folded into v0.0.6 (29 October 2026)
 

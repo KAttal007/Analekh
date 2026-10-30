@@ -219,8 +219,8 @@ class _CountingClient:
         return FetchResult(200, self.body, None, None)
 
 
-def _feed_item(db, company, feed, link, key):
-    item = FeedItem(company_id=company.id, feed=feed, link=link, title="Demo Limited", item_key=key)
+def _feed_item(db, company, feed, link, key, title="Demo Limited", description=None):
+    item = FeedItem(company_id=company.id, feed=feed, link=link, title=title, description=description, item_key=key)
     db.add(item)
     db.flush()
     return item
@@ -286,13 +286,54 @@ def test_xml_on_the_results_feed_is_still_fetched(db, store, company):
     assert filing is not None and len(client.calls) == 1
 
 
+def test_announcements_that_are_not_a_wanted_kind_are_closed_without_a_download(db, store, company):
+    """Board-meeting notices, outcomes, press releases and the like are not stored: the feed row
+    keeps the link, title and description (the calendar and Notices read those), nothing is fetched
+    and no file reaches storage."""
+    from analekh.ingest.pipeline import process_feed_item
+
+    client = _CountingClient(b"%PDF-1.7 intimation")
+    for feed in ("announcements", "board_meetings"):
+        item = _feed_item(
+            db,
+            company,
+            feed,
+            f"https://nsearchives.nseindia.com/corporate/DEMO_{feed}.pdf",
+            f"skip-{feed}",
+            description="has informed the Exchange regarding Board Meeting to be held on 30-Oct-2026",
+        )
+        assert process_feed_item(db, store, client, item) is None
+        assert item.processed_at is not None and item.error is None
+        assert item.link and item.description  # the feed row is kept whole
+    assert client.calls == []
+    assert db.scalar(select(func.count()).select_from(Filing)) == 0
+
+
+def test_announcements_of_a_wanted_kind_are_still_downloaded(db, store, company):
+    """Transcripts, presentations and annual reports feed the document pipeline and stay stored."""
+    from analekh.ingest.pipeline import process_feed_item
+
+    client = _CountingClient(b"%PDF-1.7 deck")
+    item = _feed_item(
+        db,
+        company,
+        "announcements",
+        "https://nsearchives.nseindia.com/corporate/DEMO_deck.pdf",
+        "keep-1",
+        description="has informed the Exchange about Investor Presentation for Q2 FY27",
+    )
+    filing = process_feed_item(db, store, client, item)
+    assert filing is not None and filing.kind == "presentation"
+    assert len(client.calls) == 1
+
+
 def test_a_link_already_stored_is_not_fetched_again(db, store, company):
     from analekh.ingest.pipeline import process_feed_item
 
     url = "https://nsearchives.nseindia.com/c/deck.pdf"
     client = _CountingClient(b"%PDF-1.7 deck")
-    first = _feed_item(db, company, "announcements", url, "same-1")
-    second = _feed_item(db, company, "board_meetings", url, "same-2")
+    first = _feed_item(db, company, "announcements", url, "same-1", title="Demo Limited - Investor Presentation")
+    second = _feed_item(db, company, "board_meetings", url, "same-2", title="Demo Limited - Investor Presentation")
     stored = process_feed_item(db, store, client, first)
     again = process_feed_item(db, store, client, second)
     assert len(client.calls) == 1
@@ -305,11 +346,11 @@ def test_a_link_that_already_failed_is_not_fetched_again(db, store, company):
 
     url = "https://nsearchives.nseindia.com/c/odd.pdf"  # named .pdf, but the body is a zip
     client = _CountingClient(b"PK not a pdf")
-    first = _feed_item(db, company, "announcements", url, "bad-1")
+    first = _feed_item(db, company, "announcements", url, "bad-1", title="Demo Limited - Investor Presentation")
     with pytest.raises(NotAPdf):
         process_feed_item(db, store, client, first)
     first.error, first.processed_at = "NotAPdf: not a PDF (zip, 20 bytes)", datetime.now(UTC)
-    second = _feed_item(db, company, "board_meetings", url, "bad-2")
+    second = _feed_item(db, company, "board_meetings", url, "bad-2", title="Demo Limited - Investor Presentation")
     assert process_feed_item(db, store, client, second) is None
     assert len(client.calls) == 1
     assert second.processed_at is not None and second.error == first.error

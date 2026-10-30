@@ -145,11 +145,15 @@ container_scanning:
   needs: [build_image]
   variables:
     CS_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    # The images are built for the Arm64 VM; the scanner defaults to linux/amd64 and finds no
+    # matching image ("no child with platform linux/amd64"). Trivy reads this variable.
+    TRIVY_PLATFORM: linux/arm64
 
 container_scanning_recalc:
   extends: container_scanning
   variables:
     CS_IMAGE: $CI_REGISTRY_IMAGE/recalc:$CI_COMMIT_SHA
+    TRIVY_PLATFORM: linux/arm64
 
 deploy_staging:
   stage: deploy-staging
