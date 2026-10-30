@@ -1,12 +1,42 @@
-# TLS front door (design doc 22.5). SITE_ADDRESS comes from /etc/analekh/production.env: a host
+# TLS front door (design doc 22.5, 22.7). Addresses come from /etc/analekh/production.env; a host
 # name gets a Let's Encrypt certificate automatically (ports 80 and 443 must be reachable).
+#   SITE_ADDRESS      the domain (analekh.in)
+#   WWW_ADDRESS       its www name, redirected to SITE_ADDRESS (optional)
+#   FALLBACK_ADDRESS  the <ip-with-dashes>.sslip.io name, kept as a way in if the domain's DNS or
+#                     Cloudflare breaks (optional; it serves the same app)
+# An unset optional address falls back to a localhost name, which Caddy serves with its own
+# internal certificate and never asks Let's Encrypt about.
+#
+# Behind Cloudflare the peer address is Cloudflare's, so Caddy trusts Cloudflare's published
+# ranges (https://www.cloudflare.com/ips) and takes the real client address from CF-Connecting-IP.
+# A request from any other peer cannot set it. Refresh the ranges here when Cloudflare changes
+# them. The API trusts X-Forwarded-For only from this container (compose.production.yml), so the
+# sign-in limit counts real clients, not Cloudflare.
+{
+	servers {
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
 # Everything goes to the web container, whose nginx serves the app and proxies /api to the API.
-{$SITE_ADDRESS::80} {
+(app) {
 	encode zstd gzip
-	reverse_proxy web:80
+	reverse_proxy web:80 {
+		# One address, the real client's, never a list a caller could pad.
+		header_up X-Forwarded-For {client_ip}
+	}
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
 	}
+}
+
+{$SITE_ADDRESS::80}, {$FALLBACK_ADDRESS:fallback.localhost} {
+	import app
+}
+
+{$WWW_ADDRESS:www.localhost} {
+	redir https://{$SITE_ADDRESS:localhost}{uri} permanent
 }

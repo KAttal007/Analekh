@@ -3,6 +3,13 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-30** Domain `analekh.in` prepared. `deploy/Caddyfile` serves the domain, redirects
+  `www` to it, keeps the `sslip.io` name as a fallback way in, trusts Cloudflare's published ranges
+  and sets one real client address in `X-Forwarded-For` (for the sign-in limit); the env script and
+  example use the new variables. Not deployed: the zone was still pending on GoDaddy's nameserver
+  change. Unblocks the Cloudflare proxy, the Cloudflare-only firewall rule and the shared sign-in
+  limit check.
+
 - **2026-10-29** v0.0.6: documents brought up to date and the AI plan written down. `AI.md`
   now holds the owner's agentic AI plan: agentic RAG over official and research sources fetched
   ahead of time (RBI, Government of India, OPEC, World Bank, WEF, IBEF, CRISIL, EY, McKinsey,

@@ -2,7 +2,10 @@
 set -euo pipefail
 
 TARGET=/etc/analekh/production.env
-SITE=${SITE_ADDRESS:-137-23-38-71.sslip.io}
+SITE=${SITE_ADDRESS:-analekh.in}
+WWW=${WWW_ADDRESS:-www.analekh.in}
+# The sslip.io name stays as a second way in if the domain's DNS or Cloudflare breaks.
+FALLBACK=${FALLBACK_ADDRESS:-137-23-38-71.sslip.io}
 
 if sudo test -e "$TARGET"; then
   read -r -p "$TARGET exists. Replace it with new passwords? [y/N] " answer
@@ -27,7 +30,9 @@ sudo mkdir -p /etc/analekh
 sudo tee "$TARGET" > /dev/null <<EOF
 ENV=prod
 SITE_ADDRESS=$SITE
-CORS_ORIGINS=https://$SITE
+WWW_ADDRESS=$WWW
+FALLBACK_ADDRESS=$FALLBACK
+CORS_ORIGINS=https://$SITE;https://$FALLBACK
 
 POSTGRES_USER=app
 POSTGRES_PASSWORD=$pg

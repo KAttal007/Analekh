@@ -43,6 +43,30 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [ ] Source debt and cash for `ib/comps.py` so EV multiples are filled in
 - [ ] Map insurers' book value for `ib/comps.py`
 
+## AI roadmap decisions (owner, 2026-10-30; to brainstorm further before building)
+
+Decided:
+
+- Hosting: a cloud GPU is for the demo only; each firm runs its own hardware in production (AI.md section 5). No Claude API anywhere, for data privacy.
+- Demo goal: an end-to-end run ending in a live document the client can view; a queue view with many analysts is the second act.
+- Report edits: the final version comes back as edits in the web app; those edits and the accepted reports train the model.
+- Hosts: all approved (RBI, Government of India, OPEC, World Bank, WEF, IBEF, CRISIL, EY, McKinsey, BCG, Bain). Paths still to be listed and confirmed per host.
+- Ministries: all of them, through an explicit curated host list (no wildcard domains).
+- Starting model: skipped until the POC works.
+- Analyst adapter: no fixed count; retrain on all accepted reports, go live only if the automatic check passes.
+- Embeddings: a local embedder (default); the model is chosen by testing on real filings.
+
+Build order (agreed in principle, to confirm):
+
+1. Model interface (OpenAI-style, works with Ollama and vLLM) and a report queue with fair share across analysts
+2. Web editor, version history and Accept button (starts training-data capture)
+3. Context sources, `context_documents`, embeddings and the cron jobs
+4. Agentic flow: why-questions, estimate diff, conflict flags, drafting
+5. Evaluation harness, then the learning loop
+6. Demo kit: GPU setup script, load test, cost figures, live-document view
+
+Open: the queue design (concurrency per provider, overflow policy) is to be brainstormed before project 1 starts.
+
 ## Architecture
 
 - [ ] Move reports from inline API execution to Celery jobs, storing files in object storage
@@ -69,7 +93,7 @@ Remaining:
 - [ ] Backups off the box: a private Oracle Object Storage bucket (20 GB free) with the nightly dump copied there, plus a weekly copy of the MinIO files; test one restore into a scratch database
 - [ ] SSH limited to the owner's address in Oracle's security list (now open to all addresses, key-only)
 - [ ] Check that the per-address sign-in limit sees the real client address behind Caddy and nginx (code check; otherwise one address could lock everyone out, or the limit does nothing)
-- [ ] Domain name and Cloudflare in front (the `sslip.io` name cannot be proxied); then allow ports 80 and 443 only from Cloudflare's ranges
+- [ ] Domain `analekh.in` (bought from GoDaddy India) and Cloudflare in front (the `sslip.io` name cannot be proxied). Done: zone added, records set (A to the VM and `www`, DNS only; GoDaddy mail records kept), `deploy/Caddyfile` and the env files ready (domain, `www` redirect, `sslip.io` kept as fallback, Cloudflare ranges trusted). Left: nameservers `tate` and `tegan.ns.cloudflare.com` to take effect (zone still pending 2026-10-30); edit `/etc/analekh/production.env` on the VM (`SITE_ADDRESS`, `WWW_ADDRESS`, `FALLBACK_ADDRESS`, `CORS_ORIGINS`) and deploy; set `PRODUCTION_URL` to `https://analekh.in`; then proxy on (orange cloud), SSL/TLS Full (strict), and allow ports 80 and 443 only from Cloudflare's ranges. Check that the API sees the real client address (the sign-in limit item above)
 - [ ] Container scanning gives no report on the Arm64 images (allowed to fail); decide how to scan them
 - [ ] Confirm `fail2ban` and `unattended-upgrades` are running: `systemctl is-active fail2ban`, `sudo fail2ban-client status sshd`, `systemctl list-timers apt-daily-upgrade.timer --no-pager`
 - [ ] Confirm the first scheduled backup ran: `tail -3 ~/backups/backup.log` on the VM
