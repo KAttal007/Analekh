@@ -12,8 +12,8 @@ Newest first. One entry per major update: what moved, and what it unblocks. Kept
   models stay. Excel .xlsm templates now keep an .xlsm name and type in storage. The page shows
   three boxes side by side. Deviation in section 15.
 - **2026-10-31** Built-in templates removed. The app no longer registers `nbfc_quarterly` and
-  `consumer_quarterly` on each load; migration 0018 deletes them and refuses to run if any model,
-  build or test still points at them (none did). Every template now needs its own test build before
+  `consumer_quarterly` on each load; migration 0018 deletes them and refuses to run if any model or
+  build still points at them (none did); their test records are deleted with them. Every template now needs its own test build before
   activation. `templates_builtin/` stays as the test-data generator and the quarter helper.
 - **2026-10-31** Reported NIM and cost of funds from investor decks. `analekh/decks/` (the rule-based
   reader, no LLM) and `ingest/decks.py` read lenders' presentations, found through NSE's

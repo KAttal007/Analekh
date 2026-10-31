@@ -1,4 +1,5 @@
-"""Remove the two built-in templates (owner 'builtin'); refuse if any model or test still uses them
+"""Remove the two built-in templates (owner 'builtin') and their test records; refuse if any model
+or build still uses them
 
 Revision ID: 0018
 Revises: 0017
@@ -22,15 +23,11 @@ def upgrade() -> None:
     if not ids:
         return
     in_use = conn.execute(
-        sa.text(
-            "SELECT (SELECT count(*) FROM models WHERE template_id = ANY(:ids))"
-            " + (SELECT count(*) FROM model_builds WHERE template_id = ANY(:ids))"
-            " + (SELECT count(*) FROM template_tests WHERE template_id = ANY(:ids))"
-        ),
+        sa.text("SELECT (SELECT count(*) FROM models WHERE template_id = ANY(:ids)) + (SELECT count(*) FROM model_builds WHERE template_id = ANY(:ids))"),
         {"ids": ids},
     ).scalar()
     if in_use:
-        raise RuntimeError("built-in templates are still used by models or tests; unlink them before this migration")
+        raise RuntimeError("built-in templates are still used by models or builds; unlink them before this migration")
     conn.execute(sa.text("DELETE FROM template_tests WHERE template_id = ANY(:ids)"), {"ids": ids})
     conn.execute(sa.text("DELETE FROM templates WHERE id = ANY(:ids)"), {"ids": ids})
 
