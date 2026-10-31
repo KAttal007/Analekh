@@ -708,7 +708,8 @@ def test_results_history_list_rows_and_path():
     web = "https://nsearchives.nseindia.com/corporate/xbrl/INDAS_65941_381477_08012021084249_WEB.xml"
     assert _history_row({**row, "xbrl": web}).xbrl_url is None  # incomplete older file: skipped
     assert path_allowed("www.nseindia.com", "/api/corporates-financial-results")
-    assert not path_allowed("www.nseindia.com", "/api/corporate-announcements")
+    assert path_allowed("www.nseindia.com", "/api/corporate-announcements")  # approved 2026-10-31
+    assert not path_allowed("www.nseindia.com", "/api/quote-equity")
 
 
 def test_incomplete_older_file_is_rejected_not_half_stored(db, store, company):

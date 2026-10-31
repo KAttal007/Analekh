@@ -264,7 +264,6 @@ def no_templates(monkeypatch):
     """Skip the template machinery: the build itself is replaced in each test."""
     import analekh.api.routers.models as models_router
 
-    monkeypatch.setattr(models_router, "ensure_builtin_templates", lambda *a, **k: None)
     monkeypatch.setattr(models_router, "default_for", lambda *a, **k: SimpleNamespace(status="active"))
     return models_router
 

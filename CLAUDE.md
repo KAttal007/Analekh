@@ -59,7 +59,8 @@ commit `pnpm-lock.yaml` with any `package.json` change.
   map, then published index lists -> sector; strong signals only -> results taxonomy), search (symbol, ISIN, pg_trgm name). `coverage.py` = watchlist and
   coverage levels (universe / numbers / deep).
 - `ingest/` feeds (RSS watcher), integrated (NSE integrated-filing lookup: results XBRL per
-  company), http (polite client + host allow-list), linking (feed item ->
+  company), decks (investor presentations of lenders: announcements list, then `decks/` reads NIM,
+  cost of funds and yields into `reported_ratios`), http (polite client + host allow-list), linking (feed item ->
   company), storage (hash-keyed S3/local), pipeline (hash -> parse -> validate -> facts,
   restatements), backfill.
 - `xbrl/` lxml instance parser, element vocabulary per taxonomy. `validate/rules.py` V1-V11 (V11 corrects amounts tagged in the wrong unit when
@@ -104,6 +105,10 @@ commit `pnpm-lock.yaml` with any `package.json` change.
    file per trading day after the close, for closing prices (`analekh prices`; approved by the owner
    2026-10-17; no live prices). Only the latest day's prices are kept: each file replaces the
    previous day's (owner's rule, 2026-10-18).
+   NSE's corporate-announcements list (`/api/corporate-announcements`, subject "Investor Presentation";
+   approved by the owner 2026-10-31): ONE request per results-watcher run, on the watcher's own schedule
+   (above), then one PDF per new deck of a bank or NBFC we cover from `nsearchives` (`/corporate/`, https
+   PDFs only; deviations section 14).
    SEBI's offer documents (DRHP, RHP, prospectus) on `sebi.gov.in`, limited by `ALLOWED_PATHS` to
    the three list pages (`/sebiweb/home/HomeAction.do`, smid 10 to 12; once a day, newest page
    only), `/filings/public-issues/` entry pages (one per new entry) and `/sebi_data/attachdocs/`

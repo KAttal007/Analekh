@@ -1611,6 +1611,14 @@ table.glance tbody tr:last-child > * {
 .desk-sub {
   font-size: 11px;
 }
+.desk-qoq {
+  display: block; /* the second line of a change cell: smaller than the year-on-year figure it sits under */
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 400;
+  white-space: nowrap;
+}
 .desk-kind {
   display: block; /* its own line: the longest name is the core pre-provision profit margin */
   margin-bottom: 1px;
@@ -4281,4 +4289,34 @@ table.glance tbody tr:last-child > * {
     line-height: 1.25;
     white-space: normal;
   }
+}
+
+/* Templates page: one box per kind, side by side */
+.template-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.template-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+.template-item:first-child {
+  border-top: 0;
+}
+.template-item.is-disabled .template-name {
+  opacity: 0.55;
+}
+.template-name {
+  font-weight: 600;
+}
+.template-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }

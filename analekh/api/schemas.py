@@ -130,6 +130,15 @@ class DeskRowOut(BaseModel):
     market_cap: Decimal | None = None  # rupees, at the latest stored close
     price_date: date | None = None
     margin_consolidated: bool | None = None  # the margin's basis (a NIM may be standalone)
+    revenue_qoq: Decimal | None = None  # % on the previous quarter
+    pat_qoq: Decimal | None = None
+    margin_qoq: Decimal | None = None  # basis points on the previous quarter
+    margin_source: Literal["reported", "computed"] | None = None  # lenders: the company's own NIM or ours
+    cof: Decimal | None = None  # lenders: cost of funds, %
+    cof_yoy: Decimal | None = None  # basis points
+    cof_qoq: Decimal | None = None
+    cof_source: Literal["reported", "computed"] | None = None
+    cof_consolidated: bool | None = None
 
 
 class SectorProgressOut(BaseModel):
@@ -270,6 +279,9 @@ class TemplateOut(ORM):
     version: int
     status: str
     is_default: bool
+    kind: str
+    has_macros: bool
+    file_type: str = ""
     mapping: dict[str, Any] | None
     structure: dict[str, Any] | None
     created_at: datetime

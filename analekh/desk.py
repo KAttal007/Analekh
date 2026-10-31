@@ -1,5 +1,5 @@
 """Results desk (Home): who reported a quarter, revenue, profit and EBITDA margin vs same quarter a
-year earlier, biggest movers, progress by sector.
+year earlier (YoY) and vs the previous quarter (QoQ), biggest movers, progress by sector.
 
 One basis per company: consolidated if it filed consolidated for the quarter, else standalone
 (rule used everywhere). "Revenue" = company's own top line (interest earned for banks, premium
@@ -9,6 +9,7 @@ it, else standalone. Insurers: none.
 """
 
 import statistics
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -16,7 +17,7 @@ from decimal import Decimal
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
-from analekh.db.models import Company, Fact, Filing, Watchlist
+from analekh.db.models import Company, Fact, Filing, ReportedRatio, Watchlist
 from analekh.glance import (
     change,
     derive,
@@ -26,7 +27,7 @@ from analekh.glance import (
     raw_value,
     suspect_filings,
 )
-from analekh.interest import balances, is_lender, ratios
+from analekh.interest import Ratios, balances, is_lender, ratios
 from analekh.prices import latest_prices
 from analekh.xbrl.elements import candidates
 
@@ -72,6 +73,15 @@ class DeskRow:
     margin_consolidated: bool | None = None  # the basis the margin is on (NIM may fall back)
     revenue_prev: Decimal | None = field(default=None, repr=False)
     pat_prev: Decimal | None = field(default=None, repr=False)
+    revenue_qoq: Decimal | None = None  # % on the previous quarter
+    pat_qoq: Decimal | None = None  # %
+    margin_qoq: Decimal | None = None  # basis points
+    margin_source: str | None = None  # lenders: "reported" (investor deck) or "computed" (from the filings)
+    cof: Decimal | None = None  # lenders: cost of funds, %
+    cof_yoy: Decimal | None = None  # basis points
+    cof_qoq: Decimal | None = None  # basis points
+    cof_source: str | None = None  # "reported" | "computed"
+    cof_consolidated: bool | None = None
 
 
 @dataclass
@@ -107,6 +117,44 @@ class Desk:
 def _quarter_start(end: date) -> date:
     month = end.month - 2
     return date(end.year if month > 0 else end.year - 1, month if month > 0 else month + 12, 1)
+
+
+def _previous_quarter_end(end: date) -> date:
+    """The quarter end three months before ``end`` (30 Sep -> 30 Jun, 31 Mar -> 31 Dec)."""
+    month = end.month - 3
+    year = end.year if month > 0 else end.year - 1
+    month = month if month > 0 else month + 12
+    return date(year, month, monthrange(year, month)[1])
+
+
+def _reported_ratios(session: Session, company_ids: list[int], dates: list[date]) -> dict[tuple[int, str, date], dict[str, Decimal]]:
+    """What lenders report in their investor decks: {(company, metric, quarter_end): {basis: value}}."""
+    out: dict[tuple[int, str, date], dict[str, Decimal]] = {}
+    if not company_ids:
+        return out
+    for row in session.execute(
+        select(ReportedRatio.company_id, ReportedRatio.metric, ReportedRatio.period_end, ReportedRatio.basis, ReportedRatio.value).where(
+            ReportedRatio.company_id.in_(company_ids), ReportedRatio.metric.in_(("nim", "cof")), ReportedRatio.period_end.in_(dates)
+        )
+    ):
+        out.setdefault((row.company_id, row.metric, row.period_end), {})[row.basis] = row.value
+    return out
+
+
+def _pick_reported(
+    reported: dict[tuple[int, str, date], dict[str, Decimal]], company_id: int, metric: str, consolidated: bool, dates: tuple[date, date, date]
+) -> tuple[Decimal, Decimal | None, Decimal | None, bool] | None:
+    """The reported figure for the quarter, then the same basis a year and a quarter earlier (a change
+    compares like with like, so it is blank when the earlier quarter is not reported on that basis).
+    The last value says which basis was used: True consolidated, False standalone."""
+    end, year_ago, prev_q = dates
+    own, other = ("consolidated", "standalone") if consolidated else ("standalone", "consolidated")
+    for basis in (own, "all", other):
+        value = reported.get((company_id, metric, end), {}).get(basis)
+        if value is not None:
+            used = {"consolidated": True, "standalone": False}.get(basis, consolidated)
+            return value, reported.get((company_id, metric, year_ago), {}).get(basis), reported.get((company_id, metric, prev_q), {}).get(basis), used
+    return None
 
 
 def recent_quarters(session: Session, limit: int = 6) -> list[tuple[date, int]]:
@@ -187,7 +235,8 @@ def desk(
     companies = {c.id: c for c in session.scalars(select(Company).where(Company.id.in_(by_company)))}
 
     year_ago = date(end.year - 1, end.month, end.day)
-    periods = [(_quarter_start(end), end), (_quarter_start(year_ago), year_ago)]
+    prev_q = _previous_quarter_end(end)
+    periods = [(_quarter_start(end), end), (_quarter_start(year_ago), year_ago), (_quarter_start(prev_q), prev_q)]
     elements = sorted({e for t in TAXONOMIES for name in LOGICALS for e in candidates(name, t)})
     facts = session.execute(
         select(
@@ -221,6 +270,7 @@ def desk(
     prices = latest_prices(session, list(by_company))
     lenders = [cid for cid, c in companies.items() if is_lender(c)]
     sheets = balances(session, lenders, suspect)  # balance sheets for the NIM, both bases
+    reported = _reported_ratios(session, lenders, [end, year_ago, prev_q])
     rows: list[DeskRow] = []
     needs_note: dict[tuple[int, bool], DeskRow] = {}  # no year-ago figures: say why, below
     for company_id, company_filings in by_company.items():
@@ -250,15 +300,19 @@ def desk(
         q = lines_for(basis)
         rev, rev_prev = raw_value(q, "revenue", end), raw_value(q, "revenue", year_ago)
         pat, pat_prev = raw_value(q, "pat", end), raw_value(q, "pat", year_ago)
-        margin = margin_prev = None
+        rev_q, pat_q = raw_value(q, "revenue", prev_q), raw_value(q, "pat", prev_q)
+        margin = margin_prev = margin_q = None
+        cof = cof_prev = cof_q = None
         margin_kind: str | None = None
         margin_basis: bool | None = basis
+        margin_source = cof_source = None
+        cof_basis: bool | None = basis
         if company_id in lenders:
             margin_kind = "nim"
             for consolidated in (True, False) if basis else (False,):
                 qb, parts = lines_for(consolidated), sheets.get((company_id, consolidated), {})
 
-                def nim(at: date, qb: dict = qb, parts: dict = parts) -> Decimal | None:
+                def computed(at: date, qb: dict = qb, parts: dict = parts) -> Ratios:
                     return ratios(
                         raw_value(qb, "interest_income", at),
                         raw_value(qb, "interest_expense", at),
@@ -266,18 +320,31 @@ def desk(
                         _quarter_start(at),
                         at,
                         raw_value(qb, "revenue", at),
-                    ).nim
+                    )
 
-                if (margin := nim(end)) is not None:
-                    margin_basis, margin_prev = consolidated, nim(year_ago)
+                if (now_r := computed(end)).nim is not None:
+                    margin_basis = cof_basis = consolidated
+                    prior, before = computed(year_ago), computed(prev_q)
+                    margin, margin_prev, margin_q = now_r.nim, prior.nim, before.nim
+                    cof, cof_prev, cof_q = now_r.cob, prior.cob, before.cob
+                    margin_source = "computed"
+                    cof_source = "computed" if cof is not None else None
                     break
+            # A figure the company reports itself replaces the computed one, never shown beside it. Its
+            # changes use reported figures only: reported is not compared with computed.
+            if (rep := _pick_reported(reported, company_id, "nim", basis, (end, year_ago, prev_q))) is not None:
+                margin, margin_prev, margin_q, margin_basis = rep
+                margin_source = "reported"
+            if (rep := _pick_reported(reported, company_id, "cof", basis, (end, year_ago, prev_q))) is not None:
+                cof, cof_prev, cof_q, cof_basis = rep
+                cof_source = "reported"
         elif taxonomy == "indas":
             shown = {"=ebitda_margin": "ebitda", "=cpppm": "cpppm"}
             hidden = hidden_lines(c)
             for line, kind in shown.items():
                 if line not in hidden:
                     margin_kind = kind
-                    margin, margin_prev = derive(q, end)[line], derive(q, year_ago)[line]
+                    margin, margin_prev, margin_q = derive(q, end)[line], derive(q, year_ago)[line], derive(q, prev_q)[line]
         filed = [f.filed_at for f in mine if f.filed_at]
         rows.append(
             DeskRow(
@@ -294,7 +361,16 @@ def desk(
                 margin=margin.quantize(Decimal("0.01" if margin_kind == "nim" else "0.1")) if margin is not None else None,
                 margin_kind=margin_kind,
                 margin_yoy=change(margin, margin_prev, "pct"),
+                revenue_qoq=change(rev, rev_q, "inr"),
+                pat_qoq=change(pat, pat_q, "inr"),
+                margin_qoq=change(margin, margin_q, "pct"),
                 margin_consolidated=margin_basis if margin is not None else None,
+                margin_source=margin_source if margin is not None else None,
+                cof=cof.quantize(Decimal("0.01")) if cof is not None else None,
+                cof_yoy=change(cof, cof_prev, "pct"),
+                cof_qoq=change(cof, cof_q, "pct"),
+                cof_source=cof_source if cof is not None else None,
+                cof_consolidated=cof_basis if cof is not None else None,
                 blocked=any((f.meta or {}).get("blocks_auto_apply") for f in mine),
                 revenue_prev=rev_prev,
                 pat_prev=pat_prev,

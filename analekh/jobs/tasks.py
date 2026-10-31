@@ -394,6 +394,29 @@ def watch_sebi_offers() -> dict:
     return summary
 
 
+def _watch_decks() -> dict:
+    """Investor decks of lenders, in the same run as the results list (same schedule, one more request).
+    A failure here is reported in the summary and never fails the results run."""
+    from analekh.ingest.decks import fetch_new_decks
+
+    try:
+        with session_scope() as s:
+            run = fetch_new_decks(s, default_store(), PoliteClient(max_attempts=2))
+    except Exception as exc:  # noqa: BLE001
+        return {"error": type(exc).__name__}
+    return {
+        "listed": run.listed,
+        "new": run.new,
+        "read": run.read,
+        "ratios": run.ratios,
+        "skipped": run.skipped,
+        "failed": run.failed,
+        "deferred": run.deferred,
+        "stopped": run.stopped,
+        "errors": run.errors[:10],
+    }
+
+
 @app.task
 def watch_results(force: bool = False) -> dict:
     """New results filings for every company, from one request to NSE's latest list. Runs only
@@ -419,8 +442,10 @@ def watch_results(force: bool = False) -> dict:
     except Exception as exc:
         status.record("results_watch", "error", {"why": reason, "error": str(exc)})
         raise
+    decks = _watch_decks()
     result = {
         "why": reason if due else "forced",
+        "decks": decks,
         "listed": out.listed,
         "new": out.new,
         "market_caps_changed": caps["changed"] if caps else 0,

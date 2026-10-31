@@ -209,6 +209,8 @@ export const api = {
   uploadTemplate: (form: FormData) => call<Template>("/templates", { method: "POST", body: form }),
   testTemplate: (id: number, symbol: string) => post<Schemas["TemplateTestOut"]>(`/templates/${id}/test`, { symbol }),
   activateTemplate: (id: number) => post<Template>(`/templates/${id}/activate`),
+  disableTemplate: (id: number) => post<Template>(`/templates/${id}/disable`),
+  enableTemplate: (id: number) => post<Template>(`/templates/${id}/enable`),
   // Comps (design doc 18)
   peerLists: () => call<PeerList[]>("/peer-lists"),
   createPeerList: (name: string, symbols: string[]) => post<PeerList>("/peer-lists", { name, symbols }),

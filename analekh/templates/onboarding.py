@@ -8,7 +8,6 @@ inputs (formulas kept); uncertain cells listed, never deleted.
 
 import io
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 
 from openpyxl import Workbook
@@ -17,13 +16,12 @@ from sqlalchemy.orm import Session
 
 from analekh.db.models import Template, TemplateTest
 from analekh.ingest.storage import ObjectStore, sha256
-from analekh.templates_builtin import BUILTIN, build
+from analekh.templates.files import EXCEL, FileType, slug
 from analekh.workbook.labels import AiResolver
 from analekh.workbook.mapping import Mapping
-from analekh.workbook.reader import StructureMap, load, read_structure
+from analekh.workbook.reader import StructureMap, excel_kind, has_macros, load, read_structure
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-BUILTIN_OWNER = "builtin"
 
 
 class TemplateError(ValueError):
@@ -92,8 +90,9 @@ def upload(
         data = _save(wb)
         sm = read_structure(wb, ai)
     version = _next_version(session, owner, name)
-    key = f"templates/{owner}/{name}/v{version}-{sha256(data)[:12]}.xlsx"
-    store.put(key, data, XLSX)
+    suffix, content_type = excel_kind(data)  # a template with macros stays an .xlsm
+    key = f"templates/{owner}/{slug(name)}/v{version}-{sha256(data)[:12]}{suffix}"
+    store.put(key, data, content_type)
     mapping = sm.suggest_mapping(name, sectors)
     tmpl = Template(
         owner=owner,
@@ -106,10 +105,62 @@ def upload(
         driver_cells={d.name: {"sheet": d.forecast_sheet, "row_label": d.forecast_row_label, "kind": "ratio"} for d in mapping.drivers},
         check_cells={c.cell_label: {"sheet": c.sheet} for c in mapping.checks},
         status="draft",
+        kind=EXCEL,
+        has_macros=has_macros(data),
     )
     session.add(tmpl)
     session.flush()
     return tmpl
+
+
+def upload_report_template(
+    session: Session,
+    store: ObjectStore,
+    data: bytes,
+    *,
+    kind: str,
+    suffix: str,
+    ftype: FileType,
+    name: str,
+    sectors: list[str],
+    owner: str,
+) -> Template:
+    """A Word or PowerPoint report template: stored byte for byte, active at once. Nothing in our
+    code parses or writes it (the report-writing model does), so there is no mapping or test build."""
+    from analekh.templates.files import has_macro_project
+
+    version = _next_version(session, owner, name)
+    key = f"templates/{owner}/{slug(name)}/v{version}-{sha256(data)[:12]}{suffix}"
+    store.put(key, data, ftype.mime)
+    tmpl = Template(
+        owner=owner,
+        name=name,
+        sectors=sectors,
+        version=version,
+        storage_key=key,
+        status="active",
+        kind=kind,
+        has_macros=has_macro_project(data),
+    )
+    session.add(tmpl)
+    session.flush()
+    return tmpl
+
+
+def set_enabled(session: Session, template: Template, enabled: bool) -> Template:
+    """Disable keeps the file and every link to models built from it; enable undoes it."""
+    if enabled:
+        if template.status == "active":
+            return template
+        if template.kind != EXCEL:  # nothing to test on a report template
+            template.status = "active"
+            session.flush()
+            return template
+        return activate(session, template)
+    template.status = "disabled"
+    template.is_default = False
+    session.flush()
+    return template
 
 
 def confirm_mapping(session: Session, template: Template, mapping: dict[str, Any]) -> Mapping:
@@ -123,7 +174,7 @@ def confirm_mapping(session: Session, template: Template, mapping: dict[str, Any
 
 def activate(session: Session, template: Template, make_default: bool = False) -> Template:
     last = session.scalar(select(TemplateTest).where(TemplateTest.template_id == template.id).order_by(TemplateTest.id.desc()))
-    if template.owner != BUILTIN_OWNER and (last is None or last.result != "pass"):
+    if last is None or last.result != "pass":
         raise TemplateError("a passing test build is required before activation (section 14.3)")
     template.status = "active"
     if make_default:
@@ -133,45 +184,10 @@ def activate(session: Session, template: Template, make_default: bool = False) -
     return template
 
 
-def ensure_builtin_templates(session: Session, store: ObjectStore, reference: date | None = None) -> list[Template]:
-    """Register the built-in templates once (owner 'builtin', active, default for their sectors)."""
-    reference = reference or date(2026, 9, 30)
-    out = []
-    for spec in BUILTIN.values():
-        existing = session.scalar(select(Template).where(Template.owner == BUILTIN_OWNER, Template.name == spec.key))
-        if existing is not None:
-            if not store.exists(existing.storage_key):
-                data, _ = build(spec, reference)
-                store.put(existing.storage_key, data, XLSX)
-            out.append(existing)
-            continue
-        data, mapping = build(spec, reference)
-        key = f"templates/{BUILTIN_OWNER}/{spec.key}/v1-{sha256(data)[:12]}.xlsx"
-        store.put(key, data, XLSX)
-        tmpl = Template(
-            owner=BUILTIN_OWNER,
-            name=spec.key,
-            sectors=spec.sectors,
-            version=1,
-            storage_key=key,
-            structure=read_structure(load(data)).to_dict(),
-            mapping=mapping.model_dump(),
-            driver_cells={d.name: {"sheet": "Drivers", "row_label": d.label, "kind": d.kind} for d in spec.drivers},
-            check_cells={c.cell_label: {"sheet": c.sheet} for c in mapping.checks},
-            status="active",
-            is_default=True,
-        )
-        session.add(tmpl)
-        out.append(tmpl)
-    session.flush()
-    return out
-
-
 def default_for(session: Session, sector: str | None) -> Template | None:
-    """The sector's default template, preferring the analyst's own over a built-in."""
-    q = select(Template).where(Template.status == "active")
+    """The sector's default active Excel template."""
+    q = select(Template).where(Template.status == "active", Template.kind == EXCEL)
     if sector:
         q = q.where(literal(sector) == any_(Template.sectors))
     rows = list(session.scalars(q.order_by(Template.is_default.desc(), Template.id.desc())))
-    own = [t for t in rows if t.owner != BUILTIN_OWNER]
-    return (own or rows)[0] if rows else None
+    return rows[0] if rows else None

@@ -44,6 +44,7 @@ ALLOWED_PATHS = {
         "/",
         "/api/integrated-filing-results",
         "/api/corporates-financial-results",
+        "/api/corporate-announcements",
     ),
     "sebi.gov.in": SEBI_PATHS,
     "www.sebi.gov.in": SEBI_PATHS,

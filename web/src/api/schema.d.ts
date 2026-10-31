@@ -1952,6 +1952,24 @@ export interface components {
       price_date?: string | null;
       /** Margin Consolidated */
       margin_consolidated?: boolean | null;
+      /** Revenue Qoq */
+      revenue_qoq?: string | null;
+      /** Pat Qoq */
+      pat_qoq?: string | null;
+      /** Margin Qoq */
+      margin_qoq?: string | null;
+      /** Margin Source */
+      margin_source?: "reported" | "computed" | null;
+      /** Cof */
+      cof?: string | null;
+      /** Cof Yoy */
+      cof_yoy?: string | null;
+      /** Cof Qoq */
+      cof_qoq?: string | null;
+      /** Cof Source */
+      cof_source?: "reported" | "computed" | null;
+      /** Cof Consolidated */
+      cof_consolidated?: boolean | null;
     };
     /** DiscoverRequest */
     DiscoverRequest: {
@@ -2533,6 +2551,15 @@ export interface components {
       status: string;
       /** Is Default */
       is_default: boolean;
+      /** Kind */
+      kind: string;
+      /** Has Macros */
+      has_macros: boolean;
+      /**
+       * File Type
+       * @default
+       */
+      file_type: string;
       /** Mapping */
       mapping: {
         [key: string]: unknown;

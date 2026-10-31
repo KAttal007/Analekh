@@ -253,7 +253,15 @@ class Template(Base):
     check_cells: Mapped[dict[str, Any] | None] = mapped_column()
     status: Mapped[str] = mapped_column(Text, default="draft", server_default="draft")
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # excel_model, word_report or ppt_report; report templates are stored files the writer model uses
+    kind: Mapped[str] = mapped_column(Text, default="excel_model", server_default="excel_model")
+    has_macros: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def file_type(self) -> str:
+        """The stored file's extension, e.g. ".xlsm" or ".dotm"."""
+        return "." + self.storage_key.rsplit(".", 1)[-1] if "." in self.storage_key else ""
 
 
 class TemplateTest(Base):
@@ -404,6 +412,51 @@ class IpoIssue(Base):
     symbol: Mapped[str | None] = mapped_column(String(20))
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class InvestorDeck(Base):
+    """One investor presentation announced on NSE, read once (ledger: the watcher never fetches a URL twice)."""
+
+    __tablename__ = "investor_decks"
+    __table_args__ = (CheckConstraint("status IN ('read', 'no_ratios', 'skipped', 'failed')", name="ck_investor_decks_status"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    url: Mapped[str] = mapped_column(Text, unique=True)
+    broadcast_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    file_sha256: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(Text)
+    ratios: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    note: Mapped[str | None] = mapped_column(Text)  # why skipped or failed (no secrets, no file contents)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReportedRatio(Base):
+    """A ratio the company itself reports in its investor presentation (NIM, cost of funds, ...).
+
+    XBRL carries none of these. One row per company, quarter, metric and basis; a newer deck replaces it.
+    """
+
+    __tablename__ = "reported_ratios"
+    __table_args__ = (
+        UniqueConstraint("company_id", "period_end", "metric", "basis", name="uq_reported_ratios_key"),
+        CheckConstraint(
+            "metric IN ('nim','cof','cod','yield_adv','yield_assets','yield_funds')",
+            name="ck_reported_ratios_metric",
+        ),
+        CheckConstraint("basis IN ('all','consolidated','standalone')", name="ck_reported_ratios_basis"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    period_end: Mapped[date] = mapped_column(Date)
+    metric: Mapped[str] = mapped_column(Text)
+    basis: Mapped[str] = mapped_column(Text)
+    value: Mapped[Decimal] = mapped_column(Numeric(6, 2))  # percent, as printed
+    deck_id: Mapped[int] = mapped_column(ForeignKey("investor_decks.id", ondelete="CASCADE"))
+    page: Mapped[int] = mapped_column(Integer)
+    layer: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class IpoDocument(Base):

@@ -20,6 +20,7 @@ from analekh.templates_builtin import NBFC
 from analekh.templates_builtin import build as build_builtin
 from analekh.universe.loader import parse_equity_list, upsert_universe
 from analekh.workbook.mapping import Mapping
+from tests.template_seed import seed_nbfc_template
 from tests.test_builder import QUARTERS, history
 from tests.test_universe import EQUITY_L
 from tests.xbrl_factory import BS, Q2, build_instance, pnl, quarter_instance
@@ -48,6 +49,7 @@ def demo(db, store):
     c.sector, c.industry = "Financial Services", "NBFC"
     for i, end in enumerate(QUARTERS):
         ingest_results_xbrl(db, store, c, quarter_instance(end, **history(i)))
+    seed_nbfc_template(db, store)
     return c
 
 
@@ -183,6 +185,45 @@ def test_template_upload_confirm_test_activate(client, demo):
     assert bad.status_code == 422
 
 
+def _office(suffix: str, macros: bool = False) -> bytes:
+    import zipfile
+
+    from analekh.templates.files import FILE_TYPES
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("[Content_Types].xml", f'<Types><Override ContentType="{FILE_TYPES[suffix].main_part}"/></Types>')
+        if macros:
+            z.writestr("word/vbaProject.bin", b"vba-bytes")
+    return buf.getvalue()
+
+
+def test_report_templates_and_disable(client, demo):
+    raw = _office(".dotm", macros=True)
+    t = client.post(
+        "/templates",
+        data={"name": "bank_report", "sectors": "Banks, NBFC", "kind": "word_report"},
+        files={"workbook": ("Bank Report.dotm", raw)},
+    ).json()
+    assert (t["kind"], t["status"], t["has_macros"], t["file_type"]) == ("word_report", "active", True, ".dotm")
+    plain = client.post(
+        "/templates",
+        data={"name": "deck", "sectors": "NBFC", "kind": "ppt_report"},
+        files={"workbook": ("deck.pptx", _office(".pptx"))},
+    ).json()
+    assert plain["has_macros"] is False
+    # an Excel-only step is refused for a report template
+    assert client.post(f"/templates/{t['id']}/activate").status_code == 409
+    # wrong kind for the file
+    wrong = client.post("/templates", data={"name": "w", "sectors": "x", "kind": "word_report"}, files={"workbook": ("w.pptx", _office(".pptx"))})
+    assert wrong.status_code == 422
+    # disable and enable keep the row
+    assert client.post(f"/templates/{t['id']}/disable").json()["status"] == "disabled"
+    assert client.post(f"/templates/{t['id']}/enable").json()["status"] == "active"
+    kinds = {x["kind"] for x in client.get("/templates").json()}
+    assert {"excel_model", "word_report", "ppt_report"} <= kinds
+
+
 def test_discover_and_link(client, db, demo):
     found = client.post(
         "/models/discover",
@@ -227,7 +268,11 @@ def test_storage_down_is_a_fast_503(client):
         raise StorageUnavailable("object storage is not reachable at localhost:9000")
 
     app.dependency_overrides[get_store] = down
-    r = client.get("/templates")
+    r = client.post(
+        "/templates",
+        data={"name": "x", "sectors": "NBFC"},
+        files={"workbook": ("x.xlsx", _office(".xlsx"), XLSX)},
+    )
     assert r.status_code == 503
     assert "docker compose up -d minio" in r.json()["detail"]
 

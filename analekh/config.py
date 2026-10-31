@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Results watcher reads NSE's latest-results list in ONE request per run (rule 1). Busiest day
     latest_page_size: int = 1000
     latest_max_page_size: int = 4000
+    # Investor decks (NSE corporate announcements, rule 1): the list is ONE request per watcher run
+    deck_max_bytes: int = 60_000_000  # a larger file is skipped
+    deck_max_pages: int = 200
+    decks_per_run: int = 12  # the rest wait for the next run: reading a deck takes about a minute
 
     # Recalculation on Apply (design doc 16.5, 22.1). RECALC_URL set: workbooks go to `recalc`
     recalc_url: str = ""

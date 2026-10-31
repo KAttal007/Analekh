@@ -3,6 +3,36 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-10-31** Templates in three kinds: Excel model, Word report, PowerPoint report. New
+  `kind` and `has_macros` columns (migration 0017) and `templates/files.py`. Word and PowerPoint
+  templates (.docx/.docm/.dotx/.dotm, .pptx/.pptm/.potx/.potm) are stored byte for byte per sector
+  and active at once; the report-writing model uses them, our code never parses or writes them.
+  Uploads are checked for extension, size and Office content type; a macro flag (VBA project in the
+  zip listing) is shown on the page. Templates are disabled and enabled, never deleted, so links to
+  models stay. Excel .xlsm templates now keep an .xlsm name and type in storage. The page shows
+  three boxes side by side. Deviation in section 15.
+- **2026-10-31** Built-in templates removed. The app no longer registers `nbfc_quarterly` and
+  `consumer_quarterly` on each load; migration 0018 deletes them and refuses to run if any model,
+  build or test still points at them (none did). Every template now needs its own test build before
+  activation. `templates_builtin/` stays as the test-data generator and the quarter helper.
+- **2026-10-31** Reported NIM and cost of funds from investor decks. `analekh/decks/` (the rule-based
+  reader, no LLM) and `ingest/decks.py` read lenders' presentations, found through NSE's
+  corporate-announcements list: one request per results-watcher run, on the watcher's schedule, one
+  PDF per new deck of a bank or NBFC, each URL fetched once. New tables `reported_ratios` and
+  `investor_decks` (migration 0016). The desk shows the company's own NIM and a new Cost of funds
+  column for lenders; where no deck has a figure it shows ours with a tooltip on why the two can
+  differ, never both, and a change compares reported with reported only. Rule 1 amended
+  (CLAUDE.md, deviations section 14). Fixed on the way: Cholamandalam's segment P&L pages were read as
+  the company's own (conflicts gone), IOB's centred titles and value tags, ESAF's shared
+  cost-of-funds/deposits title. Not yet: OCR of image-only pages, concalls and annual reports as
+  further sources, other quarters' decks.
+- **2026-10-31** Results desk shows the change on the previous quarter (QoQ) as a small second line
+  under each year-on-year figure (revenue, profit) and under the margin's basis-point change; a
+  company with no previous quarter shows a dash, and the watchlist is unchanged. Also written down:
+  the design for reported NIM and funding ratios from investor decks
+  (`docs/superpowers/specs/2026-10-31-deck-ratios-design.md`). A rule-based reader (no LLM; OCR is
+  the project's RapidOCR) was tested on 44 lenders' decks and is not built into `analekh/` yet;
+  reading NSE's corporate-announcements list needs the rule 1 amendment first.
 - **2026-10-30** The watcher no longer downloads announcement PDFs it has no use for. Only
   transcripts, presentations and annual reports are fetched; every other announcement is closed
   with its feed row kept (link, title, description), so the calendar is unchanged. The 6,372

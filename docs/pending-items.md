@@ -20,6 +20,23 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [ ] Verify XBRL element names marked `# verify` in `xbrl/elements.py` against real filings; run `analekh revalidate` after changes
 - [ ] Map the insurers' balance sheet (not mapped yet)
 
+## Reported ratios from investor decks (NIM, cost of funds; status 2026-10-31)
+
+Design: `docs/superpowers/specs/2026-10-31-deck-ratios-design.md`. Deviations section 14.
+
+- [x] Rule-based reader `analekh/decks/` (no LLM), tests, ruff and mypy clean
+- [x] Tables `reported_ratios`, `investor_decks` (migration 0016, run by CI)
+- [x] Announcements list read inside the results watcher (same schedule), rule 1 and `ALLOWED_PATHS` amended
+- [x] Desk: reported NIM and a Cost of funds column; computed fallback with tooltip; changes compare like with like
+- [x] Fixed: Cholamandalam segment pages, IOB centred titles and value tags, ESAF shared title
+- [ ] Re-run the reader on all 44 decks and compare with the last verified run (204 of 204 company figures); the decks were deleted, re-fetch first
+- [ ] First live watcher run: check `investor_decks` statuses and a few stored values against their slides
+- [ ] Port OCR of image-only pages (prototype matched 33 of 37 values)
+- [ ] Concalls and annual reports as further sources (Bajaj Finance prints no NIM in its deck; it keeps the computed NIM until then)
+- [ ] BAJAJHFL's own figures (7.04%) are stored only if it is in `companies` on the VM: check
+- [ ] Compare computed cost of funds with reported, as was done for NIM (mean gap 0.34 points)
+- [ ] Other quarters' decks (Q4 decks carry full-year columns)
+
 ## Templates and backfill
 
 - [ ] Balance sheet and cash flow in `templates_builtin/specs.py` (currently P&L and KPIs only); needs the annual backfill

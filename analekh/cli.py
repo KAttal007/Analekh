@@ -368,12 +368,11 @@ def build(symbol: str, template_id: int | None = None, accept_all: bool = False,
 
     from analekh.builder.coverage import finalize_build, start_coverage
     from analekh.db.models import Assumption, ModelVersion, Template
-    from analekh.templates.onboarding import default_for, ensure_builtin_templates
+    from analekh.templates.onboarding import default_for
 
     store = _store()
     with _session() as s:
         company = _company(s, symbol)
-        ensure_builtin_templates(s, store)
         template = s.get(Template, template_id) if template_id else default_for(s, company.industry or company.sector) or default_for(s, None)
         if template is None:
             raise typer.BadParameter("no active template")

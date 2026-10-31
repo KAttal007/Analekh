@@ -19,7 +19,7 @@ from analekh.builder.coverage import (
 from analekh.db.models import Assumption, Company, Model, ModelBuild, ModelVersion, Template
 from analekh.discovery import WorkbookHints, discover, link
 from analekh.locks import acquire, attach_job, holding, release_for_job
-from analekh.templates.onboarding import default_for, ensure_builtin_templates
+from analekh.templates.onboarding import default_for
 from analekh.workbook.reader import excel_kind
 
 router = APIRouter(tags=["models"])
@@ -46,7 +46,6 @@ def start(body: schemas.CoverageRequest, db: DB, store: Store, user: User) -> sc
 
 
 def _start(body: schemas.CoverageRequest, db: DB, store: Store, company: Company) -> schemas.BuildOut:
-    ensure_builtin_templates(db, store)
     template = db.get(Template, body.template_id) if body.template_id else default_for(db, company.industry or company.sector)
     template = template or default_for(db, None)
     if template is None or template.status != "active":
