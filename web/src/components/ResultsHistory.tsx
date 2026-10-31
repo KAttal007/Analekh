@@ -10,6 +10,11 @@ import { Badge, EmptyState, InfoTip, Popover, StatusBadge, TagTip } from "./ui";
 
 const BOLD = new Set(["revenue", "pat"]);
 
+const SOURCE_TITLE = {
+  reported: "As the company reports it in its investor presentation",
+  calculated: "Worked out by Analekh from the filed accounts",
+} as const;
+
 const BLOCKED_NOTE = "A validation check failed on this filing. Its figures are shown as filed, but they won't " + "update a model without your review.";
 const SUSPECT_NOTE =
   "Held back: its amounts look off by a power of ten against the company's other filings. " + "Left as filed and kept out of the figures until it is checked against the results PDF.";
@@ -197,6 +202,11 @@ export function ResultsHistory({
                 <tr key={line.key} className={BOLD.has(line.key) ? "history-key" : undefined}>
                   <th scope="row" className="history-line">
                     {line.label}
+                    {line.source && (
+                      <Badge tone={line.source === "reported" ? "accent" : "neutral"} title={SOURCE_TITLE[line.source]}>
+                        {line.source === "reported" ? "Reported" : "Calculated"}
+                      </Badge>
+                    )}
                     {line.note && <InfoTip text={line.note} />}
                   </th>
                   {line.values.map((v, i) => (
@@ -208,6 +218,12 @@ export function ResultsHistory({
               ))}
             </tbody>
           </table>
+          {history.lines.some((l) => l.source) && (
+            <p className="history-legend muted">
+              <Badge tone="accent">Reported</Badge> as published by the company in its investor presentation. <Badge>Calculated</Badge> worked out by Analekh from the filed accounts. The two can
+              differ, because companies define margin and funding differently; the calculated rows reconcile with each other (spread = yield minus cost of borrowing).
+            </p>
+          )}
         </div>
       ) : (
         <div className="card-body">

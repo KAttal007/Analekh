@@ -568,6 +568,7 @@ class HistoryLineOut(BaseModel):
     kind: Literal["inr", "eps", "pct"]
     values: list[Decimal | None]  # one per quarter, oldest first
     note: str | None = None
+    source: Literal["calculated", "reported"] | None = None
 
 
 class HistoryOut(BaseModel):

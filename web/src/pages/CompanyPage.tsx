@@ -124,6 +124,14 @@ export function CompanyPage() {
   const h = history.data;
   const labels = h?.quarter_labels ?? [];
   const byKey = new Map((h?.lines ?? []).map((l) => [l.key, l]));
+  // The NIM chart uses the company's own reported figure for a quarter, and ours (calculated) where it
+  // reported none. nimSource says which, quarter by quarter.
+  const nimReported = byKey.get("nim_reported");
+  const nimCalculated = byKey.get("nim");
+  const nimSource: ("reported" | "calculated" | null)[] = labels.map((_, i) => (nimReported?.values[i] != null ? "reported" : nimCalculated?.values[i] != null ? "calculated" : null));
+  if (nimReported) {
+    byKey.set("nim", { ...(nimCalculated ?? nimReported), key: "nim", label: "Net interest margin", values: labels.map((_, i) => nimReported.values[i] ?? nimCalculated?.values[i] ?? null), source: undefined, note: null });
+  }
   const topValues = byKey.get("revenue")?.values ?? [];
   let lastAt = topValues.length - 1;
   while (lastAt >= 0 && topValues[lastAt] == null) lastAt -= 1;
@@ -144,6 +152,8 @@ export function CompanyPage() {
   const isPct = interestShown || shown?.kind === "pct";
   const digits = shown ? pctDigits(shown.key) : 2;
   const points = (shown?.values ?? []).map((v) => (v == null ? null : isPct ? Number(v) : Number((Number(v) / scale.divisor).toFixed(scale.digits))));
+  const sourced = shown?.key === "nim" && nimSource.some((x) => x === "reported") && nimSource.some((x) => x === "calculated");
+  const bars = points.map((v, i) => (nimSource[i] === "calculated" && shown?.key === "nim" ? { value: v, source: "calculated", itemStyle: { opacity: 0.5, borderType: "dashed", borderColor: cssVar("--accent"), borderWidth: 1 } } : { value: v, source: nimSource[i] === "reported" && shown?.key === "nim" ? "reported" : undefined }));
   const shownLabel = (l: HistoryLine) => (l.key === "revenue" ? topLine(c.results_taxonomy).short : (CHART_LABEL[l.key] ?? l.label));
   const chartTitle = interestShown ? INTEREST_LABEL : shown ? shownLabel(shown) : topLine(c.results_taxonomy).short;
   const chartOptions = [...choices.map((l) => ({ value: l.key, label: shownLabel(l) })), ...(hasRatios ? [{ value: INTEREST, label: INTEREST_LABEL }] : [])];
@@ -315,7 +325,8 @@ export function CompanyPage() {
                       backgroundColor: cssVar("--surface"),
                       borderColor: cssVar("--border"),
                       textStyle: { color: cssVar("--text") },
-                      formatter: (p: { name: string; value: number }) => `${p.name}<br/><b>${isPct ? `${p.value.toFixed(digits)}%` : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`}</b>`,
+                      formatter: (p: { name: string; value: number; data?: { source?: string } }) =>
+                        `${p.name}<br/><b>${isPct ? `${p.value.toFixed(digits)}%` : `₹${p.value.toLocaleString("en-IN")} ${scale.short}`}</b>${p.data?.source ? ` <span style="opacity:.7">${p.data.source}</span>` : ""}`,
                     },
                     animationDuration: 600,
                     animationEasing: "cubicOut",
@@ -371,11 +382,17 @@ export function CompanyPage() {
                             ],
                           },
                         },
-                        data: points,
+                        data: bars,
                       },
                     ],
                   }}
                 />
+                {shown.key === "nim" && nimReported && (
+                  <p className="muted chart-legend">
+                    {sourced ? "Solid bars: reported by the company in its investor presentation. Lighter dashed bars: calculated by Analekh from the filings, where no reported figure is available." : "Reported by the company in its investor presentation."}
+                  </p>
+                )}
+                {shown.key === "nim" && !nimReported && <p className="muted chart-legend">Calculated by Analekh from the filings; this company's own reported figure is not available.</p>}
               </div>
             ) : history.isLoading || filings.isLoading ? (
               <div className="chart-placeholder" />

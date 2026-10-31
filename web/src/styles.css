@@ -4320,3 +4320,18 @@ table.glance tbody tr:last-child > * {
   gap: 6px;
   align-items: center;
 }
+
+.history-legend {
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.history-line .badge {
+  margin-left: 8px;
+}
+
+.chart-legend {
+  margin: 8px 0 0;
+  font-size: 12px;
+}

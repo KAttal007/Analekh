@@ -11,9 +11,10 @@ from datetime import date
 from decimal import Decimal
 
 import xlsxwriter
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from analekh.db.models import Company
+from analekh.db.models import Company, ReportedRatio
 from analekh.facts import files_consolidated
 from analekh.glance import (
     LINES,
@@ -43,6 +44,7 @@ class HistoryLine:
     kind: Kind
     values: list[Decimal | None]  # one per quarter, oldest first
     note: str | None = None
+    source: str | None = None  # lenders' ratios only: "calculated" (by us, from the filings) or "reported" (investor deck)
 
 
 @dataclass
@@ -80,6 +82,7 @@ def history(session: Session, company: Company, consolidated: bool | None = None
         out.lines.append(HistoryLine(name.lstrip("="), label, kind, values, NOTES.get(name)))
     if is_lender(company):
         out.lines += _interest_lines(session, company, basis, q, ends)
+        out.lines += _reported_lines(session, company, basis, ends)
     return out
 
 
@@ -102,7 +105,38 @@ def _interest_lines(session: Session, company: Company, basis: bool, q: dict, en
         if all(v is None for v in values):
             continue
         note = f"{INTEREST_NOTES[key]}. {AVERAGE_NOTE}"
-        lines.append(HistoryLine(key, INTEREST_LABELS[key], "pct", values, note))
+        lines.append(HistoryLine(key, INTEREST_LABELS[key], "pct", values, note, "calculated"))
+    return lines
+
+
+REPORTED_LINES = (
+    ("nim", "nim_reported", "Net interest margin"),
+    ("cof", "cof_reported", "Cost of funds"),
+)
+REPORTED_NOTE = (
+    "As the company reports it in its investor presentation, not worked out by Analekh. It can differ from the calculated "
+    "rows: companies define margin and funding differently. Where a deck gives only one basis, that figure is shown."
+)
+
+
+def _reported_lines(session: Session, company: Company, basis: bool, ends: list[date]) -> list[HistoryLine]:
+    """What the company reports for itself (decks): its own basis first, then 'all', then the other."""
+    got: dict[tuple[str, date], dict[str, Decimal]] = {}
+    for row in session.execute(
+        select(ReportedRatio.metric, ReportedRatio.period_end, ReportedRatio.basis, ReportedRatio.value).where(
+            ReportedRatio.company_id == company.id, ReportedRatio.metric.in_(("nim", "cof")), ReportedRatio.period_end.in_(ends)
+        )
+    ):
+        got.setdefault((row.metric, row.period_end), {})[row.basis] = row.value
+    own, other = ("consolidated", "standalone") if basis else ("standalone", "consolidated")
+    lines = []
+    for metric, key, label in REPORTED_LINES:
+        values = []
+        for e in ends:
+            by_basis = got.get((metric, e), {})
+            values.append(next((by_basis[b] for b in (own, "all", other) if b in by_basis), None))
+        if any(v is not None for v in values):
+            lines.append(HistoryLine(key, label, "pct", values, REPORTED_NOTE, "reported"))
     return lines
 
 
@@ -123,7 +157,8 @@ def to_xlsx(h: History, company: Company) -> bytes:
     for c, label in enumerate(h.quarter_labels, start=1):
         ws.write(3, c, label, head)
     for r, line in enumerate(h.lines, start=4):
-        ws.write(r, 0, line.label, bold if line.key in {"revenue", "pat"} else None)
+        label = f"{line.label} ({line.source})" if line.source else line.label
+        ws.write(r, 0, label, bold if line.key in {"revenue", "pat"} else None)
         for c, v in enumerate(line.values, start=1):
             if v is None:
                 ws.write(r, c, "")

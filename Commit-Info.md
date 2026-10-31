@@ -11,6 +11,10 @@ Newest first. One entry per major update: what moved, and what it unblocks. Kept
   zip listing) is shown on the page. Templates are disabled and enabled, never deleted, so links to
   models stay. Excel .xlsm templates now keep an .xlsm name and type in storage. The page shows
   three boxes side by side. Deviation in section 15.
+- **2026-10-31** Reported vs calculated on the company page. The results history shows a lender's
+  own reported NIM and cost of funds (investor decks) as separate rows, and every lender ratio row
+  carries a Reported or Calculated tag, with a legend underneath; Excel export labels them too. The
+  results desk lost its Cost of funds column. Calculated rows still reconcile with each other.
 - **2026-10-31** Built-in templates removed. The app no longer registers `nbfc_quarterly` and
   `consumer_quarterly` on each load; migration 0018 deletes them and refuses to run if any model or
   build still points at them (none did); their test records are deleted with them. Every template now needs its own test build before

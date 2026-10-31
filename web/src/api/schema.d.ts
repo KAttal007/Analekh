@@ -2101,6 +2101,8 @@ export interface components {
       values: (string | null)[];
       /** Note */
       note?: string | null;
+      /** Source */
+      source?: ("calculated" | "reported") | null;
     };
     /** HistoryOut */
     HistoryOut: {

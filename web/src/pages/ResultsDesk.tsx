@@ -44,7 +44,6 @@ const MARGIN_TITLE = {
 const REPORTED_TITLE = "As the company reports it in its investor presentation";
 const COMPUTED_NOTE =
   "Computed by Analekh from the filings: (interest earned - interest expense) x 4 / average interest-earning assets. The company's own figure is not available, and can differ: companies often divide by average total assets or AUM";
-const COF_COMPUTED_NOTE = "Computed by Analekh: interest expense x 4 / average borrowings. The company's own figure is not available, and can differ with how the company counts its funds";
 const NOT_COMPARABLE = "The earlier quarter is not available on the same footing: a reported figure is never compared with a computed one";
 
 function MarginCell({ row: r }: { row: DeskRow }) {
@@ -69,29 +68,6 @@ function MarginCell({ row: r }: { row: DeskRow }) {
   );
 }
 
-function CofCell({ row: r }: { row: DeskRow }) {
-  if (r.margin_kind !== "nim") return <td className="num d-ebitda" />;
-  if (r.cof == null) {
-    return (
-      <td className="num d-ebitda">
-        <MissingTip text="Cost of funds is not reported in a deck we have read, and our own needs interest expense and borrowings on both sides of the quarter" />
-      </td>
-    );
-  }
-  const basis = r.cof_consolidated == null || r.cof_consolidated === r.consolidated ? "" : r.cof_consolidated ? " (consolidated)" : " (standalone)";
-  return (
-    <td className="num d-ebitda" title={(r.cof_source === "reported" ? REPORTED_TITLE : COF_COMPUTED_NOTE) + basis}>
-      {Number(r.cof).toFixed(2)}%{" "}
-      <span className={`desk-sub ${r.cof_yoy == null ? "muted" : tone(r.cof_yoy, true)}`} title={changeTitle(r.cof_yoy, "bps")}>
-        {r.cof_yoy == null ? <MissingTip text={NOT_COMPARABLE} /> : signedBps(r.cof_yoy)}
-      </span>
-      <span className={`desk-qoq ${r.cof_qoq == null ? "muted" : tone(r.cof_qoq, true)}`} title={changeTitle(r.cof_qoq, "bps") ?? "Latest quarter on the previous quarter, in basis points"}>
-        {r.cof_qoq == null ? "–" : signedBps(r.cof_qoq)} QoQ
-      </span>
-    </td>
-  );
-}
-
 function ResultsTable({ rows }: { rows: DeskRow[] }) {
   const navigate = useNavigate();
   return (
@@ -107,9 +83,6 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               title="EBITDA margin; net interest margin (NIM) for lenders; core pre-provision profit margin for asset managers and brokers. Change in basis points on a year ago, with the change on the previous quarter beneath. Not comparable across the three."
             >
               Margin
-            </th>
-            <th className="num d-ebitda" title="Cost of funds for lenders, as the company reports it in its investor presentation; ours from the filings when it does not. Change in basis points on a year ago, with the change on the previous quarter beneath. A fall is shown green.">
-              Cost of funds
             </th>
             <BasisHeader />
           </tr>
@@ -144,7 +117,6 @@ function ResultsTable({ rows }: { rows: DeskRow[] }) {
               <ProfitCell value={r.pat} scale={scaleFor([r.revenue])} />
               <YoyCell value={r.pat_yoy} of="profit" missing={<MissingTip text={r.yoy_note} />} qoq={r.pat_qoq ?? null} />
               <MarginCell row={r} />
-              <CofCell row={r} />
               <BasisCell consolidated={r.consolidated} />
             </tr>
           ))}
