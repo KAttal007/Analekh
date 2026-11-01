@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError, type Me } from "../api/client";
 import { clearFreed } from "../lock/freed";
 import { forgetSignInLocks } from "../lock/signInMark";
-import { resetWelcomed } from "./welcome";
+import { resetWelcomed, startSigningOut } from "./welcome";
 
 export type { Me };
 
@@ -84,6 +84,7 @@ export function useSignOut() {
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
+    startSigningOut();
     resetWelcomed();
     clearFreed();
     forgetSignInLocks();

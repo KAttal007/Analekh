@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ErrorNote, Loading } from "./ui";
 import { rememberReturnPath, useMe } from "../lib/auth";
+import { isSigningOut } from "../lib/welcome";
 
 /** Everything inside needs a session. Signed out, the visitor goes to sign-in, and the page they
  * asked for (its path only) is remembered so signing in brings them back to it. */
@@ -10,6 +11,7 @@ export function RequireSignIn() {
   if (me.isPending) return <Loading />;
   if (me.isError) return <ErrorNote error={me.error} />;
   if (me.data === null) {
+    if (isSigningOut() && pathname !== "/welcome") return <Navigate to="/welcome" replace />; // a sign-out is landing there
     rememberReturnPath(pathname + search);
     return <Navigate to="/login" replace />;
   }

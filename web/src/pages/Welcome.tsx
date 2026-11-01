@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { filedAt } from "../lib/format";
 import { useMe } from "../lib/auth";
 import { publicWeekQuery } from "../lib/preload";
-import { greeting, markWelcomed, tagTransition } from "../lib/welcome";
+import { doneSigningOut, greeting, markWelcomed, tagTransition } from "../lib/welcome";
 
 const COMMIT = 0.55; // share of the way (0..1) past which letting go opens the app
 const REACH = 320; // px of scroll or swipe that take the page most of the way
@@ -47,6 +47,7 @@ export function Welcome() {
   const enter = useRef<HTMLButtonElement>(null);
   const opened = useRef(false);
   const client = useQueryClient();
+  useEffect(() => doneSigningOut(), []); // the sign-out has landed
   useEffect(() => {
     void client.prefetchQuery(publicWeekQuery());
   }, [client]);

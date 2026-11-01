@@ -3,6 +3,13 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-11-02** Sign-out race fixed (found when GitLab's slower runner failed
+  `AdminLayout.test.tsx`, "Sign out waits for the server's reply"; not caused by the dependency
+  bumps). Sign-out cleared the signed-in user and navigated to `/welcome` as two separate tasks;
+  if the clear was seen first, `RequireSignIn` redirected to `/login` instead, so a real user could
+  occasionally land on sign-in rather than the welcome page. `lib/welcome.ts` now holds a
+  "signing out" flag, set by `useSignOut`, read by `RequireSignIn` (goes to `/welcome`), cleared when
+  the welcome page mounts. Two new tests; web tests 256, also run three suites at once as a load check.
 - **2026-11-02** Dependency fixes after GitLab's OSV scan (16 findings in 5 npm packages, all dev
   tooling): `pnpm-workspace.yaml` overrides follow-redirects 1.16.2, node-forge 1.4.1, glob 14.0.2,
   minimatch 11.0.1 (replaces 10.2.6 under eslint and 5.1.9 under openapi-typescript); lockfile

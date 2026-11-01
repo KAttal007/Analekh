@@ -4,6 +4,7 @@ import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
 import { RequireSignIn } from "./components/RequireSignIn";
 import { Layout } from "./Layout";
+import { doneSigningOut, startSigningOut } from "./lib/welcome";
 import { ADMIN, ANALYST, mockApi, renderAt } from "./test-utils";
 
 beforeAll(() => {
@@ -200,4 +201,21 @@ test("the admin sidebar has Sign out too", async () => {
       name: "Sign out",
     }),
   ).toBeTruthy();
+});
+
+test("a signed-out visitor goes to the welcome page while a sign-out is landing, whichever task ran first", async () => {
+  mockApi({ "GET /api/auth/me": () => ({ status: 401, body: { detail: "Sign in required." } }) });
+  startSigningOut();
+  try {
+    renderAt(signOutApp(), "/");
+    await screen.findByText("welcome page");
+  } finally {
+    doneSigningOut();
+  }
+});
+
+test("without a sign-out under way, a signed-out visitor goes to sign-in", async () => {
+  mockApi({ "GET /api/auth/me": () => ({ status: 401, body: { detail: "Sign in required." } }) });
+  renderAt(signOutApp(), "/");
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/login"));
 });
