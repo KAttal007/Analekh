@@ -4,7 +4,8 @@ Version 0.0.6 (29 October 2026). Goal: zero API cost where quality allows, and d
 right on the first run because the system knows the current situation and the analyst's way of
 writing. This file is a plan, not a record of what is built: today every language-model call goes
 through `analekh/genai/client.py` (`Claude.create`), and there is no local provider, no context
-fetcher and no training loop yet. The design is in design doc 17.3 to 17.6 and 3.4 (all
+fetcher and no adapter training yet. Built on 2 November 2026: the report chat, publishing, the
+record, lessons and the upgrade check (section 4). The design is in design doc 17.3 to 17.6 and 3.4 (all
 proposed); the overall order of work is in [docs/roadmap.md](docs/roadmap.md).
 
 Legend: ✅ built · 🟡 partly built · 🔲 decided, not built · 💬 proposed, needs a decision
@@ -117,6 +118,28 @@ comes later, after the MVP (owner, 29 October 2026). Hotfixes ship as usual.
 
 **Order:** fine-tuning comes after the MVP's features are done. Retrieval and the agent come
 first: they fix the "paste in current context" problem on day one.
+
+**Keeping what is learnt when the model changes** (owner, 1 November 2026; built 2 November
+2026, design `docs/superpowers/specs/2026-11-01-report-chat-design.md`). Weights are never the only
+copy. Three layers, most lasting first:
+
+| Layer | What it is | Survives a new model because | State |
+|---|---|---|---|
+| The record | Every report thread: first draft, chat, every version (typed edits apart from AI changes), approved draft, published file, tool calls with their results | Plain JSON and the original files, in Postgres and MinIO; `analekh ai export` writes JSONL training pairs with ratings and targets masked | ✅ |
+| Lessons | Rules in plain words drawn from each published report ("Never call margins robust"), each with a test (wording, structure, or judged by a model). Every model reads the active ones in its prompt, with masked examples of the analyst's past reports | They are text, not weights; the analyst sees, edits and retires them on the Lessons page | ✅ |
+| Adapters | LoRA per firm and analyst, as above | Rebuilt from the record for each new base model | 🔲 after the MVP |
+
+**Moving to a new model:** `analekh ai check --candidate claude:<model>` redrafts recent published
+reports with the current and the candidate model, on the same recorded data, and passes the
+candidate only if it is no worse on grounding, style and missing sections and passes every lesson
+test the current model passes. The current model judges. Local models and adapters plug into the
+same check once the provider exists (Phase D).
+
+**How the accepted version comes back:** the analyst refines the draft in a chat window (typing
+into it or asking the AI), approves it, finishes the Word or PowerPoint file (rating, guidance and
+any last changes in the file itself), and publishes it by upload; a Word/PowerPoint add-in is the
+second route (to do). The lesson job compares the first draft, the chat, the approved draft and the
+published file.
 
 ## 5. Self-hosted, per firm (Analekh as a platform)
 
@@ -421,10 +444,14 @@ These are code changes, each needing a `deviations.md` entry and tests:
 
 ## 14. Open questions
 
-- How the accepted version of a report comes back: an upload of the analyst's final Word file, or
-  edits made in the web app.
+- ~~How the accepted version of a report comes back~~: answered 1 November 2026 (section 4): edits
+  in the chat, then the analyst's final file, published by upload (add-in to come).
 - Exact hosts and paths for each source in section 3, and each one's terms (owner's approval).
 - Which ministries and portals count as "Government of India" for each sector.
 - Whether to ship a starter adapter trained only on public material, or start each firm from the
   base model.
 - Minimum accepted reports before an analyst gets their own adapter.
+- **To do: reporting hierarchy** (owner, 1 November 2026). Firms have a hierarchy (for example a
+  supervisor or compliance reviewer above analysts) who will need to read other analysts' report
+  threads and published files, read only. Deferred: until it is designed, a thread and its files
+  are visible only to the analyst who owns it (`docs/superpowers/specs/2026-11-01-report-chat-design.md`).

@@ -65,6 +65,8 @@ class ReportRun:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
+    results: list[Any] = field(default_factory=list)  # every tool result of the run, for later number checks
+    exchanges: list[dict[str, Any]] = field(default_factory=list)  # tool, input and result together, for replay
 
     @property
     def blocked(self) -> bool:
@@ -90,6 +92,7 @@ def run_report(
     system = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
     calls: list[dict[str, Any]] = []
     results: list[Any] = []
+    exchanges: list[dict[str, Any]] = []
     tokens_in = tokens_out = 0
 
     for _ in range(max_turns):
@@ -107,7 +110,7 @@ def run_report(
         messages.append({"role": "assistant", "content": msg.content})
         if msg.stop_reason != "tool_use":
             grounding = check(res.text, results)
-            return ReportRun(kind, res.text, grounding, calls, tokens_in, tokens_out)
+            return ReportRun(kind, res.text, grounding, calls, tokens_in, tokens_out, results, exchanges)
 
         tool_results = []
         for block in msg.content:
@@ -117,6 +120,7 @@ def run_report(
             try:
                 output = executor.run(block.name, args)
                 results.append(output)
+                exchanges.append({"tool": block.name, "input": args, "result": output})
                 tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": to_json(output)})
             except Exception as exc:  # noqa: BLE001 - surface to the model, keep going
                 tool_results.append(

@@ -411,9 +411,131 @@ class ReportRequest(BaseModel):
     model_id: int | None = None
 
 
-class QaRequest(BaseModel):
+# --- report threads (design: report chat) ---------------------------------------------------------
+class ThreadCreate(BaseModel):
     symbol: str
-    question: str
+    report_type: Literal["quarterly", "initiating"]
+    format: Literal["word", "ppt"]
+    basis: Literal["consolidated", "standalone", "both"]
+    quarter_end: date | None = None
+    model_id: int | None = None
+
+
+class ThreadStarted(BaseModel):
+    thread_id: int
+    job_id: str
+
+
+class SelectionIn(BaseModel):
+    unit: int = Field(ge=0)
+    block: int | None = Field(default=None, ge=0)
+
+
+class MessageIn(BaseModel):
+    message: str = Field(min_length=1)  # the upper bound is a setting, checked in the route
+    selection: SelectionIn | None = None
+    base_version: int = Field(ge=0)
+
+
+class DraftIn(BaseModel):
+    base_version: int = Field(ge=0)
+    draft: dict[str, Any]
+
+
+class ApproveIn(BaseModel):
+    base_version: int = Field(ge=0)
+
+
+class JobStarted(BaseModel):
+    job_id: str
+
+
+class DraftSaved(BaseModel):
+    version_no: int
+    unsourced: list[str]
+
+
+class Approved(BaseModel):
+    version_no: int
+    unsourced_count: int
+
+
+class QaSummary(BaseModel):
+    id: int
+    symbol: str
+    company_name: str
+    title: str
+    busy: bool
+    updated_at: datetime
+
+
+class QaMessageOut(ORM):
+    id: int
+    role: str
+    body: str
+    meta: dict[str, Any] | None
+    created_at: datetime
+
+
+class QaOut(QaSummary):
+    messages: list[QaMessageOut]
+
+
+class LessonOut(BaseModel):
+    id: int
+    text: str
+    scope: str
+    status: str
+    test_kind: str
+    test_spec: dict[str, Any]
+    strength: int
+    source_thread_id: int | None
+    mine: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class VersionOut(BaseModel):
+    version_no: int
+    draft: dict[str, Any]
+
+
+class PublishedOut(ORM):
+    id: int
+    thread_id: int
+    extension: str
+    has_macros: bool
+    route: str
+    created_at: datetime
+
+
+class ThreadMessageOut(ORM):
+    id: int
+    role: str
+    body: str
+    selection: dict[str, Any] | None
+    meta: dict[str, Any] | None
+    created_at: datetime
+
+
+class ThreadSummary(BaseModel):
+    id: int
+    symbol: str
+    company_name: str
+    report_type: str
+    format: str
+    quarter_end: date | None
+    status: str
+    busy: bool
+    updated_at: datetime
+
+
+class ThreadOut(ThreadSummary):
+    basis: str
+    current_version: int
+    draft: dict[str, Any] | None
+    unsourced: list[str]
+    messages: list[ThreadMessageOut]
 
 
 class CompsRequest(BaseModel):

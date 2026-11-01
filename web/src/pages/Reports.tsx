@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, type Filing } from "../api/client";
 import { CompanySearch, type Suggestion } from "../components/CompanySearch";
 import { Icon, type IconName } from "../components/Icon";
@@ -9,7 +9,8 @@ import { longDate } from "../lib/format";
 import { IpoCoverage } from "./IpoCoverage";
 
 // Reports (design doc 15, 17). The set-up is live: company, report type, quarter and the input
-// checks read the real data. Writing the Word note and the PowerPoint is still being built, so
+// checks read the real data. Generate starts a report thread (ReportThread.tsx): the format is
+// chosen first, the draft is refined in the chat, approved, then finished in the file.
 
 type Kind = "quarterly" | "initiating" | "ipo";
 
@@ -48,6 +49,13 @@ const TEXT: Record<InputState, string> = {
   coming: "Being built",
 };
 
+type Format = "word" | "ppt";
+const FORMAT_OPTIONS: { value: Format; label: string }[] = [
+  { value: "word", label: "Word report" },
+  { value: "ppt", label: "PowerPoint" },
+];
+const STATUS: Record<string, string> = { drafting: "Drafting", approved: "Approved", published: "Published" };
+
 type Basis = "consolidated" | "standalone" | "both";
 const BASIS_OPTIONS: { value: Basis; label: string }[] = [
   { value: "standalone", label: "Standalone" },
@@ -63,6 +71,11 @@ export function Reports() {
   const asked = params.get("basis");
   const chosenBasis: Basis | null = asked === "standalone" || asked === "consolidated" || asked === "both" ? asked : null;
   const quarter = params.get("quarter");
+  const format: Format = params.get("format") === "ppt" ? "ppt" : "word";
+  const navigate = useNavigate();
+  const [startError, setStartError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const recent = useQuery({ queryKey: ["threads"], queryFn: api.threads });
   const set = (changes: Record<string, string | null>, replace = true) =>
     setParams(
       (prev) => {
@@ -131,6 +144,34 @@ export function Reports() {
   const sections = SECTIONS[kind].word;
   const wcur = Math.min(wordActive, sections.length - 1);
   const readyCount = INPUT_ROWS.filter((r) => states[r.key] === "ready").length;
+  const companyModel = models.data?.find((m) => m.company_id === companyId);
+  const blocker = !symbol
+    ? "Pick a company first."
+    : !basis
+      ? "This company has no filed results yet."
+      : !pickedEnd
+        ? "No quarter to report on yet."
+        : kind === "initiating" && !companyModel
+          ? "An initiating report needs your Excel model for this company (link it on Models)."
+          : null;
+  const generate = async () => {
+    if (blocker || !basis) return;
+    setStarting(true);
+    try {
+      const started = await api.startThread({
+        symbol,
+        report_type: kind === "initiating" ? "initiating" : "quarterly",
+        format,
+        basis,
+        quarter_end: pickedEnd,
+        model_id: companyModel?.id ?? null,
+      });
+      navigate(`/reports/${started.thread_id}`);
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : String(e));
+      setStarting(false);
+    }
+  };
 
   if (kind === "ipo") {
     // IPO coverage has its own inputs (SEBI offer documents), so the company and quarter cards
@@ -160,8 +201,7 @@ export function Reports() {
     <div className="page">
       <PageHeader
         title="Reports"
-        badges={<Badge tone="warn">Being built</Badge>}
-        subtitle="Draft a Word note and a PowerPoint from a company's filed numbers, its comps and its documents. Every figure in a draft is sourced; you approve it before it leaves your desk."
+        subtitle="Draft a Word report or a PowerPoint with the AI, in a chat. Every figure in a draft is sourced. You approve it, add your rating and guidance in the file, then publish."
       />
 
       <div className="reports-grid">
@@ -206,6 +246,12 @@ export function Reports() {
             </div>
 
             <div className="field">
+              Format
+              <Segmented<Format> label="Format" options={FORMAT_OPTIONS} value={format} onChange={(v) => set({ format: v === "word" ? null : v }, false)} />
+              <span className="muted reports-hint">Chosen first: the draft is shaped as {format === "word" ? "sections of a Word report" : "slides of a presentation"}.</span>
+            </div>
+
+            <div className="field">
               Figures
               {offered.length > 1 ? (
                 <Segmented<Basis> label="Basis of figures" options={offered} value={basis ?? offered[0].value} onChange={(v) => set({ basis: v }, false)} />
@@ -238,12 +284,12 @@ export function Reports() {
             </label>
 
             <div className="reports-actions">
-              <button type="button" className="btn-primary" disabled aria-describedby="gen-note">
+              <button type="button" className="btn-primary" disabled={!!blocker || starting} aria-describedby="gen-note" onClick={generate}>
                 <Icon name="play" />
-                Generate drafts
+                {format === "word" ? "Draft the Word report" : "Draft the presentation"}
               </button>
               <span id="gen-note" className="muted reports-hint">
-                Drafting is being built. The inputs below are what it will read.
+                {startError ?? blocker ?? "The AI drafts section by section, then you refine it in the chat."}
               </span>
             </div>
           </div>
@@ -276,10 +322,11 @@ export function Reports() {
         </section>
       </div>
 
-      <div className="reports-grid">
+      <div className="reports-outline">
+        {format === "word" && (
         <section className="card">
           <div className="card-header">
-            <h2>Word note</h2>
+            <h2>What the Word report will contain</h2>
             <span className="muted">{kind === "quarterly" ? "Quarterly update" : "Initiating coverage"}</span>
           </div>
           <div className="slide-deck">
@@ -315,10 +362,12 @@ export function Reports() {
             </ol>
           </div>
         </section>
+        )}
 
+        {format === "ppt" && (
         <section className="card">
           <div className="card-header">
-            <h2>PowerPoint</h2>
+            <h2>What the presentation will contain</h2>
             <span className="muted">Dense IB style, {SECTIONS[kind].slides.length} slides</span>
           </div>
           <div className="slide-deck">
@@ -358,15 +407,32 @@ export function Reports() {
             </ol>
           </div>
         </section>
+        )}
       </div>
 
       <section className="card">
         <div className="card-header">
-          <h2>Recent reports</h2>
+          <h2>Your reports</h2>
         </div>
-        <EmptyState icon="file" title="No reports yet">
-          Drafts you generate will be listed here, with their sources and approval status.
-        </EmptyState>
+        {recent.data?.length ? (
+          <ul className="report-recent">
+            {recent.data.map((t) => (
+              <li key={t.id}>
+                <Link to={`/reports/${t.id}`} className="report-recent-row">
+                  <span className="badge-mono">{t.symbol}</span>
+                  <span>{t.report_type === "initiating" ? "Initiating coverage" : "Quarterly update"}</span>
+                  <span className="muted">{t.format === "word" ? "Word" : "PowerPoint"}</span>
+                  <span className="muted">{t.quarter_end ? longDate(t.quarter_end) : ""}</span>
+                  <Badge tone={t.status === "drafting" ? "warn" : "ok"}>{t.busy ? "AI writing" : (STATUS[t.status] ?? t.status)}</Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon="file" title="No reports yet">
+            Reports you start are listed here, with their status.
+          </EmptyState>
+        )}
       </section>
     </div>
   );

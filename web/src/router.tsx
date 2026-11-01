@@ -9,7 +9,6 @@ import { useMe } from "./lib/auth";
 import { hasWelcomed } from "./lib/welcome";
 import { Disclosures } from "./pages/Disclosures";
 import { Login } from "./pages/Login";
-import { Placeholder } from "./pages/Placeholder";
 import { SearchPage } from "./pages/SearchPage";
 import { Welcome } from "./pages/Welcome";
 
@@ -25,6 +24,9 @@ const AdminSettings = lazy(() => import("./pages/admin/AdminSettings").then((m) 
 const Comps = lazy(() => import("./pages/Comps").then((m) => ({ default: m.Comps })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
+const ReportThread = lazy(() => import("./pages/ReportThread").then((m) => ({ default: m.ReportThread })));
+const Qa = lazy(() => import("./pages/Qa").then((m) => ({ default: m.Qa })));
+const Lessons = lazy(() => import("./pages/Lessons").then((m) => ({ default: m.Lessons })));
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
@@ -56,7 +58,9 @@ export const routes: RouteObject[] = [
           { path: "models/:id/assumptions", element: page(<AssumptionReview />) },
           { path: "templates", element: <Navigate to="/admin/templates" replace /> },
           { path: "reports", element: page(<Reports />) },
-          { path: "qa", element: <Placeholder title="Q&A" phase={4} /> },
+          { path: "reports/:id", element: page(<ReportThread />) },
+          { path: "qa", element: page(<Qa />) },
+          { path: "lessons", element: page(<Lessons />) },
           { path: "comps", element: page(<Comps />) },
           { path: "settings", element: page(<Settings />) },
         ],

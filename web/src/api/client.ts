@@ -69,6 +69,25 @@ export type AlertTest = Schemas["AlertTestOut"];
 export type AlertEntry = Schemas["AlertOut"];
 export type History = Schemas["HistoryOut"];
 export type HistoryLine = Schemas["HistoryLineOut"];
+export type ThreadSummary = Schemas["ThreadSummary"];
+export type ReportThread = Schemas["ThreadOut"];
+export type ThreadMessage = Schemas["ThreadMessageOut"];
+export type ThreadCreate = Schemas["ThreadCreate"];
+export type Lesson = Schemas["LessonOut"];
+export type QaSummary = Schemas["QaSummary"];
+export type QaThread = Schemas["QaOut"];
+export type Published = Schemas["PublishedOut"];
+/** The draft document (analekh/reports/draft.py); kept loose here, the server validates it. */
+export type DraftBlock =
+  | { type: "heading"; level: number; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "bullets"; items: string[] }
+  | { type: "table"; header: string[]; rows: string[][] }
+  | { type: "chart"; chart_type: "bar" | "line"; title: string; labels: string[]; series: { name: string; values: string[]; sources: string[] }[] }
+  | { type: "placeholder"; kind: "rating" | "target" | "guidance" };
+export type DraftUnit = { title: string; blocks: DraftBlock[] };
+export type Draft = { schema_version: 1; format: "word" | "ppt"; units: DraftUnit[] };
+export type Selection = { unit: number; block?: number | null };
 
 const BASE = "/api";
 export const STALE_API = "The API server is running older code than this page: restart it to load the new features.";
@@ -80,9 +99,23 @@ export class ApiError extends Error {
     public retryAfter?: number,
     public blocked = false,
     public sessionLimit?: SessionLimit,
+    /** A machine-readable reason, when the server sends `{code, message}` (e.g. thread_busy). */
+    public code?: string,
   ) {
     super(message);
   }
+}
+
+/** Readable text of any error: the `message` of a `{code, message}` detail, else the message. */
+export function errorMessage(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  try {
+    const parsed = JSON.parse(e.message) as { message?: unknown };
+    if (parsed && typeof parsed.message === "string") return parsed.message;
+  } catch {
+    /* plain text */
+  }
+  return e.message;
 }
 
 let signedOutHandler: (() => void) | null = null;
@@ -118,7 +151,10 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (res.status === 404 && detail === "Not Found") {
       throw new ApiError(404, STALE_API);
     }
-    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail), Number.isFinite(wait) && wait > 0 ? wait : undefined, blocked, sessionLimit);
+    // An object detail stays JSON in `message` (useModelLock and ChangeSetReview read it so);
+    // its `code`, when present, is also kept apart. errorMessage() gives the readable text.
+    const coded = typeof detail === "object" && detail !== null && "code" in detail ? (detail as { code: string }) : null;
+    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail), Number.isFinite(wait) && wait > 0 ? wait : undefined, blocked, sessionLimit, coded?.code);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
@@ -145,6 +181,28 @@ async function download(path: string, body: unknown, filename: string): Promise<
 }
 
 export const api = {
+  threads: () => call<ThreadSummary[]>("/threads"),
+  thread: (id: number) => call<ReportThread>(`/threads/${id}`),
+  startThread: (body: ThreadCreate) => post<{ thread_id: number; job_id: string }>("/threads", body),
+  sendMessage: (id: number, message: string, baseVersion: number, selection?: Selection | null) => post<{ job_id: string }>(`/threads/${id}/messages`, { message, base_version: baseVersion, selection: selection ?? null }),
+  saveDraft: (id: number, baseVersion: number, draft: Draft) => put<{ version_no: number; unsourced: string[] }>(`/threads/${id}/draft`, { base_version: baseVersion, draft }),
+  threadVersion: (id: number, versionNo: number) => call<{ version_no: number; draft: Draft }>(`/threads/${id}/versions/${versionNo}`),
+  approve: (id: number, baseVersion: number) => post<{ version_no: number; unsourced_count: number }>(`/threads/${id}/approve`, { base_version: baseVersion }),
+  threadFileUrl: (id: number) => `${BASE}/threads/${id}/file`,
+  publish: (id: number, file: File, confirmed = false) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("confirmed", String(confirmed));
+    return call<Published>(`/threads/${id}/publish`, { method: "POST", body: form });
+  },
+  lessons: () => call<Lesson[]>("/lessons"),
+  editLesson: (id: number, change: { text?: string; status?: "active" | "retired" }) => patch<Lesson>(`/lessons/${id}`, change),
+  deleteLesson: (id: number) => call<void>(`/lessons/${id}`, { method: "DELETE" }),
+  promoteLesson: (id: number) => post<Lesson>(`/lessons/${id}/promote`),
+  qaThreads: () => call<QaSummary[]>("/qa/threads"),
+  qaThread: (id: number) => call<QaThread>(`/qa/threads/${id}`),
+  startQa: (symbol: string) => post<QaSummary>("/qa/threads", { symbol }),
+  ask: (id: number, question: string) => post<{ job_id: string }>(`/qa/threads/${id}/messages`, { question }),
   login: (email: string, password: string) => post<LoginOut>("/auth/login", { email, password }),
   replaceSession: (choiceToken: string, deviceId: string) => post<LoginOut>("/auth/login/replace", { choice_token: choiceToken, device_id: deviceId }),
   nameDevice: (name: string) => post<ThisDevice>("/auth/device-name", { name }),

@@ -24,7 +24,7 @@ def _cron(expr: str) -> crontab:
     )
 
 
-app = Celery("analekh", broker=settings.redis_url, backend=settings.redis_url, include=["analekh.jobs.tasks"])
+app = Celery("analekh", broker=settings.redis_url, backend=settings.redis_url, include=["analekh.jobs.tasks", "analekh.jobs.report_tasks"])
 app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,

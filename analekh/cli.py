@@ -506,3 +506,82 @@ def ipo_read(limit: int = typer.Option(10, "--limit", min=1, max=100)) -> None:
     from analekh.jobs.tasks import read_ipo_documents
 
     typer.echo(read_ipo_documents(limit))
+
+
+# --- AI record: upgrade check, export, learning (design: report chat) -----------------------------
+
+ai_app = typer.Typer(help="The AI's record: check a new model, export training data, rerun learning.")
+app.add_typer(ai_app, name="ai")
+
+
+def _candidate(s, name: str):  # type: ignore[no-untyped-def]
+    """A model to try, as `claude:<model>` or a bare Claude model name."""
+    provider, _, model = name.partition(":") if ":" in name else ("claude", "", name)
+    if provider != "claude" or not model.strip():
+        raise typer.BadParameter("only Claude models can be checked until the local provider is built (AI.md section 13)")
+    from analekh.genai.client import Claude
+
+    claude = Claude(s)
+    claude.model = model.strip()
+    return claude
+
+
+@ai_app.command("check")
+def ai_check(
+    candidate: str = typer.Option(..., help="claude:<model> to try against the current model"),
+    threads: int = typer.Option(5, min=1, max=50, help="past published reports to replay"),
+    live: bool = typer.Option(False, help="answer tool calls the record lacks from live data"),
+) -> None:
+    """Replay past reports with the current and the candidate model; pass only if no worse."""
+    import json
+
+    from analekh.genai.client import Claude
+    from analekh.genai.tools import ModelReader, ToolExecutor
+    from analekh.reports.lessons import judge_with
+    from analekh.reports.upgrade import check_candidate, pick_threads
+
+    store = _store()
+    with _session() as s:
+        current = Claude(s)
+        picked = pick_threads(s, threads)
+        if not picked:
+            raise typer.BadParameter("no published reports to replay yet")
+        executor = ToolExecutor(s, ModelReader(s, store)) if live else None
+        result = check_candidate(s, store, current, _candidate(s, candidate), picked, judge=judge_with(current), live=executor)
+    typer.echo(
+        json.dumps(
+            {
+                "verdict": result.verdict,
+                "current": result.current,
+                "candidate": result.candidate,
+                "worse_on": result.worse_on,
+                "lessons_lost": result.lessons_lost,
+                "lessons_failed_by_both": result.lessons_failed_by_both,
+                "check_id": result.check_id,
+            },
+            indent=2,
+        )
+    )
+    if result.verdict != "pass":
+        raise typer.Exit(1)
+
+
+@ai_app.command("export")
+def ai_export(out: Path = typer.Argument(..., help="JSONL file to write"), mask_numbers: bool = typer.Option(False, help="replace every number with <n>")) -> None:
+    """Write every published report's record as JSONL training pairs (ratings and targets masked)."""
+    from analekh.reports.export import export_jsonl
+
+    with _session() as s:
+        n = export_jsonl(s, _store(), out, mask_numbers=mask_numbers)
+    typer.echo(f"{n} pairs written to {out}")
+
+
+@ai_app.command("learn")
+def ai_learn(published_id: int) -> None:
+    """Rerun the lesson job for one published file (when the queue was down at publish time)."""
+    from analekh.genai.client import Claude
+    from analekh.reports.lessons import learn_from_published
+
+    with _session() as s:
+        added = learn_from_published(s, _store(), Claude(s), published_id)
+    typer.echo(f"{len(added)} lesson(s) added or strengthened")

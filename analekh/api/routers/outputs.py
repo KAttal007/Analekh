@@ -1,4 +1,4 @@
-"""Reports, initiation drafts and Q&A (design doc 17, 20). Comps and alerts have their own
+"""Reports and initiation drafts (design doc 17, 20). Q&A threads are in qa.py. Comps and alerts have their own
 routers (comps.py, system.py)."""
 
 from fastapi import APIRouter, HTTPException
@@ -77,19 +77,4 @@ def get_report(report_id: int, db: DB) -> dict:
         "storage_key": r.storage_key,
         "citations": r.citations,
         "created_at": r.created_at,
-    }
-
-
-@router.post("/qa")
-def qa(body: schemas.QaRequest, db: DB) -> dict:
-    from analekh.genai.client import Claude
-    from analekh.genai.reports import run_report
-    from analekh.genai.tools import ToolExecutor
-
-    c = company_or_404(db, body.symbol)
-    run = run_report(Claude(db), ToolExecutor(db), "qa", company=c.nse_symbol, question=body.question)
-    return {
-        "answer": run.text,
-        "blocked": run.blocked,
-        "unmatched_numbers": run.grounding.unmatched,
     }

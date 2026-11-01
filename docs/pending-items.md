@@ -20,6 +20,22 @@ Tick a box when it is done. Items marked *status unknown* have not been confirme
 - [ ] Verify XBRL element names marked `# verify` in `xbrl/elements.py` against real filings; run `analekh revalidate` after changes
 - [ ] Map the insurers' balance sheet (not mapped yet)
 
+## Report chat, publishing and lasting learning (status 2026-11-02)
+
+Design: `docs/superpowers/specs/2026-11-01-report-chat-design.md`. Plan: `docs/superpowers/plans/2026-11-01-report-chat.md`. Deviations section 16.
+
+- [x] Report threads: draft in chat, typed edits, one writer at a time, approve, file on the sector template or a plain one, download, publish by upload
+- [x] Record, lessons (job on publish, tests, Lessons page), upgrade check (`analekh ai check`), JSONL export (`analekh ai export`), `analekh ai learn`
+- [x] Q&A page: multi-turn threads over a company's filings
+- [ ] Owner: try a real report end to end on the staging VM (needs the Celery worker and an API key): first draft, chat, approve, edit in Word, publish, then check the Lessons page
+- [ ] Word/PowerPoint add-in with "Publish to Analekh" (route `POST /publish` is ready; plan Task 17)
+- [ ] Reporting hierarchy: read-only access for supervisors or compliance (AI.md section 14)
+- [ ] Check the Celery worker does not log task arguments (chat messages travel as arguments)
+- [ ] Decide whether report threads should take the Excel model lock while the AI drafts
+- [ ] Growth rates the analyst works out (e.g. "up 12%") show as "not sourced"; consider matching `calc` of filed pairs
+- [ ] Word charts are data tables; decide whether rendered chart images are worth a library
+- [ ] Adapter training and the local provider (AI.md phases D and I), after the MVP
+
 ## Reported ratios from investor decks (NIM, cost of funds; status 2026-10-31)
 
 Design: `docs/superpowers/specs/2026-10-31-deck-ratios-design.md`. Deviations section 14.

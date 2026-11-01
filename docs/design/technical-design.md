@@ -547,7 +547,8 @@ Relational integrity across companies, filings, facts, templates, models and cha
 | users, auth_sessions, api_tokens, password_resets | Accounts and roles, sessions, hashed bridge tokens, hashed reset codes with failure counts (migrations 0009 to 0013). |
 | app_settings, audit_log | Admin settings (upload limit); every admin and lock action. |
 | llm_calls, alerts, peer_lists, job_status | Token use per call; sent notifications; saved peer lists; when each scheduled job last ran and last worked. |
-| Proposed | Context documents and chunks (source, published date, tags); report drafts and accepted versions with edits; adapters per firm and analyst (sections 17.3, 17.4). |
+| Built 2 November 2026 | Report threads, chat messages, draft versions (typed edits apart from AI changes), published files, lessons, upgrade checks; Q&A threads and messages (section 17.4; design `docs/superpowers/specs/2026-11-01-report-chat-design.md`). |
+| Proposed | Context documents and chunks (source, published date, tags); adapters per firm and analyst (sections 17.3, 17.4). |
 
 #### 8.3 Indexes and constraints
 
@@ -867,6 +868,8 @@ The agent plans, retrieves and explains before it writes (workflow 6.12; AI.md s
 
 #### 17.4 Learning from the analyst (proposed, after the MVP)
 
+- **Kept in three layers so it survives a new model** (owner, 1 November 2026; built 2 November 2026): the record (every first draft, chat turn, version and published file, model-neutral, exported as JSONL with ratings masked); lessons in plain words, each with a test, that every model reads in its prompt; and adapters, rebuilt from the record for each new base model. A candidate model replaces the current one only if it is no worse on past reports and passes every lesson test the current one passes (`analekh ai check`). AI.md section 4.
+- **How a report comes back:** drafted and refined in a chat (typed edits or requests), approved, finished in the Word or PowerPoint file (rating, guidance, last changes), published by upload; lessons are drawn from the first draft, the chat, the approved draft and the published file.
 - **Training material:** accepted reports, the draft-to-final edits, answers to conflict flags and the analyst's notes. Indexed for retrieval at once; used for training later.
 - **Method:** LoRA adapters trained 4-bit (QLoRA) on a local base model: a firm layer (house style and frameworks) and an analyst layer (voice), a few MB each, swapped per request. A new analyst uses the firm layer until enough accepted reports exist.
 - **Weights learn how to write; retrieval holds what is true.** Facts are never trained in; ratings, target prices and numbers are masked out of training data.
@@ -904,8 +907,10 @@ Retrieval and the agent first (they remove the pasted-context step), then local 
 | Conflict review (proposed) | Before drafting: each changed estimate the evidence contradicts, with sources; keep, change in the model, or add a note. |
 | Templates | Upload, sectors, mapping confirmation, test report, versions (admins). |
 | Models | Discovered and built models, link status, versions, lock holder. |
-| Reports | Set-up: company, report (Quarterly update, Initiating coverage, IPO coverage), basis (Standalone default; Consolidated or Both when filed), quarter, in the URL. Input readiness (filed results, comps, the model and its rating; transcripts, presentations, MD&A, house template marked "Being built"). What each output will contain. The IPO coverage tab lists issues, their documents, restated figures with flags, and per-section drafts (blocked sections show their numbers). Generate stays off, with the reason, until drafting is built; recent reports below. Soft pulsing placeholders for work in progress (stopped under reduced motion). |
-| Q&A | Chat over a company's filings with page links. |
+| Reports | Set-up: company, report (Quarterly update, Initiating coverage, IPO coverage), basis (Standalone default; Consolidated or Both when filed), quarter, in the URL. Input readiness (filed results, comps, the model and its rating; transcripts, presentations, MD&A, house template marked "Being built"). What each output will contain. The IPO coverage tab lists issues, their documents, restated figures with flags, and per-section drafts (blocked sections show their numbers). Format (Word report or PowerPoint) chosen first; Generate starts a report thread, off with the reason when the inputs do not allow it; your reports below, with status. Soft pulsing placeholders for work in progress (stopped under reduced motion). |
+| Report thread | The draft (sections or slides) beside a chat with the AI. The analyst types into any part or asks the AI; the draft is read-only while the AI writes; changed sections are highlighted, with one-click undo; figures that match no source are marked "not sourced"; rating, target and guidance are blanks for the file. Approve freezes it and builds the file on the sector's template (or a plain one); download; publish the final file (a file without the report tag needs confirming). |
+| Q&A | Multi-turn chat over a company's filings with page sources; answers with an unsourced figure are withheld. Never feeds lessons. |
+| Lessons | What the AI has learnt from published reports, active and retired; the analyst edits, retires or deletes their own; admins edit firm lessons and promote an analyst's lesson to the firm. |
 | Comps | Saved peer lists (beside the table from 1,500 px, buttons above it otherwise), companies by search or suggested peers, basis switch, median and mean, Excel export; the set in the URL; cards on phones. |
 | Settings | Data status (watcher season, last and next ask, a warning when a scheduled start left no record; latest close and coverage; counts and database size; whether a model key is set, never the key). Alerts (channels, a test per channel, recent alerts; errors summarised, never echoed). Bridge tokens (made, shown once, revoked). Sign out everywhere. Display preferences in the browser (theme, amounts, basis, desk order, lock chime). NSE schedules are not editable. |
 | Admin | Users (add with email, name and role; send first password; pause, unblock), Templates, Settings (upload limit 1 to 100 MB, default 25), Model locks (see and release any, audited). |

@@ -22,13 +22,16 @@ from analekh.api.routers import (
     companies,
     comps,
     ipo,
+    lessons,
     locks,
     models,
     outputs,
     public,
+    qa,
     settings_api,
     system,
     templates,
+    threads,
     tokens,
     users,
 )
@@ -95,6 +98,9 @@ for router in (
     users.router,
     settings_api.router,
     locks.router,
+    threads.router,
+    lessons.router,
+    qa.router,
 ):
     app.include_router(router, dependencies=[Depends(get_user)])  # every route needs a session
 

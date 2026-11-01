@@ -97,6 +97,43 @@ class Settings(BaseSettings):
     min_upload_bytes: int = 1024 * 1024
     max_upload_ceiling_bytes: int = 100 * 1024 * 1024
     request_body_overhead_bytes: int = 1024 * 1024
+    draft_max_units: int = 200  # sections or slides in one draft
+    draft_max_blocks: int = 5000  # blocks in one draft
+    draft_max_text_chars: int = 20000  # one paragraph, bullet or table cell
+    # Words and regexes that mark a rating or target price in text. A sentence that matches is
+    # masked before reuse (rule 8). Whole words, case-insensitive; a firm with its own scale edits this.
+    rating_words: list[str] = [
+        "rating", "recommendation", "buy", "sell", "hold", "outperform", "underperform",
+        "overweight", "underweight", "accumulate", "neutral",
+    ]  # fmt: skip
+    target_patterns: list[str] = [
+        r"\btarget\s+price\b",
+        r"\bprice\s+target\b",
+        r"\btarget\s+(?:of\s+)?(?:rs\.?|inr|₹)",
+        r"\btp\b",
+        r"\bpt\b",
+        r"\bfair\s+value\b",
+    ]
+    # Stock phrases that mark generated text. A draft section containing one is blocked like an
+    # unmatched number (design doc 17.2). Whole words, case-insensitive.
+    style_banned_phrases: list[str] = ["delve", "it is worth noting", "in today's fast-paced", "tapestry", "navigate the landscape"]
+    sourced_lookback_days: int = 800  # filed data this far back from the report quarter counts as a source
+    chat_history_messages: int = 10  # earlier chat turns sent to the model
+    chat_message_max_chars: int = 8000
+    qa_question_max_chars: int = 2000
+    chat_turn_timeout_s: int = 300  # a chat reply or a first draft may run this long
+    chat_busy_grace_s: int = 60  # a draft stays locked this much longer than the timeout if a job died
+    chat_page_messages: int = 200  # chat messages returned with a thread
+    lessons_in_prompt: int = 30
+    lessons_per_publish: int = 8  # new lessons proposed from one published report, at most
+    lesson_input_chars: int = 60000  # each document given to the lesson job is cut to this
+    examples_in_prompt: int = 3  # past published reports shown as examples
+    example_chars: int = 6000
+    # Office packages (templates and published files): refused past these limits, before expanding.
+    publish_max_entries: int = 5000
+    publish_max_expanded_bytes: int = 250 * 1024 * 1024
+    publish_max_ratio: int = 300  # expanded size over compressed size, per part
+    publish_max_part_bytes: int = 50 * 1024 * 1024  # largest single part we read  # most active lessons sent to the model
     lock_poll_seconds: int = 20
     idle_reminder_minutes: int = 30
     session_purge_cron: str = "30 3 * * *"

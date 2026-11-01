@@ -3,6 +3,35 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-11-02** Report chat, Tasks 1 to 10 built (plan `docs/superpowers/plans/2026-11-01-report-chat.md`):
+  tables and migrations 0019 and 0020; the model-neutral draft; masking of ratings and targets;
+  section-by-section drafting and the chat turn with grounding, style and rating checks; versioned
+  draft store; one writer per thread (atomic claim, expiry, stale jobs stand down); thread routes
+  (start, list, open, message, typed edit, approve, download); the approved draft built into the
+  sector's Word or PowerPoint template (macros kept byte for byte) or a plain default file, tagged
+  with its thread; publishing by upload or by tag (for the add-in) through a safe Office reader.
+  Security review (quick, focused, guidance mode of the security-audit skill, no run directory;
+  not independent: by the code's author) of the new code before commit: one finding fixed (a DTD
+  in a UTF-16 XML part passed the byte check and was parsed, though no entity was expanded; now
+  refused after parsing too), one race hardened (a late job whose claim expired now stands down).
+  Nothing accepted.
+  Then the rest of the plan (Tasks 11 to 16, 18): lessons (proposed from each published report by a
+  job, masked inputs, closed schema; tests by wording, structure or a judge; duplicates strengthen)
+  applied in first drafts and the chat (one retry, then flagged; the analyst's explicit ask wins);
+  past published reports shown masked as examples; the upgrade check (`analekh ai check`, replays
+  recorded data, relative gate, stored in `lesson_checks`), `analekh ai export` (JSONL) and `ai
+  learn`; lessons routes; Q&A threads (migration 0021) replacing the one-shot `POST /qa`; web:
+  Reports set-up (format first, Generate, your reports), the report thread page (draft beside the
+  chat, autosave, undo, approve, download, publish with tag confirmation), Q&A and Lessons pages.
+  Not built: the Word/PowerPoint add-in (Task 17) and adapter training. Python 966 tests, web 254.
+- **2026-11-01** Report chat, publishing and lasting learning: design approved (not yet built).
+  `docs/superpowers/specs/2026-11-01-report-chat-design.md`. Drafts are edited in a chat thread
+  (typing or asking the AI); approval builds one Word or PowerPoint file; the analyst edits the file
+  and publishes it by upload or a Word/PowerPoint add-in; the AI learns from chat edits and the
+  published file. Learning kept in three layers (record, tested lessons, rebuildable adapters) so
+  it survives model upgrades. Q&A is built in the same update. Deviation section 16, with one open
+  conflict with section 15 (who writes the Word and PowerPoint files). Hierarchy deferred (AI.md
+  section 14). Next: the build plan.
 - **2026-10-31** Templates in three kinds: Excel model, Word report, PowerPoint report. New
   `kind` and `has_macros` columns (migration 0017) and `templates/files.py`. Word and PowerPoint
   templates (.docx/.docm/.dotx/.dotm, .pptx/.pptm/.potx/.potm) are stored byte for byte per sector

@@ -29,12 +29,13 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Outputs",
     items: [
       { to: "/reports", label: "Reports", icon: "file" },
-      { to: "/qa", label: "Q&A", icon: "chat", soon: true },
+      { to: "/qa", label: "Q&A", icon: "chat" },
       { to: "/comps", label: "Comps", icon: "bars" },
+      { to: "/lessons", label: "Lessons", icon: "star" },
     ],
   },
 ];
-const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/settings"]);
+const NO_SEARCH_BAR = new Set(["/reports", "/comps", "/models", "/settings", "/qa", "/lessons"]);
 const SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "sliders" };
 const ADMIN: NavItem = { to: "/admin/users", label: "Admin", icon: "layers" };
 

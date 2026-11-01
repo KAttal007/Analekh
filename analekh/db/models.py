@@ -400,6 +400,173 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+THREAD_STATUSES = ("drafting", "approved", "published")
+THREAD_FORMATS = ("word", "ppt")
+VERSION_TRIGGERS = ("first_draft", "ai_reply", "analyst_edit", "approved")
+LESSON_SCOPES = ("analyst", "firm")
+LESSON_STATUSES = ("active", "retired")
+LESSON_TEST_KINDS = ("phrase", "structure", "judged")
+
+
+class ReportThread(Base):
+    """One report being drafted in chat, then approved and published (design: report chat).
+    One thread has one format. Approved threads are frozen; a correction is made in the file."""
+
+    __tablename__ = "report_threads"
+    __table_args__ = (
+        CheckConstraint(f"status IN {THREAD_STATUSES}", name="ck_report_threads_status"),
+        CheckConstraint(f"format IN {THREAD_FORMATS}", name="ck_report_threads_format"),
+        Index("ix_report_threads_owner", "owner_id", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    model_id: Mapped[int | None] = mapped_column(ForeignKey("models.id"))
+    report_type: Mapped[str] = mapped_column(Text)  # quarterly, initiating
+    format: Mapped[str] = mapped_column(Text)
+    basis: Mapped[str] = mapped_column(Text)  # consolidated, standalone, both
+    quarter_end: Mapped[date | None] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(Text, default="drafting", server_default="drafting")
+    current_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set while an AI job (first draft or a chat reply) holds the draft; the draft is read-only then.
+    # A job that dies leaves it behind, so it counts as busy only for a limited time (settings).
+    busy_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    busy_job_id: Mapped[str | None] = mapped_column(Text)
+
+
+class ThreadMessage(Base):
+    """One chat turn. Text only; tool results and the grounding result are kept in MinIO by key."""
+
+    __tablename__ = "thread_messages"
+    __table_args__ = (CheckConstraint("role IN ('analyst','ai')", name="ck_thread_messages_role"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("report_threads.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    selection: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # unit and block the message was about
+    model_used: Mapped[str | None] = mapped_column(Text)
+    prompt_hash: Mapped[str | None] = mapped_column(String(64))
+    trace_key: Mapped[str | None] = mapped_column(Text)  # MinIO key: tool calls and results
+    # What the AI turn did: changed units, new version, blocked changes (reasons and unmatched numbers).
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReportVersion(Base):
+    """A saved state of the draft. The first and the approved versions are stored in full; the
+    others as changes against the version before (reports/store.py)."""
+
+    __tablename__ = "report_versions"
+    __table_args__ = (
+        UniqueConstraint("thread_id", "version_no", name="uq_report_versions_no"),
+        CheckConstraint(f"trigger IN {VERSION_TRIGGERS}", name="ck_report_versions_trigger"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("report_threads.id", ondelete="CASCADE"), index=True)
+    version_no: Mapped[int] = mapped_column(Integer)
+    parent_no: Mapped[int | None] = mapped_column(Integer)
+    trigger: Mapped[str] = mapped_column(Text)
+    by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    storage_key: Mapped[str] = mapped_column(Text)
+    body_sha256: Mapped[str] = mapped_column(String(64))
+    full: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PublishedFile(Base):
+    """The final Word or PowerPoint file the analyst published. The original bytes are kept as
+    received, macro part included; it is never opened or run (rule 7)."""
+
+    __tablename__ = "published_files"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("report_threads.id", ondelete="CASCADE"), index=True)
+    file_sha256: Mapped[str] = mapped_column(String(64))
+    storage_key: Mapped[str] = mapped_column(Text)
+    original_name: Mapped[str] = mapped_column(Text)
+    extension: Mapped[str] = mapped_column(Text)
+    has_macros: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    route: Mapped[str] = mapped_column(Text)  # upload, addin
+    uploaded_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    text_key: Mapped[str | None] = mapped_column(Text)  # extracted text and tables, JSON in MinIO
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Lesson(Base):
+    """A rule learnt from the analyst's feedback, in plain words, with a test. Kept in the database
+    so it survives any model change (design: lessons)."""
+
+    __tablename__ = "lessons"
+    __table_args__ = (
+        CheckConstraint(f"scope IN {LESSON_SCOPES}", name="ck_lessons_scope"),
+        CheckConstraint(f"status IN {LESSON_STATUSES}", name="ck_lessons_status"),
+        CheckConstraint(f"test_kind IN {LESSON_TEST_KINDS}", name="ck_lessons_test_kind"),
+        CheckConstraint("(scope = 'firm') OR (owner_id IS NOT NULL)", name="ck_lessons_owner"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    scope: Mapped[str] = mapped_column(Text, default="analyst", server_default="analyst")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default="active", server_default="active")
+    test_kind: Mapped[str] = mapped_column(Text)
+    test_spec: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    strength: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    source_thread_id: Mapped[int | None] = mapped_column(ForeignKey("report_threads.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QaThread(Base):
+    """A Q&A chat about one company's filings (design doc 19.1). Its messages never feed lessons."""
+
+    __tablename__ = "qa_threads"
+    __table_args__ = (Index("ix_qa_threads_owner", "owner_id", "updated_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    title: Mapped[str] = mapped_column(Text, default="", server_default="")
+    busy_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    busy_job_id: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QaMessage(Base):
+    __tablename__ = "qa_messages"
+    __table_args__ = (CheckConstraint("role IN ('analyst','ai')", name="ck_qa_messages_role"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("qa_threads.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # citations, blocked, unmatched numbers
+    model_used: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class LessonCheck(Base):
+    """One upgrade check: a candidate model replayed on past threads (design: moving to a new model)."""
+
+    __tablename__ = "lesson_checks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    current_model: Mapped[str] = mapped_column(Text)
+    candidate_model: Mapped[str] = mapped_column(Text)
+    threads_used: Mapped[int] = mapped_column(Integer)
+    results: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    verdict: Mapped[str] = mapped_column(Text)  # pass, fail
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class IpoIssue(Base):
     """An offer (IPO) before and after listing. Kept apart from `companies`: an unlisted company
     has no NSE symbol. `company_id` is set once `symbol` exists in `companies`."""
