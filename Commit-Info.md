@@ -3,6 +3,12 @@
 Newest first. One entry per major update: what moved, and what it unblocks. Kept out of
 [README.md](README.md) so the README stays short.
 
+- **2026-11-02** Dependency fixes after GitLab's OSV scan (16 findings in 5 npm packages, all dev
+  tooling): `pnpm-workspace.yaml` overrides follow-redirects 1.16.2, node-forge 1.4.1, glob 14.0.2,
+  minimatch 11.0.1 (replaces 10.2.6 under eslint and 5.1.9 under openapi-typescript); lockfile
+  updated. Lint, web tests (254), build and API type generation checked after the bumps.
+  GHSA-86w9-cpqp-85rv (node-forge, no "fixed" version listed) is marked affected only through
+  1.4.0, so 1.4.1 clears it. Nothing accepted.
 - **2026-11-02** Report chat, Tasks 1 to 10 built (plan `docs/superpowers/plans/2026-11-01-report-chat.md`):
   tables and migrations 0019 and 0020; the model-neutral draft; masking of ratings and targets;
   section-by-section drafting and the chat turn with grounding, style and rating checks; versioned
